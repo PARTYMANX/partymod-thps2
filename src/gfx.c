@@ -1,4 +1,4 @@
-struct D3D7Device {
+/*struct D3D7Device {
 	void *QueryInterface;
 	void *AddRef;
 	void *Release;
@@ -485,7 +485,6 @@ struct D3D7 *createD3d7Device() {
 }
 
 struct DDraw7 {
-    /*** IUnknown methods ***/
     STDMETHOD(QueryInterface) (THIS_ REFIID riid, LPVOID FAR * ppvObj) PURE;
     STDMETHOD_(ULONG,AddRef) (THIS)  PURE;
     STDMETHOD_(ULONG,Release) (THIS) PURE;
@@ -524,4 +523,294 @@ int createDirectDrawWrapper(void *a, void *b, void *c, void *d) {
 
 void patchD3D() {
 	patchCall(0x004f5310, createDirectDrawWrapper);
+}
+*/
+
+#include <patch.h>
+#include <global.h>
+#include <gfx/vk/gfx_vk.h>
+
+partyRenderer *renderer = NULL;
+
+void initDDraw() {
+	printf("STUB: initDDraw\n");
+
+	int *width = 0x029d6fe4;
+	int *height = 0x029d6fe8;
+
+	*width = 640;
+	*height = 480;
+}
+
+void initD3D() {
+	//printf("STUB: initD3D\n");
+	void *hwnd = 0x029d4fc4;
+
+	uint8_t result = CreateVKRenderer(hwnd, &renderer);
+
+	if (!result) {
+		printf("failed to init vulkan!!!\n");
+	} else {
+		printf("vulkan initialized!!\n");
+	}
+}
+
+void D3D_ClearBuffers() {
+	printf("STUB: D3D_ClearBuffers\n");
+}
+
+void D3DPOLY_Init() {
+	printf("STUB: D3DPOLY_Init\n");
+}
+
+void D3DPOLY_StartScene(int a, int b) {
+	printf("STUB: D3DPOLY_StartScene: 0x%08x 0x%08x\n", a, b);
+
+	startRender(renderer);
+}
+
+void D3D_EndSceneAndFlip() {
+	printf("STUB: D3D_EndSceneAndFlip\n");
+
+	finishRender(renderer);
+}
+
+void renderPolyFT4(int *tag) {
+	int param_1 = tag;
+	
+	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
+	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+	uint8_t u1 = *(uint8_t *)((uint8_t *)tag + 12);
+	uint8_t v1 = *(uint8_t *)((uint8_t *)tag + 13);
+
+	int16_t x2 = *(int16_t *)((uint8_t *)tag + 16);
+	int16_t y2 = *(int16_t *)((uint8_t *)tag + 18);
+	
+	int16_t x3 = *(int16_t *)((uint8_t *)tag + 24);
+	int16_t y3 = *(int16_t *)((uint8_t *)tag + 26);
+	
+	int16_t x4 = *(int16_t *)((uint8_t *)tag + 32);
+	int16_t y4 = *(int16_t *)((uint8_t *)tag + 34);
+
+	float z = *(float *)((uint8_t *)tag + 40);
+	int zi = *(int *)((uint8_t *)tag + 40);
+
+	z = (z + 1.0f) / 2.0f;
+
+	printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
+
+	renderVertex vertices[6];
+	vertices[0] = (renderVertex) { (((float)x1 / 640.0f) * 2.0f) - 1.0f, (((float)y1 / 480.0f) * 2.0f) - 1.0f, z, 0.0f, 0.0f, 0xFF0000FF };
+	vertices[1] = (renderVertex) { (((float)x2 / 640.0f) * 2.0f) - 1.0f, (((float)y2 / 480.0f) * 2.0f) - 1.0f, z, 0.0f, 0.0f, 0xFF00FF00 };
+	vertices[2] = (renderVertex) { (((float)x3 / 640.0f) * 2.0f) - 1.0f, (((float)y3 / 480.0f) * 2.0f) - 1.0f, z, 0.0f, 0.0f, 0xFFFF0000 };
+	vertices[3] = (renderVertex) { (((float)x2 / 640.0f) * 2.0f) - 1.0f, (((float)y2 / 480.0f) * 2.0f) - 1.0f, z, 0.0f, 0.0f, 0xFF0000FF };
+	vertices[4] = (renderVertex) { (((float)x3 / 640.0f) * 2.0f) - 1.0f, (((float)y3 / 480.0f) * 2.0f) - 1.0f, z, 0.0f, 0.0f, 0xFF00FF00 };
+	vertices[5] = (renderVertex) { (((float)x4 / 640.0f) * 2.0f) - 1.0f, (((float)y4 / 480.0f) * 2.0f) - 1.0f, z, 0.0f, 0.0f, 0xFFFF0000 };
+
+	drawVertices(renderer, vertices, 6);
+}
+
+void D3DPOLY_DrawOTag(int *tag) {
+	printf("STUB: D3DPOLY_DrawOTag: 0x%08x\n", tag);
+
+	/*uint8_t isWireframe = (*(uint32_t *)(tag + 8)) & 0x30000000 >> 28;
+	if (isWireframe) {
+		printf("Draw wireframe!");
+		if (!(isWireframe & 0x2)) {
+			return;
+		}
+	}*/
+
+	// call to 4fe396?
+
+	while(tag != NULL) {
+		if (tag[1] != 0) {
+			uint8_t cmd = *(uint8_t *)((int)tag + 7);
+			//printf("just think, we could be drawing now... %d, %d\n", cmd >> 2, cmd & 0xfffffffc);
+
+			switch(cmd >> 2) {
+			case 8: 
+				printf("renderPolyF3\n");
+				break;
+			case 9: 
+				printf("renderPolyFT3\n");
+				break;
+			case 10: 
+				printf("renderPolyF4\n");
+				break;
+			case 11: 
+				renderPolyFT4(tag);
+				break;
+			case 12: 
+				printf("renderPolyG3\n");
+				break;
+			case 13: 
+				printf("renderPolyGT3\n");
+				break;
+			case 14: 
+				printf("renderPolyG4\n");
+				break;
+			case 15: 
+				printf("renderPolyGT4\n");
+				break;
+			case 16: 
+				printf("renderPolyF2\n");
+				break;
+			case 18: 
+				printf("renderPolyF3\n");
+				break;
+			case 20: 
+				printf("renderPolyF4\n");
+				break;
+			case 21: 
+				printf("renderPolyG2\n");
+				break;
+			case 25: 
+				printf("renderTile\n");
+				break;
+			case 27: 
+				printf("renderTile1\n");
+				break;
+			case 29: 
+				printf("renderTile8\n");
+				break;
+			case 31: 
+				printf("renderTile16\n");
+				break;
+			case 44: 
+				printf("renderDXPoly\n");
+				break;
+			default:
+				printf("UNKNOWN RENDER COMMAND: %d\n", cmd >> 2);
+			}
+		}
+		tag = *tag;
+	}
+}
+
+void *(*createTexture)() = 0x4d6a70;
+
+
+void D3DTEX_Init() {
+	printf("STUB: D3DTEX_Init\n");
+}
+
+int D3DTEX_AddToTextureList(int a, int b, int c, char d) {
+	printf("STUB: D3DTEX_AddToTextureList\n");
+
+	return 0;
+}
+
+int D3DTEX_AddToTextureList2(int a, int b, int c, char d, int e, int f) {
+	printf("STUB: D3DTEX_AddToTextureList2: %d, %d, %d, %d, %d, %d\n", a, b, c, d, e, f);
+
+	uint32_t *result = createTexture();
+	*(uint32_t *)((uint8_t *)result + 8) = a;
+	*(uint16_t *)((uint8_t *)result + 20) = b;
+	*(uint16_t *)((uint8_t *)result + 22) = c;
+	*(uint32_t *)((uint8_t *)result + 16) = *(uint32_t *)((uint8_t *)result + 16) | 0x12;
+
+	return result;
+}
+
+int D3DTEX_AddToTextureList3(int a, int b, int c, int d) {
+	printf("STUB: D3DTEX_AddToTextureList3\n");
+
+	return 0;
+}
+
+void makeTextureListEntry(int **a, int b, int c, int d) {
+	printf("STUB: makeTextureListEntry: 0x%08x, 0x%08x, %d, %d\n", a, b, c, d);
+	int **palFront = 0x0069d174;
+
+	if (a[8] == NULL) {
+		int **idx = palFront;
+		while (idx != NULL) {
+			if (*idx == b) {
+				a[8] = idx;
+				break;
+			}
+
+			idx = idx[4];
+		}
+
+		if (a[8] == NULL) {
+			printf("Palette Checksum not found: 0x%08x\n", b);
+			a[8] = palFront;
+		}
+	}
+}
+
+void *D3DTEX_GetTexturePalette(void *a) {
+	printf("STUB: D3DTEX_GetTexturePalette\n");
+
+	return 0;
+}
+
+int dummypalette[128];
+
+void *D3DTEX_GetPalette(void *a) {
+	printf("STUB: D3DTEX_GetPalette\n");
+
+	return dummypalette;
+}
+
+void D3DTEX_SetPalette(void *a, void *b) {
+	printf("STUB: D3DTEX_SetPalette\n");
+}
+
+void *__fastcall D3DSprite_D3DSprite(void *sprite, void *pad, int a, char *b, char c) {
+	printf("STUB: D3DSprite: 0x%08x, %s, %d\n", a, b, c);
+
+	return sprite;
+}
+
+void __fastcall D3DSprite_Draw(void *sprite, void *pad, int a, float b, float c) {
+	printf("STUB: D3DSprite::Draw: 0x%08x, %f, %f\n", a, b, c);
+}
+
+void __fastcall D3DSprite_Destroy(void *sprite) {
+	printf("STUB: ~D3DSprite\n");
+}
+
+void WINMAIN_SwitchResolution() {
+	printf("STUB: WINMAIN_SwitchResolution\n");
+
+	int *width = 0x029d6fe4;
+	int *height = 0x029d6fe8;
+
+	*width = 640;
+	*height = 480;
+}
+
+void WINMAIN_Configure() {
+	printf("STUB: WINMAIN_Configure\n");
+}
+
+void installGfxPatches() {
+	patchJmp(0x004f5190, initDDraw);
+	patchJmp(0x004f41c0, initD3D);
+	
+	patchJmp(0x004ce0d0, D3D_ClearBuffers);
+	
+	patchJmp(0x004d13f0, D3DPOLY_Init);
+	patchJmp(0x004d0d50, D3DPOLY_StartScene);
+	patchJmp(0x004d0370, D3DPOLY_DrawOTag);
+	patchJmp(0x004cde40, D3D_EndSceneAndFlip);
+	
+	patchJmp(0x004d7a00, D3DTEX_Init);
+	//patchJmp(0x004d5ec0, D3DTEX_AddToTextureList);
+	//patchJmp(0x004d6ac0, D3DTEX_AddToTextureList2);
+	patchJmp(0x004d6b40, D3DTEX_AddToTextureList3);
+	patchJmp(0x004d7110, D3DTEX_GetTexturePalette);
+	patchJmp(0x004d7750, D3DTEX_GetPalette);
+	patchJmp(0x004d77e0, D3DTEX_SetPalette);
+	patchJmp(0x004d6100, makeTextureListEntry);
+
+	patchJmp(0x004d46b0, D3DSprite_D3DSprite);
+	patchJmp(0x004d4ba0, D3DSprite_Draw);
+	patchJmp(0x004d4ad0, D3DSprite_Destroy);
+	
+	patchJmp(0x004f3f10, WINMAIN_SwitchResolution);
+	patchJmp(0x004cc240, WINMAIN_Configure);
 }

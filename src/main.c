@@ -12,6 +12,7 @@
 #include <input.h>
 #include <config.h>
 #include <script.h>
+#include <gfx.h>
 
 #define VERSION_NUMBER_MAJOR 0
 #define VERSION_NUMBER_MINOR 1
@@ -156,6 +157,7 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 
 			// install patches
 			patchWindowAndInit();
+			installGfxPatches();
 
 			break;
 
