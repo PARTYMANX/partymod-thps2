@@ -457,6 +457,8 @@ void startRender(partyRenderer *renderer) {
 		exit(1);
 	}
 
+	// START IMAGE TRANSITION
+
 	const VkImageMemoryBarrier image_memory_barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
@@ -484,6 +486,8 @@ void startRender(partyRenderer *renderer) {
 		1, // imageMemoryBarrierCount
 		&image_memory_barrier // pImageMemoryBarriers
 	);
+
+	// END IMAGE TRANSITION
 
 	// begin rendering
 	VkClearColorValue clearColor;
@@ -543,14 +547,46 @@ void startRender(partyRenderer *renderer) {
 	vkCmdBindVertexBuffers(renderer->renderCommandBuffer, 0, 1, &(renderer->polyBuffer.buffer.buffer), &zero);
 }
 
+void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
+	// convenience function for reordering triangle fans (DXPoly is stored like this)
+	vkCmdDraw(renderer->renderCommandBuffer, (vertex_count - 2) * 3, 1, renderer->polyBuffer.currentVertex, 0);
+
+	for (int i = 1; i < vertex_count - 2 + 1; i++) {
+		appendPolyBuffer(renderer, vertices, 1);
+		appendPolyBuffer(renderer, vertices + i, 2);
+	}
+}
+
 void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
 	vkCmdDraw(renderer->renderCommandBuffer, vertex_count, 1, renderer->polyBuffer.currentVertex, 0);
 
 	appendPolyBuffer(renderer, vertices, vertex_count);
 }
 
+void setViewport(partyRenderer *renderer, float x, float y, float width, float height) {
+	VkViewport viewport;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	viewport.x = x;
+	viewport.y = y;
+	viewport.width = width;
+	viewport.height = height;
+
+	vkCmdSetViewport(renderer->renderCommandBuffer, 0, 1, &viewport);
+}
+
+void setScissor(partyRenderer *renderer, float x, float y, float width, float height) {
+	VkRect2D renderArea;
+	renderArea.offset = (VkOffset2D) { x, y };
+	renderArea.extent = (VkExtent2D) { width, height };
+
+	vkCmdSetScissor(renderer->renderCommandBuffer, 0, 1, &renderArea);
+}
+
 void finishRender(partyRenderer *renderer) {
 	vkCmdEndRendering(renderer->renderCommandBuffer);
+
+	// START IMAGE TRANSITION
 
 	const VkImageMemoryBarrier image_memory_barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -579,6 +615,8 @@ void finishRender(partyRenderer *renderer) {
 		1, // imageMemoryBarrierCount
 		&image_memory_barrier // pImageMemoryBarriers
 	);
+
+	// END IMAGE TRANSITION
 
 	vkEndCommandBuffer(renderer->renderCommandBuffer);
 

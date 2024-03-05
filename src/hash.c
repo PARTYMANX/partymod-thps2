@@ -136,7 +136,7 @@ void map_del(map_t *tbl, void *key, size_t keysz) {
 	// find the entry
 	struct bucketNode **i = &(tbl->buckets[hash].head);
 	while ((*i) && (keysz != (*i)->keysz || tbl->cmp(key, (*i)->key, keysz) != 0)) {
-		(*i) = (*i)->next;
+		i = &((*i)->next);
 	}
 
 	if (*i) {

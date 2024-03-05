@@ -12,7 +12,7 @@ set(SOURCE_FILES
 	"${SRC}/window.c"
 	# "${SRC}/config.c"
 	# "${SRC}/input.c"
-	# "${SRC}/hash.c"
+	"${SRC}/hash.c"
 	# "${SRC}/script.c"
 	# "${SRC}/patches.c"
 )
@@ -24,7 +24,7 @@ set(HEADER_FILES
 	"${SRC}/window.h"
 	# "${SRC}/config.h"
 	# "${SRC}/input.h"
-	# "${SRC}/hash.h"
+	"${SRC}/hash.h"
 	# "${SRC}/script.h"
 )
 

@@ -31,5 +31,8 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **dst);
 void startRender(partyRenderer *renderer);
 void finishRender(partyRenderer *renderer);
 void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
+void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
+void setViewport(partyRenderer *renderer, float x, float y, float width, float height);
+void setScissor(partyRenderer *renderer, float x, float y, float width, float height);
 
 #endif _GFX_VK_H_
