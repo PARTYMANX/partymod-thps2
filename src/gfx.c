@@ -526,6 +526,9 @@ void patchD3D() {
 }
 */
 
+#include <stdio.h>
+#include <stdint.h>
+
 #include <patch.h>
 #include <global.h>
 #include <gfx/vk/gfx_vk.h>
@@ -568,10 +571,39 @@ void D3DPOLY_Init() {
 	printf("STUB: D3DPOLY_Init\n");
 }
 
+uint32_t fixDXColor(uint32_t color) {
+	return ((color & 0x00FF0000) >> 16) + ((color & 0x0000FF00) >> 0) + ((color & 0x000000FF) << 16) + ((color & 0xFF000000));
+}
+
 void D3DPOLY_StartScene(int a, int b) {
+	void (__cdecl *setupFog)(int) = 0x004d1160;
+	uint32_t *viewportClass = 0x00560698;
+	uint16_t *DpqMin = 0x005606a4;
+	uint16_t *DpqMaxMaybe = *viewportClass + 10;
+	float *fogThreshold = 0x00546b3c;
+	float *FogYonScale = 0x00546b38;
+	float *VideoFogYonScale = 0x00545334;
+	uint32_t gShellMode = 0x006a35b4;
+
 	printf("STUB: D3DPOLY_StartScene: 0x%08x 0x%08x\n", a, b);
 
-	startRender(renderer);
+	//float *fog = 0x00546b38;
+	//*fog = 10000.0f;
+
+	*fogThreshold = (float)*DpqMin / (float)*DpqMaxMaybe;
+	if (gShellMode == 1) {
+		*FogYonScale = 1000.0f;
+	} else {
+		*FogYonScale = *VideoFogYonScale;
+	}
+
+
+
+	setupFog(a);
+
+	uint32_t clearColor = fixDXColor(b);
+
+	startRender(renderer, clearColor);
 }
 
 void (*D3DPOLY_EndScene)() = 0x004d12e0;
@@ -594,6 +626,40 @@ struct dxpoly {
 	uint32_t color;
 };
 
+inline uint32_t applyFog(uint32_t color_in, float depth) {
+	uint32_t *viewportClass = 0x00560698;
+	float *fogThreshold = 0x00546b3c;
+	float *FogYonScale = 0x00546b38;
+	uint16_t *someotherfogvalue = *viewportClass + 14;
+	uint16_t *DpqMaxMaybe = *viewportClass + 10;
+	uint32_t *aFog = 0x00599f90;
+	uint32_t *rFog = 0x0061a47c;
+	uint32_t *gFog = 0x0065c8b0;
+	uint32_t *bFog = 0x005da390;
+
+	float fogDist = (((float)*someotherfogvalue / depth) / ((float)*DpqMaxMaybe * *FogYonScale));
+	//printf("Fog dist = %f\n", fogDist);
+
+	if ((*fogThreshold < 1.0f) && (*fogThreshold <= fogDist)) {
+		float fogFactor = (fogDist - *fogThreshold) / (1.0f - *fogThreshold);
+		fogFactor *= 255.0f;
+		if (fogFactor > 255.0f) {
+			fogFactor = 255.0f;
+		}
+
+		uint32_t fogIdx = fogFactor;
+
+		uint32_t r = color_in >> 16 & 0x000000ff;
+		uint32_t g = color_in >> 8 & 0x000000ff;
+		uint32_t b = color_in & 0x000000ff;
+		uint32_t a = color_in >> 24 & 0x000000ff;
+
+		return rFog[r * 256 + fogIdx] | gFog[g * 256 + fogIdx] | bFog[b * 256 + fogIdx] | aFog[a * 256 + fogIdx];
+	}
+
+	return color_in;
+}
+
 void renderDXPoly(int *tag) {
 	int *screen_width = 0x029d6fe4;
 	int *screen_height = 0x029d6fe8;
@@ -601,9 +667,60 @@ void renderDXPoly(int *tag) {
 	float xmult = (1.0f / (float)*screen_width) * 2.0f;
 	float ymult = (1.0f / (float)*screen_height) * 2.0f;
 
+	uint32_t polyflags = *(uint32_t *)((uint8_t *)tag + 8);
+
+	if (polyflags == 0x10000000) {
+		// wireframe unfilled
+		return;
+	} else if (polyflags & 0x20000000) {
+		// wireframe filled
+	}
+
+	uint32_t alpha;
+
+	if (polyflags & 0x40) {
+		// alpha blending
+		switch(polyflags & 0x180) {
+		case 0x0:
+			alpha = 0x80000000;
+			// blend mode 1
+			break;
+		case 0x80:
+			alpha = 0xff000000;
+			// blend mode 2
+			break;
+		case 0x100:
+			alpha = 0x00000000;
+			// blend mode 4
+			break;
+		case 0x180:
+			alpha = 0x40000000;
+			// blend mode 2
+			break;
+		default:
+			printf("unknown blend mode 0x%08x\n", polyflags & 0x40);
+			alpha = 0xff000000;
+		}
+
+	} else {
+		alpha = 0xff000000;
+	}
+
 	if (!*(uint32_t *)((uint8_t *)tag + 0x10)) {
 		struct dxpoly *vertices = ((uint8_t *)tag + 0x18);
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+
+		// calc final colors
+		for (int i = 0; i < numVerts; i++) {
+			// apply alpha from blend mode
+			uint32_t newcolor = (vertices[i].color & 0x00ffffff) | alpha;
+
+			if (!(polyflags & 0x80000000)) {
+				newcolor = applyFog(newcolor, vertices[i].w);
+			}
+
+			vertices[i].color = newcolor;
+		}
 
 		//printf("RenderDXPoly with %d vertices!!! 0x%08x\n", numVerts, vertices);
 
@@ -622,21 +739,21 @@ void renderDXPoly(int *tag) {
 			buf[outputVert].z = vertices[0].z;
 			buf[outputVert].u = 0.0f;
 			buf[outputVert].v = 0.0f;
-			buf[outputVert].color = ((vertices[0].color & 0x00FF0000) >> 16) + (vertices[0].color & 0x0000FF00) + ((vertices[0].color & 0x000000FF) << 16) + (vertices[0].color & 0xFF000000);
+			buf[outputVert].color = fixDXColor(vertices[0].color);
 
 			buf[outputVert + 1].x = (vertices[i].x * xmult) - 1.0f;
 			buf[outputVert + 1].y = (vertices[i].y * ymult) - 1.0f;
 			buf[outputVert + 1].z = vertices[i].z;
 			buf[outputVert + 1].u = 0.0f;
 			buf[outputVert + 1].v = 0.0f;
-			buf[outputVert + 1].color = ((vertices[i].color & 0x00FF0000) >> 16) + (vertices[i].color & 0x0000FF00) + ((vertices[i].color & 0x000000FF) << 16) + (vertices[i].color & 0xFF000000);
+			buf[outputVert + 1].color = fixDXColor(vertices[i].color);
 
 			buf[outputVert + 2].x = (vertices[i + 1].x * xmult) - 1.0f;
 			buf[outputVert + 2].y = (vertices[i + 1].y * ymult) - 1.0f;
 			buf[outputVert + 2].z = vertices[i + 1].z;
 			buf[outputVert + 2].u = 0.0f;
 			buf[outputVert + 2].v = 0.0f;
-			buf[outputVert + 2].color = ((vertices[i + 1].color & 0x00FF0000) >> 16) + (vertices[i + 1].color & 0x0000FF00) + ((vertices[i + 1].color & 0x000000FF) << 16) + (vertices[i + 1].color & 0xFF000000);
+			buf[outputVert + 2].color = fixDXColor(vertices[i + 1].color);
 
 			outputVert += 3;
 		} 
@@ -645,6 +762,18 @@ void renderDXPoly(int *tag) {
 	} else {
 		struct dxpolytextured *vertices = ((uint8_t *)tag + 0x18);
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+
+		// calc final colors
+		for (int i = 0; i < numVerts; i++) {
+			// apply alpha from blend mode
+			uint32_t newcolor = (vertices[i].color & 0x00ffffff) | alpha;
+
+			if (!(*(uint32_t *)((uint8_t *)tag + 8) & 0x80000000)) {
+				newcolor = applyFog(newcolor, vertices[i].w);
+			}
+
+			vertices[i].color = newcolor;
+		}
 
 		//printf("RenderDXPoly with %d vertices!!! 0x%08x\n", numVerts, vertices);
 
@@ -663,21 +792,21 @@ void renderDXPoly(int *tag) {
 			buf[outputVert].z = vertices[0].z;
 			buf[outputVert].u = vertices[0].u;
 			buf[outputVert].v = vertices[0].v;
-			buf[outputVert].color = ((vertices[0].color & 0x00FF0000) >> 16) + (vertices[0].color & 0x0000FF00) + ((vertices[0].color & 0x000000FF) << 16) + (vertices[0].color & 0xFF000000);
+			buf[outputVert].color = fixDXColor(vertices[0].color);
 
 			buf[outputVert + 1].x = (vertices[i].x * xmult) - 1.0f;
 			buf[outputVert + 1].y = (vertices[i].y * ymult) - 1.0f;
 			buf[outputVert + 1].z = vertices[i].z;
 			buf[outputVert + 1].u = vertices[i].u;
 			buf[outputVert + 1].v = vertices[i].v;
-			buf[outputVert + 1].color = ((vertices[i].color & 0x00FF0000) >> 16) + (vertices[i].color & 0x0000FF00) + ((vertices[i].color & 0x000000FF) << 16) + (vertices[i].color & 0xFF000000);
+			buf[outputVert + 1].color = fixDXColor(vertices[i].color);
 
 			buf[outputVert + 2].x = (vertices[i + 1].x * xmult) - 1.0f;
 			buf[outputVert + 2].y = (vertices[i + 1].y * ymult) - 1.0f;
 			buf[outputVert + 2].z = vertices[i + 1].z;
 			buf[outputVert + 2].u = vertices[i + 1].u;
 			buf[outputVert + 2].v = vertices[i + 1].v;
-			buf[outputVert + 2].color = ((vertices[i + 1].color & 0x00FF0000) >> 16) + (vertices[i + 1].color & 0x0000FF00) + ((vertices[i + 1].color & 0x000000FF) << 16) + (vertices[i + 1].color & 0xFF000000);
+			buf[outputVert + 2].color = fixDXColor(vertices[i + 1].color);
 
 			outputVert += 3;
 		} 
@@ -829,6 +958,8 @@ void D3DPOLY_DrawOTag(int *tag) {
 			uint8_t cmd = *(uint8_t *)((int)tag + 7);
 			//printf("just think, we could be drawing now... %d, %d\n", cmd >> 2, cmd & 0xfffffffc);
 			if (!(cmd & 0x80)) {
+				
+
 				switch(cmd >> 2) {
 					case 8: 
 						printf("renderPolyF3\n");
@@ -1006,6 +1137,12 @@ void WINMAIN_SwitchResolution() {
 
 	*width = 640;
 	*height = 480;
+
+	/*int *fog = 0x0054546c;
+	float *fog2 = 0x00545334;
+
+	*fog = 10000;
+	*fog2 = 10000.0f;*/
 }
 
 int allocbytes = 0;

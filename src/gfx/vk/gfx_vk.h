@@ -28,7 +28,7 @@ typedef struct {
 
 uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **dst);
 
-void startRender(partyRenderer *renderer);
+void startRender(partyRenderer *renderer, uint32_t clearColor);
 void finishRender(partyRenderer *renderer);
 void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
 void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);

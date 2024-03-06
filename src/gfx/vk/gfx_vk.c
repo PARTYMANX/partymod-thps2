@@ -209,7 +209,7 @@ void destroyInstance() {
 VkResult createPolyBuffer(partyRenderer *renderer) {
 	polyBuffer result;
 
-	result.vertexCapacity = 10000;
+	result.vertexCapacity = 32768;
 	result.vertices = malloc(sizeof(renderVertex) * result.vertexCapacity);
 	result.currentVertex = 0;
 
@@ -438,7 +438,7 @@ uint8_t rbVkPresent(partyRenderer *renderer) {
 	return 1;
 }
 
-void startRender(partyRenderer *renderer) {
+void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	uint32_t currentImage = 0;
 	if (!rbVkGetNextImage(renderer, &currentImage)) {
 		printf("ERROR: failed to get next image\n");
@@ -491,9 +491,9 @@ void startRender(partyRenderer *renderer) {
 
 	// begin rendering
 	VkClearColorValue clearColor;
-	clearColor.float32[0] = 0.0f;
-	clearColor.float32[1] = 0.0f;
-	clearColor.float32[2] = 0.0f;
+	clearColor.float32[0] = (float)(clearCol & 0xFF) / 255.0f;
+	clearColor.float32[1] = (float)((clearCol >> 8) & 0xFF) / 255.0f;
+	clearColor.float32[2] = (float)((clearCol >> 16) & 0xFF) / 255.0f;
 	clearColor.float32[3] = 1.0f;
 
 	VkClearValue clearVal;
