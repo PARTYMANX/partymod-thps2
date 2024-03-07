@@ -34,5 +34,7 @@ void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vert
 void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
 void setViewport(partyRenderer *renderer, float x, float y, float width, float height);
 void setScissor(partyRenderer *renderer, float x, float y, float width, float height);
+void setDepthState(partyRenderer *renderer, uint8_t test, uint8_t write);
+void setBlendState(partyRenderer *renderer, uint32_t blendState);
 
 #endif _GFX_VK_H_

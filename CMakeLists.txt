@@ -73,7 +73,7 @@ set(SOURCE_FILES
 	#"${SRC}/gfx/vk/vid_vk_renderpass.c"
 	"${SRC}/gfx/vk/vid_vk_shader.c"
 	"${SRC}/gfx/vk/vid_vk_swapchain.c"
-	#"${SRC}/gfx/vk/vid_vk_texture.c"
+	"${SRC}/gfx/vk/vid_vk_texture.c"
 	"${SRC}/gfx/vk/vid_vk_win32.c"
 	# new things go here
 	"${SRC}/gfx/vk/gfx_vk.c"

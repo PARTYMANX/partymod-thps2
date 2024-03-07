@@ -16,6 +16,7 @@ const char *deviceExtNames[] = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	VK_KHR_MAINTENANCE1_EXTENSION_NAME,
 	VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+	//VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME,
 };
 
 const VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamic_rendering_feature = {

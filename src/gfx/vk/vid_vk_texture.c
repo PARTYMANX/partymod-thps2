@@ -4,24 +4,28 @@
 
 #include <vulkan/vulkan.h>
 
-#include "vid_vk.h"
+#include <gfx/vk/vk.h>
 
 typedef struct textureRenderer_s {
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMem;
 } textureCache_t;
 
-textureCache_t *initTextures(vid2_renderer_t *renderer) {
+textureCache_t *initTextures(partyRenderer *renderer) {
 	textureCache_t *result = malloc(sizeof(textureCache_t));
 
 	// is this used?  TODO: remove me
 }
 
-uint8_t isDepthFormat(vid2_pixelFormat_t format) {
-	return (format == VID2_PIXELFORMAT_DEPTH16_UNORM || format == VID2_PIXELFORMAT_DEPTH32_FLOAT || format == VID2_PIXELFORMAT_DEPTH32_FLOAT_STENCIL_8_UNORM);
+uint8_t isDepthFormat(VkFormat format) {
+	return (format == VK_FORMAT_D16_UNORM || 
+		format == VK_FORMAT_D16_UNORM_S8_UINT || 
+		format == VK_FORMAT_D24_UNORM_S8_UINT || 
+		format == VK_FORMAT_D32_SFLOAT ||
+		format == VK_FORMAT_D32_SFLOAT_S8_UINT);
 }
 
-VkImageUsageFlags decodeUsage(vid2_textureUsage_t usage, uint8_t isDepth) {
+/*VkImageUsageFlags decodeUsage(vid2_textureUsage_t usage, uint8_t isDepth) {
 	VkImageUsageFlags result = 0;
 
 	if (usage & VID2_TEXTURE_USAGE_SHADER_READ)
@@ -33,12 +37,103 @@ VkImageUsageFlags decodeUsage(vid2_textureUsage_t usage, uint8_t isDepth) {
 	}
 
 	return result;
+}*/
+
+void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t height, VkFormat colorFmt, VkFormat depthFmt) {
+	printf("CREATING RENDER TARGETS\n");
+
+	renderer->depthImage.type = VK_IMAGE_TYPE_2D;
+	renderer->depthImage.pixelFormat = depthFmt;
+
+	renderer->depthImage.width = width;
+	renderer->depthImage.height = height;
+	renderer->depthImage.depth = 1;
+
+	renderer->depthImage.mipmapCount = 0;
+	renderer->depthImage.arrayLength = 0;
+	renderer->depthImage.sampleCount = 1;
+
+	//renderer->depthImage.flags = 0;
+
+	VkImageCreateInfo imgCreateInfo;
+	imgCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imgCreateInfo.pNext = NULL;
+	imgCreateInfo.flags = 0;
+	imgCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imgCreateInfo.extent.width = width;
+	imgCreateInfo.extent.height = height;
+	imgCreateInfo.extent.depth = 1;
+	imgCreateInfo.mipLevels = 1;
+	imgCreateInfo.arrayLayers = 1;
+
+	imgCreateInfo.format = depthFmt;
+	imgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imgCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	imgCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	imgCreateInfo.samples = 1;
+
+	imgCreateInfo.queueFamilyIndexCount = 0;
+	imgCreateInfo.pQueueFamilyIndices = NULL;
+
+	if (vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(renderer->depthImage.image)) != VK_SUCCESS) {
+		printf("Failed to create depth texture!\n");
+		exit(1);
+	}
+
+	// allocate memory
+
+	VmaAllocationCreateInfo allocInfo;
+	allocInfo.flags = 0;
+	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	allocInfo.requiredFlags = 0;
+	allocInfo.preferredFlags = 0;
+	allocInfo.memoryTypeBits = 0;
+	allocInfo.pool = VK_NULL_HANDLE;
+	allocInfo.pUserData = NULL;
+	allocInfo.priority = 0.0f;
+
+	vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->depthImage.image, &allocInfo, &renderer->depthImage.allocation, NULL);
+
+	vmaBindImageMemory(renderer->memoryManager->allocator, renderer->depthImage.allocation, renderer->depthImage.image);
+
+	// create image view
+
+	VkImageViewCreateInfo viewCreateInfo;
+	viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewCreateInfo.pNext = NULL;
+	viewCreateInfo.flags = 0;
+	viewCreateInfo.image = renderer->depthImage.image;
+	viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewCreateInfo.format = depthFmt;
+
+	viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+	//viewCreateInfo.subresourceRange.aspectMask = (isDepthFormat(info->pixelFormat)) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+	viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	viewCreateInfo.subresourceRange.baseMipLevel = 0;
+	viewCreateInfo.subresourceRange.levelCount = 1;
+	viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	viewCreateInfo.subresourceRange.layerCount = 1;
+
+	if(vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(renderer->depthImage.imageView)) != VK_SUCCESS) {
+		printf("Failed to create depth image view");
+		exit(1);
+	}
 }
 
-vid2_texture_t *vid2_createTexture(vid2_renderer_t *renderer, vid2_textureInfo_t *info) {
-	vid2_texture_t *result = malloc(sizeof(vid2_texture_t));
+void destroyRenderTargets(partyRenderer *renderer) {
+	vkDestroyImageView(renderer->device->device, renderer->depthImage.imageView, NULL);
+	vkDestroyImage(renderer->device->device, renderer->depthImage.image, NULL);
+	vmaFreeMemory(renderer->memoryManager->allocator, renderer->depthImage.allocation);
+}
 
-	result->renderer = renderer;
+/*vid2_texture_t *vid2_createTexture(vid2_renderer_t *renderer, vid2_textureInfo_t *info) {
+	rbVkImage *result = malloc(sizeof(rbVkImage));
 
 	result->type = info->type;
 	result->pixelFormat = info->pixelFormat;
@@ -56,8 +151,8 @@ vid2_texture_t *vid2_createTexture(vid2_renderer_t *renderer, vid2_textureInfo_t
 	VkImageCreateInfo imgCreateInfo;
 	imgCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imgCreateInfo.pNext = NULL;
-	imgCreateInfo.flags = (info->type == VID2_TEXTURE_TYPE_CUBE) ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
-	imgCreateInfo.imageType = imageTypeLUT[info->type];
+	imgCreateInfo.flags = 0;
+	imgCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 	imgCreateInfo.extent.width = info->width;
 	imgCreateInfo.extent.height = info->height;
 	imgCreateInfo.extent.depth = info->depth;
@@ -82,36 +177,19 @@ vid2_texture_t *vid2_createTexture(vid2_renderer_t *renderer, vid2_textureInfo_t
 
 	// allocate memory
 
-	/*VkMemoryRequirements memReq;
-	vkGetImageMemoryRequirements(renderer->device->device, result->image, &memReq);
+	VmaAllocationCreateInfo allocInfo;
+	allocInfo.flags = 0;
+	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	allocInfo.requiredFlags = 0;
+	allocInfo.preferredFlags = 0;
+	allocInfo.memoryTypeBits = 0;
+	allocInfo.pool = VK_NULL_HANDLE;
+	allocInfo.pUserData = NULL;
+	allocInfo.priority = 0.0f;
 
-	VkPhysicalDeviceMemoryProperties memProp;
-	vkGetPhysicalDeviceMemoryProperties(renderer->device->physicalDevice.device, &memProp);
+	vmaAllocateMemoryForImage(renderer->memoryManager->allocator, result->image, &allocInfo, &result->allocation, NULL);
 
-	VkMemoryAllocateInfo allocInfo;
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.pNext = NULL;
-	allocInfo.allocationSize = memReq.size;
-	if (!findMemoryType(renderer, memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &(allocInfo.memoryTypeIndex))) {
-		printf("SHIT!\n");
-		exit(1);
-	}
-
-	if (!vMemoryAlloc(renderer, allocInfo, &(result->memory))) {
-		printf("DARN!\n");
-		exit(1);
-	}
-
-	vkBindImageMemory(renderer->device->device, result->image, result->memory, 0);*/
-
-	memAllocInfo_t allocInfo;
-	allocInfo.usage = VID2_MEMORY_USAGE_GPU_ONLY;	// TODO: modifyable
-	allocInfo.type = VID2_MEMORY_TYPE_IMAGE;
-	allocInfo.image = result->image;
-
-	result->memory = allocateVidMemory(renderer, &allocInfo);
-
-	bindImageMemory(result->memory, result->image);
+	vmaBindImageMemory(renderer->memoryManager->allocator, result->allocation, result->image);
 
 	// create image view
 
@@ -120,7 +198,7 @@ vid2_texture_t *vid2_createTexture(vid2_renderer_t *renderer, vid2_textureInfo_t
 	viewCreateInfo.pNext = NULL;
 	viewCreateInfo.flags = 0;
 	viewCreateInfo.image = result->image;
-	viewCreateInfo.viewType = imageViewTypeLUT[info->type];
+	viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	viewCreateInfo.format = pixelFormatLUT[info->pixelFormat];
 
 	viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -140,16 +218,16 @@ vid2_texture_t *vid2_createTexture(vid2_renderer_t *renderer, vid2_textureInfo_t
 	}
 
 	return result;
-}
+}*/
 
-void vid2_destroyTexture(vid2_texture_t *img) {
-	vkDestroyImageView(img->renderer->device->device, img->imageView, NULL);
-	vkDestroyImage(img->renderer->device->device, img->image, NULL);
-	freeVidMemory(img->memory);
+void vid2_destroyTexture(partyRenderer *renderer, rbVkImage *img) {
+	vkDestroyImageView(renderer->device->device, img->imageView, NULL);
+	vkDestroyImage(renderer->device->device, img->image, NULL);
+	vmaFreeMemory(renderer->memoryManager->allocator, img->allocation);
 	free(img);
 }
 
-vid2_sampler_t *vid2_createSampler(vid2_renderer_t *renderer, vid2_samplerInfo_t *info) {
+/*vid2_sampler_t *vid2_createSampler(vid2_renderer_t *renderer, vid2_samplerInfo_t *info) {
 	vid2_sampler_t *result = malloc(sizeof(vid2_sampler_t));
 
 	result->renderer = renderer;
@@ -187,18 +265,18 @@ vid2_sampler_t *vid2_createSampler(vid2_renderer_t *renderer, vid2_samplerInfo_t
 	}
 
 	return result;
-}
+}*/
 
-void vid2_destroySampler(vid2_sampler_t *sampler) {
+/*void vid2_destroySampler(vid2_sampler_t *sampler) {
 	vkDestroySampler(sampler->renderer->device->device, sampler->sampler, NULL);
 	free(sampler);
 }
 
 void transitionImageLayout(VkCommandBuffer cmdbuf, vid2_texture_t *img, vid2_textureCopyInfo *info) {
 	
-}
+}*/
 
-void vid2_updateTexture(vid2_texture_t *img, vid2_textureCopyInfo *info) {
+/*void vid2_updateTexture(vid2_texture_t *img, vid2_textureCopyInfo *info) {
 
 	VkDeviceSize sz = info->bytesPerRow * info->region.to[1] * info->region.to[2];
 
@@ -275,13 +353,13 @@ void vid2_updateTexture(vid2_texture_t *img, vid2_textureCopyInfo *info) {
 	endStagingCommandBuffer(img->renderer, cmdbuf);
 
 	vid2_destroyBuffer(buffer);
-}
+}*/
 
 inline int32_t i32max(int32_t a, int32_t b) {
 	return (a > b) ? a : b;
 }
 
-void vid2_generateMipmaps(vid2_texture_t *tex) {
+/*void vid2_generateMipmaps(vid2_texture_t *tex) {
 	//vid2_buffer_t *buffer = createStagingBuffer(tex->renderer, sz);
 
 	VkCommandBuffer cmdbuf = startStagingCommandBuffer(tex->renderer);
@@ -372,12 +450,12 @@ void vid2_generateMipmaps(vid2_texture_t *tex) {
 	endStagingCommandBuffer(tex->renderer, cmdbuf);
 
 	//vid2_destroyBuffer(buffer);
-}
+}*/
 
-uint32_t vid2_getTextureWidth(vid2_texture_t *tex) {
+/*uint32_t vid2_getTextureWidth(vid2_texture_t *tex) {
 	return tex->width;
 }
 
 uint32_t vid2_getTextureHeight(vid2_texture_t *tex) {
 	return tex->height;
-}
+}*/

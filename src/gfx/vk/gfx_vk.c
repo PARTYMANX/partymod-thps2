@@ -271,10 +271,14 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 		goto error_free;
 	}
 
+	printf("CREATING SWAPCHAIN\n");
+
 	r = rbVkCreateSwapchain(result->device, &(result->swapchain));
 	if (r) {
 		goto error_free;
 	}
+
+	printf("DONE\n");
 
 	r = rbVkCreateCommandQueue(result->device, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, &(result->queue));
 	if (r) {
@@ -286,17 +290,19 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 		goto error_free;
 	}
 
+	r = rbVkInitMemoryManager(result, &(result->memoryManager));
+	if (r) {
+		goto error_free;
+	}
+
 	r = createRenderCommandBuffer(result);
 	if (r) {
 		goto error_free;
 	}
 
-	r = createRenderPipelines(result);
-	if (r) {
-		goto error_free;
-	}
+	createRenderTargets(result, result->swapchain->extent.width, result->swapchain->extent.height, VK_FORMAT_R8G8B8A8_SNORM, VK_FORMAT_D24_UNORM_S8_UINT);
 
-	r = rbVkInitMemoryManager(result, &(result->memoryManager));
+	r = createRenderPipelines(result);
 	if (r) {
 		goto error_free;
 	}
@@ -438,6 +444,8 @@ uint8_t rbVkPresent(partyRenderer *renderer) {
 	return 1;
 }
 
+//void transitionImage(partyRenderer *renderer, )
+
 void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	uint32_t currentImage = 0;
 	if (!rbVkGetNextImage(renderer, &currentImage)) {
@@ -489,6 +497,38 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 
 	// END IMAGE TRANSITION
 
+	// START IMAGE TRANSITION
+
+	/*const VkImageMemoryBarrier depth_image_memory_barrier = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.image = renderer->depthImage.image,
+		.subresourceRange = {
+		  .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+		  .baseMipLevel = 0,
+		  .levelCount = 1,
+		  .baseArrayLayer = 0,
+		  .layerCount = 1,
+		}
+	};
+
+	vkCmdPipelineBarrier(
+		renderer->renderCommandBuffer,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // dstStageMask
+		0,
+		0,
+		NULL,
+		0,
+		NULL,
+		1, // imageMemoryBarrierCount
+		&depth_image_memory_barrier // pImageMemoryBarriers
+	);*/
+
+	// END IMAGE TRANSITION
+
 	// begin rendering
 	VkClearColorValue clearColor;
 	clearColor.float32[0] = (float)(clearCol & 0xFF) / 255.0f;
@@ -511,6 +551,22 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	colorAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
 	colorAttachment.clearValue = clearVal;
 
+	VkClearValue clearDepth;
+	clearDepth.depthStencil.depth = 1.0f;
+	clearDepth.depthStencil.stencil = 0;
+
+	VkRenderingAttachmentInfo depthAttachment;
+	depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depthAttachment.pNext = NULL;
+	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachment.imageView = renderer->depthImage.imageView;
+	depthAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+	depthAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	depthAttachment.resolveImageView = renderer->depthImage.imageView;
+	depthAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
+	depthAttachment.clearValue = clearDepth;
+
 	VkRect2D renderArea;
 	renderArea.offset = (VkOffset2D) { 0.0f, 0.0f };
 	renderArea.extent = renderer->swapchain->extent;
@@ -521,7 +577,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	renderInfo.flags = 0;
 	renderInfo.colorAttachmentCount = 1;
 	renderInfo.pColorAttachments = &colorAttachment;
-	renderInfo.pDepthAttachment = NULL;
+	renderInfo.pDepthAttachment = &depthAttachment;
 	renderInfo.pStencilAttachment = NULL;
 	renderInfo.layerCount = 1;
 	renderInfo.renderArea = renderArea;
@@ -529,7 +585,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 
 	vkCmdBeginRendering(renderer->renderCommandBuffer, &renderInfo);
 
-	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->renderPipeline);
+	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->renderPipelines[0]);
 
 	VkViewport viewport;
 	viewport.minDepth = 0.0f;
@@ -543,8 +599,17 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 
 	vkCmdSetScissor(renderer->renderCommandBuffer, 0, 1, &renderArea);
 
+	vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, VK_FALSE);
+	vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, VK_FALSE);
+
 	uint64_t zero = 0;
 	vkCmdBindVertexBuffers(renderer->renderCommandBuffer, 0, 1, &(renderer->polyBuffer.buffer.buffer), &zero);
+
+	renderer->currentViewport = viewport;
+	renderer->currentScissor = renderArea;
+	renderer->currentDepthTestState = 0;
+	renderer->currentDepthWriteState = 0;
+	renderer->currentBlendState = 0;
 }
 
 void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
@@ -572,6 +637,8 @@ void setViewport(partyRenderer *renderer, float x, float y, float width, float h
 	viewport.width = width;
 	viewport.height = height;
 
+	renderer->currentViewport = viewport;
+
 	vkCmdSetViewport(renderer->renderCommandBuffer, 0, 1, &viewport);
 }
 
@@ -580,7 +647,62 @@ void setScissor(partyRenderer *renderer, float x, float y, float width, float he
 	renderArea.offset = (VkOffset2D) { x, y };
 	renderArea.extent = (VkExtent2D) { width, height };
 
+	renderer->currentScissor = renderArea;
+
 	vkCmdSetScissor(renderer->renderCommandBuffer, 0, 1, &renderArea);
+}
+
+void setDepthState(partyRenderer *renderer, uint8_t test, uint8_t write) {
+	if (renderer->currentDepthTestState != test) {
+		renderer->currentDepthTestState = test;
+		vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, (test) ? VK_TRUE : VK_FALSE);
+	}
+	
+	if (renderer->currentDepthWriteState != write) {
+		renderer->currentDepthWriteState = write;
+		vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, (write) ? VK_TRUE : VK_FALSE);
+	}
+}
+
+void setPipeline(partyRenderer *renderer, uint32_t pipeline) {
+	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->renderPipelines[pipeline]);
+	//vkCmdSetViewport(renderer->renderCommandBuffer, 0, 1, &renderer->currentViewport);
+	//vkCmdSetScissor(renderer->renderCommandBuffer, 0, 1, &renderer->currentScissor);
+	//vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, (renderer->currentDepthTestState) ? VK_TRUE : VK_FALSE);
+	//vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, (renderer->currentDepthWriteState) ? VK_TRUE : VK_FALSE);
+}
+
+void setBlendState(partyRenderer *renderer, uint32_t mode) {
+	if (renderer->currentBlendState != mode) {
+		renderer->currentBlendState = mode;
+
+		switch(mode) {
+		case 1:
+			// 1
+			setPipeline(renderer, 1);
+			break;
+		case 2:
+			// 2
+			setPipeline(renderer, 2);
+			break;
+		case 4:
+			// 3
+			setPipeline(renderer, 3);
+			break;
+		case 6:
+			// 4
+			setPipeline(renderer, 4);
+			break;
+		default:
+			printf("UNKNOWN BLEND MODE %d\n", mode);
+		case 0:
+		case 3:
+			// 0
+			setPipeline(renderer, 0);
+		}
+	}
+
+	//vkCmdSetColorBlendEquationEXT(renderer->renderCommandBuffer, 0, 1, &equation);
 }
 
 void finishRender(partyRenderer *renderer) {

@@ -151,7 +151,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	multisampleInfo.rasterizationSamples = 1;
 	multisampleInfo.minSampleShading = 1.0f;
 	multisampleInfo.pSampleMask = NULL;
-	multisampleInfo.alphaToCoverageEnable = VK_TRUE;
+	multisampleInfo.alphaToCoverageEnable = VK_FALSE;
 	multisampleInfo.alphaToOneEnable = VK_FALSE;
 
 	// depth-stencil
@@ -160,7 +160,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 	depthStencilInfo.pNext = NULL;
 	depthStencilInfo.flags = 0;
-	depthStencilInfo.depthTestEnable = VK_FALSE;	// disable if compare op is ALWAYS?
+	depthStencilInfo.depthTestEnable = VK_TRUE;
 	depthStencilInfo.depthWriteEnable = VK_TRUE;
 	depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS;
 
@@ -191,12 +191,12 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	VkPipelineColorBlendAttachmentState attachmentBlend[1];
 
 	attachmentBlend[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	attachmentBlend[0].blendEnable = VK_FALSE;
+	attachmentBlend[0].blendEnable = VK_TRUE;
 	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
 	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
 	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
 
 	VkPipelineColorBlendStateCreateInfo blendInfo;
@@ -214,13 +214,22 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	// dynamic state
 
-	VkDynamicState dynamicState[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS, VK_DYNAMIC_STATE_POLYGON_MODE_EXT, VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY };
+	VkDynamicState dynamicState[] = { 
+		VK_DYNAMIC_STATE_VIEWPORT, 
+		VK_DYNAMIC_STATE_SCISSOR, 
+		VK_DYNAMIC_STATE_DEPTH_BIAS, 
+		VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE,
+		VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE,
+		VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT,
+		VK_DYNAMIC_STATE_POLYGON_MODE_EXT, 
+		VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY 
+	};
 
 	VkPipelineDynamicStateCreateInfo dynamicStateInfo;
 	dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateInfo.pNext = NULL;
 	dynamicStateInfo.flags = 0;
-	dynamicStateInfo.dynamicStateCount = 3;
+	dynamicStateInfo.dynamicStateCount = 5;
 	dynamicStateInfo.pDynamicStates = &dynamicState;
 
 	// pipeline layout
@@ -253,11 +262,20 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 		exit(1);
 	}
 
+	VkPipelineRenderingCreateInfo renderingInfo;
+	renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	renderingInfo.pNext = NULL;
+	renderingInfo.viewMask = 0;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachmentFormats = &renderer->swapchain->imageFormat;
+	renderingInfo.depthAttachmentFormat = renderer->depthImage.pixelFormat;
+	renderingInfo.stencilAttachmentFormat = renderer->depthImage.pixelFormat;
+
 	// finally, the pipeline
 
 	VkGraphicsPipelineCreateInfo pipelineInfo;
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.pNext = NULL;
+	pipelineInfo.pNext = &renderingInfo;
 	pipelineInfo.flags = 0;
 	pipelineInfo.stageCount = 2;
 	pipelineInfo.pStages = shaderStageInfo;
@@ -287,8 +305,62 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 		printf("failed to create fragment shader!\n");
 	}
 
-	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipeline));
+	// to avoid having to use a dynamic state extension (even though probably everyone has it), make one pipeline per blend mode
 
+	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[0]));
+	if (result != VK_SUCCESS) {
+		goto end;
+	}
+
+	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
+	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
+
+	result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[1]));
+	if (result != VK_SUCCESS) {
+		goto end;
+	}
+
+	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
+	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
+
+	result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[2]));
+	if (result != VK_SUCCESS) {
+		goto end;
+	}
+
+	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
+	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
+
+	result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[3]));
+	if (result != VK_SUCCESS) {
+		goto end;
+	}
+
+	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
+	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
+
+	result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[4]));
+	if (result != VK_SUCCESS) {
+		goto end;
+	}
+
+end:
 	free(vertexAttributeDesc);
 	free(vertexBindingDesc);
 	free(attachmentBlend);
@@ -301,7 +373,10 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 }*/
 
 void destroyPipeline(partyRenderer *renderer) {
-	vkDestroyPipeline(renderer->device->device, renderer->renderPipeline, NULL);
+	for (int i = 0; i < 5; i++) {
+		vkDestroyPipeline(renderer->device->device, renderer->renderPipelines[i], NULL);
+	}
+	
 	//destroyPipelineLayout(renderer, pipeline.pipelineLayout);
 }
 

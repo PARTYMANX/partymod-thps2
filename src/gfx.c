@@ -679,23 +679,29 @@ void renderDXPoly(int *tag) {
 	uint32_t alpha;
 
 	if (polyflags & 0x40) {
+		setDepthState(renderer, 1, 0);
+
 		// alpha blending
 		switch(polyflags & 0x180) {
 		case 0x0:
 			alpha = 0x80000000;
 			// blend mode 1
+			setBlendState(renderer, 1);
 			break;
 		case 0x80:
 			alpha = 0xff000000;
 			// blend mode 2
+			setBlendState(renderer, 2);
 			break;
 		case 0x100:
 			alpha = 0x00000000;
 			// blend mode 4
+			setBlendState(renderer, 4);
 			break;
 		case 0x180:
 			alpha = 0x40000000;
 			// blend mode 2
+			setBlendState(renderer, 2);
 			break;
 		default:
 			printf("unknown blend mode 0x%08x\n", polyflags & 0x40);
@@ -704,6 +710,8 @@ void renderDXPoly(int *tag) {
 
 	} else {
 		alpha = 0xff000000;
+		setDepthState(renderer, 1, 1);
+		setBlendState(renderer, 1);
 	}
 
 	if (!*(uint32_t *)((uint8_t *)tag + 0x10)) {
@@ -736,21 +744,21 @@ void renderDXPoly(int *tag) {
 		for (int i = 1; i < numVerts - 2 + 1; i++) {
 			buf[outputVert].x = (vertices[0].x * xmult) - 1.0f;
 			buf[outputVert].y = (vertices[0].y * ymult) - 1.0f;
-			buf[outputVert].z = vertices[0].z;
+			buf[outputVert].z = 1.0 - vertices[0].z;
 			buf[outputVert].u = 0.0f;
 			buf[outputVert].v = 0.0f;
 			buf[outputVert].color = fixDXColor(vertices[0].color);
 
 			buf[outputVert + 1].x = (vertices[i].x * xmult) - 1.0f;
 			buf[outputVert + 1].y = (vertices[i].y * ymult) - 1.0f;
-			buf[outputVert + 1].z = vertices[i].z;
+			buf[outputVert + 1].z = 1.0 - vertices[i].z;
 			buf[outputVert + 1].u = 0.0f;
 			buf[outputVert + 1].v = 0.0f;
 			buf[outputVert + 1].color = fixDXColor(vertices[i].color);
 
 			buf[outputVert + 2].x = (vertices[i + 1].x * xmult) - 1.0f;
 			buf[outputVert + 2].y = (vertices[i + 1].y * ymult) - 1.0f;
-			buf[outputVert + 2].z = vertices[i + 1].z;
+			buf[outputVert + 2].z = 1.0 - vertices[i + 1].z;
 			buf[outputVert + 2].u = 0.0f;
 			buf[outputVert + 2].v = 0.0f;
 			buf[outputVert + 2].color = fixDXColor(vertices[i + 1].color);
@@ -762,6 +770,11 @@ void renderDXPoly(int *tag) {
 	} else {
 		struct dxpolytextured *vertices = ((uint8_t *)tag + 0x18);
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+
+		if (!(*(uint8_t *)(*(uint32_t *)(*(uint32_t *)((uint8_t *)tag + 0x10) + 0x14) + 0x10) & 0x10)) {
+			printf("TEST???\n");
+			setDepthState(renderer, 1, 0);
+		}
 
 		// calc final colors
 		for (int i = 0; i < numVerts; i++) {
@@ -789,21 +802,21 @@ void renderDXPoly(int *tag) {
 		for (int i = 1; i < numVerts - 2 + 1; i++) {
 			buf[outputVert].x = (vertices[0].x * xmult) - 1.0f;
 			buf[outputVert].y = (vertices[0].y * ymult) - 1.0f;
-			buf[outputVert].z = vertices[0].z;
+			buf[outputVert].z = 1.0 - vertices[0].z;
 			buf[outputVert].u = vertices[0].u;
 			buf[outputVert].v = vertices[0].v;
 			buf[outputVert].color = fixDXColor(vertices[0].color);
 
 			buf[outputVert + 1].x = (vertices[i].x * xmult) - 1.0f;
 			buf[outputVert + 1].y = (vertices[i].y * ymult) - 1.0f;
-			buf[outputVert + 1].z = vertices[i].z;
+			buf[outputVert + 1].z = 1.0 - vertices[i].z;
 			buf[outputVert + 1].u = vertices[i].u;
 			buf[outputVert + 1].v = vertices[i].v;
 			buf[outputVert + 1].color = fixDXColor(vertices[i].color);
 
 			buf[outputVert + 2].x = (vertices[i + 1].x * xmult) - 1.0f;
 			buf[outputVert + 2].y = (vertices[i + 1].y * ymult) - 1.0f;
-			buf[outputVert + 2].z = vertices[i + 1].z;
+			buf[outputVert + 2].z = 1.0 - vertices[i + 1].z;
 			buf[outputVert + 2].u = vertices[i + 1].u;
 			buf[outputVert + 2].v = vertices[i + 1].v;
 			buf[outputVert + 2].color = fixDXColor(vertices[i + 1].color);

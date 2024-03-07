@@ -87,6 +87,8 @@ typedef struct {
 
 typedef struct {
 	VkImage image;
+	VkImageView imageView;
+	VmaAllocation allocation;
 
 	VkImageType type;
 	VkFormat pixelFormat;
@@ -98,8 +100,6 @@ typedef struct {
 	uint32_t mipmapCount;
 	uint32_t arrayLength;
 	uint32_t sampleCount;
-
-
 } rbVkImage;
 
 typedef struct {
@@ -160,8 +160,17 @@ typedef struct partyRenderer {
 	struct rbVkCommandQueue *queue;
 	struct rbVkCommandQueue *memQueue;	// move this to a dedicated memory struct that handles the heap and all?
 
+	VkViewport currentViewport;
+	VkRect2D currentScissor;
+	uint8_t currentDepthTestState;
+	uint8_t currentDepthWriteState;
+	uint8_t currentBlendState;
+
 	VkCommandBuffer renderCommandBuffer;
-	VkPipeline renderPipeline;
+	VkPipeline renderPipelines[5];
+
+	rbVkImage renderImage;
+	rbVkImage depthImage;
 
 	polyBuffer polyBuffer;
 
@@ -215,5 +224,8 @@ void createBuffer(partyRenderer *renderer, VkDeviceSize size, VkBufferUsageFlags
 void destroyBuffer(partyRenderer *renderer, rbVkBuffer *buffer);
 void *mapBuffer(partyRenderer *renderer, rbVkBuffer *buffer);
 void unmapBuffer(partyRenderer *renderer, rbVkBuffer *buffer);
+
+void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t height, VkFormat colorFmt, VkFormat depthFmt);
+void destroyRenderTargets(partyRenderer *renderer);
 
 #endif
