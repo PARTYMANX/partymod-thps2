@@ -32,6 +32,7 @@ void startRender(partyRenderer *renderer, uint32_t clearColor);
 void finishRender(partyRenderer *renderer);
 void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
 void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
+void drawLines(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
 void setViewport(partyRenderer *renderer, float x, float y, float width, float height);
 void setScissor(partyRenderer *renderer, float x, float y, float width, float height);
 void setDepthState(partyRenderer *renderer, uint8_t test, uint8_t write);

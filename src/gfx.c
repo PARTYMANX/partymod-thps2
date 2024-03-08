@@ -579,6 +579,7 @@ void D3DPOLY_StartScene(int a, int b) {
 	void (__cdecl *setupFog)(int) = 0x004d1160;
 	uint32_t *viewportClass = 0x00560698;
 	uint16_t *DpqMin = 0x005606a4;
+	uint16_t *DpqMinMaybe = *viewportClass + 8;
 	uint16_t *DpqMaxMaybe = *viewportClass + 10;
 	float *fogThreshold = 0x00546b3c;
 	float *FogYonScale = 0x00546b38;
@@ -597,6 +598,11 @@ void D3DPOLY_StartScene(int a, int b) {
 		*FogYonScale = *VideoFogYonScale;
 	}
 
+	float hither = *DpqMinMaybe;
+	float yon = *DpqMaxMaybe * *FogYonScale;
+	float zBufMin = hither / yon;
+
+	printf("HITHER %f YON %f ZBUFMIN %f\n", hither, yon, zBufMin);
 
 
 	setupFog(a);
@@ -832,63 +838,404 @@ uint32_t unormColor(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
 	return r + (g << 8) + (b << 16) + (a << 24);
 }
 
-void renderPolyFT4(int *tag) {
+void renderLineF2(int *tag) {
 	int *screen_width = 0x029d6fe4;
 	int *screen_height = 0x029d6fe8;
 
 	float xmult = (1.0f / (float)*screen_width) * 2.0f;
 	float ymult = (1.0f / (float)*screen_height) * 2.0f;
+	float xdisp = 1.0f - (xmult * 0.5);
+	float ydisp = 1.0f - (ymult * 0.5);
 
 	uint8_t r = *((uint8_t *)tag + 4);
 	uint8_t g = *((uint8_t *)tag + 5);
 	uint8_t b = *((uint8_t *)tag + 6);
 	uint8_t alpha = *((uint32_t *)0x0069c8b0) >> 24;
-	alpha = 0xff;
+	//alpha = 0xff;
 	//printf("ALPHA: 0x%08x\n", *((uint32_t *)0x0069c8b0));
 
 	uint32_t color = r + (g << 8) + (b << 16) + (alpha << 24);
 	
 	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
 	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
-	uint8_t u1 = *(uint8_t *)((uint8_t *)tag + 12);
-	uint8_t v1 = *(uint8_t *)((uint8_t *)tag + 13);
+	int16_t x2 = *(int16_t *)((uint8_t *)tag + 12);
+	int16_t y2 = *(int16_t *)((uint8_t *)tag + 14);
 
-	int16_t x2 = *(int16_t *)((uint8_t *)tag + 16);
-	int16_t y2 = *(int16_t *)((uint8_t *)tag + 18);
-	
-	int16_t x3 = *(int16_t *)((uint8_t *)tag + 24);
-	int16_t y3 = *(int16_t *)((uint8_t *)tag + 26);
-	
-	int16_t x4 = *(int16_t *)((uint8_t *)tag + 32);
-	int16_t y4 = *(int16_t *)((uint8_t *)tag + 34);
+	float z = *(float *)((uint8_t *)tag + 16);
+	//int zi = *(int *)((uint8_t *)tag + 40);
 
-	float z = *(float *)((uint8_t *)tag + 40);
-	int zi = *(int *)((uint8_t *)tag + 40);
+	if (z < 0.0f) {
+		setDepthState(renderer, 0, 0);
 
-	z = (z + 1.0f) / 2.0f;
+		z = 0.0f;
+	} else {
+		z = 1.0f - z;
+	}
 
 	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
 
-	renderVertex vertices[6];
-	vertices[0] = (renderVertex) { ((float)x1 * xmult) - 1.0f, ((float)y1 * ymult) - 1.0f, z, 0.0f, 0.0f, color };
-	vertices[1] = (renderVertex) { ((float)x2 * xmult) - 1.0f, ((float)y2 * ymult) - 1.0f, z, 0.0f, 0.0f, color };
-	vertices[2] = (renderVertex) { ((float)x3 * xmult) - 1.0f, ((float)y3 * ymult) - 1.0f, z, 0.0f, 0.0f, color };
-	vertices[3] = (renderVertex) { ((float)x2 * xmult) - 1.0f, ((float)y2 * ymult) - 1.0f, z, 0.0f, 0.0f, color };
-	vertices[4] = (renderVertex) { ((float)x3 * xmult) - 1.0f, ((float)y3 * ymult) - 1.0f, z, 0.0f, 0.0f, color };
-	vertices[5] = (renderVertex) { ((float)x4 * xmult) - 1.0f, ((float)y4 * ymult) - 1.0f, z, 0.0f, 0.0f, color };
+	renderVertex vertices[2];
+	vertices[0] = (renderVertex) { ((float)x1 * xmult) - xdisp, ((float)y1 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[1] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
 
-	drawVertices(renderer, vertices, 6);
+	drawLines(renderer, vertices, 2);
 }
 
-renderPolyG4(int *tag) {
+void renderLineF3(int *tag) {
 	int *screen_width = 0x029d6fe4;
 	int *screen_height = 0x029d6fe8;
 
 	float xmult = (1.0f / (float)*screen_width) * 2.0f;
 	float ymult = (1.0f / (float)*screen_height) * 2.0f;
+	float xdisp = 1.0f - (xmult * 0.5);
+	float ydisp = 1.0f - (ymult * 0.5);
+
+	uint8_t r = *((uint8_t *)tag + 4);
+	uint8_t g = *((uint8_t *)tag + 5);
+	uint8_t b = *((uint8_t *)tag + 6);
+	uint8_t alpha = *((uint32_t *)0x0069c8b0) >> 24;
+	//alpha = 0xff;
+	//printf("ALPHA: 0x%08x\n", *((uint32_t *)0x0069c8b0));
+
+	uint32_t color = r + (g << 8) + (b << 16) + (alpha << 24);
+	
+	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
+	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+	int16_t x2 = *(int16_t *)((uint8_t *)tag + 12);
+	int16_t y2 = *(int16_t *)((uint8_t *)tag + 14);
+	int16_t x3 = *(int16_t *)((uint8_t *)tag + 16);
+	int16_t y3 = *(int16_t *)((uint8_t *)tag + 18);
+
+	float z = *(float *)((uint8_t *)tag + 20);
+	//int zi = *(int *)((uint8_t *)tag + 40);
+
+	if (z < 0.0f) {
+		setDepthState(renderer, 0, 0);
+
+		z = 0.0f;
+	} else {
+		z = 1.0f - z;
+	}
+
+	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
+
+	renderVertex vertices[4];
+	vertices[0] = (renderVertex) { ((float)x1 * xmult) - xdisp, ((float)y1 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[1] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[2] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[3] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+
+	drawLines(renderer, vertices, 4);
+}
+
+void renderLineF4(int *tag) {
+	int *screen_width = 0x029d6fe4;
+	int *screen_height = 0x029d6fe8;
+
+	float xmult = (1.0f / (float)*screen_width) * 2.0f;
+	float ymult = (1.0f / (float)*screen_height) * 2.0f;
+	float xdisp = 1.0f - (xmult * 0.5);
+	float ydisp = 1.0f - (ymult * 0.5);
+
+	uint8_t r = *((uint8_t *)tag + 4);
+	uint8_t g = *((uint8_t *)tag + 5);
+	uint8_t b = *((uint8_t *)tag + 6);
+	uint8_t alpha = *((uint32_t *)0x0069c8b0) >> 24;
+	//alpha = 0xff;
+	//printf("ALPHA: 0x%08x\n", *((uint32_t *)0x0069c8b0));
+
+	uint32_t color = r + (g << 8) + (b << 16) + (alpha << 24);
+	
+	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
+	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+	int16_t x2 = *(int16_t *)((uint8_t *)tag + 12);
+	int16_t y2 = *(int16_t *)((uint8_t *)tag + 14);
+	int16_t x3 = *(int16_t *)((uint8_t *)tag + 16);
+	int16_t y3 = *(int16_t *)((uint8_t *)tag + 18);
+	int16_t x4 = *(int16_t *)((uint8_t *)tag + 20);
+	int16_t y4 = *(int16_t *)((uint8_t *)tag + 22);
+
+	float z = *(float *)((uint8_t *)tag + 24);
+	//int zi = *(int *)((uint8_t *)tag + 40);
+
+	if (z < 0.0f) {
+		setDepthState(renderer, 0, 0);
+
+		z = 0.0f;
+	} else {
+		z = 1.0f - z;
+	}
+
+	//printf("renderLineF4 %f %d %d %d %d\n", z, x1, y1, x2, y2);
+
+	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
+
+	renderVertex vertices[6];
+	vertices[0] = (renderVertex) { ((float)x1 * xmult) - xdisp, ((float)y1 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[1] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[2] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[3] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[4] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[5] = (renderVertex) { ((float)x4 * xmult) - xdisp, ((float)y4 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+
+	drawLines(renderer, vertices, 6);
+}
+
+void renderLineG2(int *tag) {
+	int *screen_width = 0x029d6fe4;
+	int *screen_height = 0x029d6fe8;
+
+	float xmult = (1.0f / (float)*screen_width) * 2.0f;
+	float ymult = (1.0f / (float)*screen_height) * 2.0f;
+	float xdisp = 1.0f - (xmult * 0.5);
+	float ydisp = 1.0f - (ymult * 0.5);
 
 	uint8_t alpha = *((uint32_t *)0x0069c8b0) >> 24;
-	alpha = 0xff;
+	//alpha = 0xff;
+	//printf("ALPHA: 0x%08x\n", *((uint32_t *)0x0069c8b0));
+	
+	uint32_t color1 = unormColor(*((uint8_t *)tag + 4), *((uint8_t *)tag + 5), *((uint8_t *)tag + 6), alpha);
+	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
+	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+
+	uint32_t color2 = unormColor(*((uint8_t *)tag + 12), *((uint8_t *)tag + 13), *((uint8_t *)tag + 14), alpha);
+	int16_t x2 = *(int16_t *)((uint8_t *)tag + 16);
+	int16_t y2 = *(int16_t *)((uint8_t *)tag + 18);
+
+	float z = *(float *)((uint8_t *)tag + 20);
+	//int zi = *(int *)((uint8_t *)tag + 40);
+
+	if (z < 0.0f) {
+		setDepthState(renderer, 0, 0);
+
+		z = 0.0f;
+	} else {
+		z = 1.0f - z;
+	}
+
+	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
+
+	renderVertex vertices[2];
+	vertices[0] = (renderVertex) { ((float)x1 * xmult) - xdisp, ((float)y1 * ymult) - ydisp, z, 0.0f, 0.0f, color1 };
+	vertices[1] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color2 };
+
+	drawLines(renderer, vertices, 2);
+}
+
+void renderPolyF3(int *tag) {
+	int *screen_width = 0x029d6fe4;
+	int *screen_height = 0x029d6fe8;
+
+	float xmult = (1.0f / (float)*screen_width) * 2.0f;
+	float ymult = (1.0f / (float)*screen_height) * 2.0f;
+	float xdisp = 1.0f - (xmult * 0.5);
+	float ydisp = 1.0f - (ymult * 0.5);
+
+	uint8_t r = *((uint8_t *)tag + 4);
+	uint8_t g = *((uint8_t *)tag + 5);
+	uint8_t b = *((uint8_t *)tag + 6);
+	uint8_t alpha = *((uint32_t *)0x0069c8b0) >> 24;
+	//alpha = 0xff;
+	//printf("ALPHA: 0x%08x\n", *((uint32_t *)0x0069c8b0));
+
+	uint32_t color = r + (g << 8) + (b << 16) + (alpha << 24);
+	
+	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
+	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+	int16_t x2 = *(int16_t *)((uint8_t *)tag + 12);
+	int16_t y2 = *(int16_t *)((uint8_t *)tag + 14);
+	int16_t x3 = *(int16_t *)((uint8_t *)tag + 16);
+	int16_t y3 = *(int16_t *)((uint8_t *)tag + 18);
+
+	float z = *(float *)((uint8_t *)tag + 20);
+	//int zi = *(int *)((uint8_t *)tag + 40);
+
+	if (z < 0.0f) {
+		setDepthState(renderer, 0, 0);
+
+		z = 0.0f;
+	} else {
+		z = 1.0f - z;
+	}
+
+	//z = (z + 1.0f) / 2.0f;
+
+	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
+
+	renderVertex vertices[3];
+	vertices[0] = (renderVertex) { ((float)x1 * xmult) - xdisp, ((float)y1 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[1] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[2] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+
+	drawVertices(renderer, vertices, 3);
+}
+
+void renderPolyF4(int *tag) {
+	int *screen_width = 0x029d6fe4;
+	int *screen_height = 0x029d6fe8;
+
+	float xmult = (1.0f / (float)*screen_width) * 2.0f;
+	float ymult = (1.0f / (float)*screen_height) * 2.0f;
+	float xdisp = 1.0f - (xmult * 0.5);
+	float ydisp = 1.0f - (ymult * 0.5);
+
+	uint8_t r = *((uint8_t *)tag + 4);
+	uint8_t g = *((uint8_t *)tag + 5);
+	uint8_t b = *((uint8_t *)tag + 6);
+	uint8_t alpha = *((uint32_t *)0x0069c8b0) >> 24;
+	//alpha = 0xff;
+	//printf("ALPHA: 0x%08x\n", *((uint32_t *)0x0069c8b0));
+
+	uint32_t color = r + (g << 8) + (b << 16) + (alpha << 24);
+	
+	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
+	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+	int16_t x2 = *(int16_t *)((uint8_t *)tag + 12);
+	int16_t y2 = *(int16_t *)((uint8_t *)tag + 14);
+	int16_t x3 = *(int16_t *)((uint8_t *)tag + 16);
+	int16_t y3 = *(int16_t *)((uint8_t *)tag + 18);
+	int16_t x4 = *(int16_t *)((uint8_t *)tag + 20);
+	int16_t y4 = *(int16_t *)((uint8_t *)tag + 22);
+
+	float z = *(float *)((uint8_t *)tag + 24);
+	//int zi = *(int *)((uint8_t *)tag + 40);
+
+	if (z < 0.0f) {
+		setDepthState(renderer, 0, 0);
+
+		z = 0.0f;
+	} else {
+		z = 1.0f - z;
+	}
+
+	//z = (z + 1.0f) / 2.0f;
+
+	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
+
+	renderVertex vertices[6];
+	vertices[0] = (renderVertex) { ((float)x1 * xmult) - xdisp, ((float)y1 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[1] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[2] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[3] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[4] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+	vertices[5] = (renderVertex) { ((float)x4 * xmult) - xdisp, ((float)y4 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+
+	drawVertices(renderer, vertices, 6);
+}
+
+void renderPolyFT4(int *tag) {
+	int *screen_width = 0x029d6fe4;
+	int *screen_height = 0x029d6fe8;
+
+	//if (*(int *)((uint8_t *)tag + 44)) {
+		//printf("TEST!\n");
+		float xmult = (1.0f / (float)*screen_width) * 2.0f;
+		float ymult = (1.0f / (float)*screen_height) * 2.0f;
+		float xdisp = 1.0f - (xmult * 0.5);
+		float ydisp = 1.0f - (ymult * 0.5);
+
+		uint8_t r = *((uint8_t *)tag + 4);
+		uint8_t g = *((uint8_t *)tag + 5);
+		uint8_t b = *((uint8_t *)tag + 6);
+		uint8_t alpha = *((uint32_t *)0x0069c8b0) >> 24;
+		//alpha = 0xff;
+		//printf("ALPHA: 0x%08x\n", *((uint32_t *)0x0069c8b0));
+
+		uint32_t color = r + (g << 8) + (b << 16) + (alpha << 24);
+	
+		int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
+		int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+		uint8_t u1 = *(uint8_t *)((uint8_t *)tag + 12);
+		uint8_t v1 = *(uint8_t *)((uint8_t *)tag + 13);
+
+		int16_t x2 = *(int16_t *)((uint8_t *)tag + 16);
+		int16_t y2 = *(int16_t *)((uint8_t *)tag + 18);
+	
+		int16_t x3 = *(int16_t *)((uint8_t *)tag + 24);
+		int16_t y3 = *(int16_t *)((uint8_t *)tag + 26);
+	
+		int16_t x4 = *(int16_t *)((uint8_t *)tag + 32);
+		int16_t y4 = *(int16_t *)((uint8_t *)tag + 34);
+
+		float z = *(float *)((uint8_t *)tag + 40);
+		//int zi = *(int *)((uint8_t *)tag + 40);
+
+		if (z < 0.0f) {
+			setDepthState(renderer, 0, 0);
+
+			z = 0.0f;
+		} else {
+			z = 1.0f - z;
+		}
+
+		renderVertex vertices[6];
+		vertices[0] = (renderVertex) { ((float)x1 * xmult) - xdisp, ((float)y1 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+		vertices[1] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+		vertices[2] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+		vertices[3] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+		vertices[4] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+		vertices[5] = (renderVertex) { ((float)x4 * xmult) - xdisp, ((float)y4 * ymult) - ydisp, z, 0.0f, 0.0f, color };
+
+		drawVertices(renderer, vertices, 6);
+}
+
+void renderPolyG3(int *tag) {
+	int *screen_width = 0x029d6fe4;
+	int *screen_height = 0x029d6fe8;
+
+	float xmult = (1.0f / (float)*screen_width) * 2.0f;
+	float ymult = (1.0f / (float)*screen_height) * 2.0f;
+	float xdisp = 1.0f - (xmult * 0.5);
+	float ydisp = 1.0f - (ymult * 0.5);
+
+	uint8_t alpha = *((uint32_t *)0x0069c8b0) >> 24;
+	//alpha = 0xff;
+	//printf("ALPHA: 0x%08x\n", *((uint32_t *)0x0069c8b0));
+
+	uint32_t color1 = unormColor(*((uint8_t *)tag + 4), *((uint8_t *)tag + 5), *((uint8_t *)tag + 6), alpha);
+	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
+	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+
+	uint32_t color2 = unormColor(*((uint8_t *)tag + 12), *((uint8_t *)tag + 13), *((uint8_t *)tag + 14), alpha);
+	int16_t x2 = *(int16_t *)((uint8_t *)tag + 16);
+	int16_t y2 = *(int16_t *)((uint8_t *)tag + 18);
+	
+	uint32_t color3 = unormColor(*((uint8_t *)tag + 20), *((uint8_t *)tag + 21), *((uint8_t *)tag + 22), alpha);
+	int16_t x3 = *(int16_t *)((uint8_t *)tag + 24);
+	int16_t y3 = *(int16_t *)((uint8_t *)tag + 26);
+
+	float z = *(float *)((uint8_t *)tag + 28);
+	//int zi = *(int *)((uint8_t *)tag + 40);
+
+	if (z < 0.0f) {
+		setDepthState(renderer, 0, 0);
+
+		z = 0.0f;
+	} else {
+		z = 1.0f - z;
+	}
+
+	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
+
+	renderVertex vertices[3];
+	vertices[0] = (renderVertex) { ((float)x1 * xmult) - xdisp, ((float)y1 * ymult) - ydisp, z, 0.0f, 0.0f, color1 };
+	vertices[1] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color2 };
+	vertices[2] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color3 };
+
+	drawVertices(renderer, vertices, 3);
+}
+
+void renderPolyG4(int *tag) {
+	int *screen_width = 0x029d6fe4;
+	int *screen_height = 0x029d6fe8;
+
+	float xmult = (1.0f / (float)*screen_width) * 2.0f;
+	float ymult = (1.0f / (float)*screen_height) * 2.0f;
+	float xdisp = 1.0f - (xmult * 0.5);
+	float ydisp = 1.0f - (ymult * 0.5);
+
+	uint8_t alpha = *((uint32_t *)0x0069c8b0) >> 24;
+	//alpha = 0xff;
 	//printf("ALPHA: 0x%08x\n", *((uint32_t *)0x0069c8b0));
 
 	uint32_t color1 = unormColor(*((uint8_t *)tag + 4), *((uint8_t *)tag + 5), *((uint8_t *)tag + 6), alpha);
@@ -907,20 +1254,26 @@ renderPolyG4(int *tag) {
 	int16_t x4 = *(int16_t *)((uint8_t *)tag + 32);
 	int16_t y4 = *(int16_t *)((uint8_t *)tag + 34);
 
-	float z = *(float *)((uint8_t *)tag + 40);
-	int zi = *(int *)((uint8_t *)tag + 40);
+	float z = *(float *)((uint8_t *)tag + 36);
+	//int zi = *(int *)((uint8_t *)tag + 40);
 
-	z = (z + 1.0f) / 2.0f;
+	if (z < 0.0f) {
+		setDepthState(renderer, 0, 0);
+
+		z = 0.0f;
+	} else {
+		z = 1.0f - z;
+	}
 
 	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
 
 	renderVertex vertices[6];
-	vertices[0] = (renderVertex) { ((float)x1 * xmult) - 1.0f, ((float)y1 * ymult) - 1.0f, z, 0.0f, 0.0f, color1 };
-	vertices[1] = (renderVertex) { ((float)x2 * xmult) - 1.0f, ((float)y2 * ymult) - 1.0f, z, 0.0f, 0.0f, color2 };
-	vertices[2] = (renderVertex) { ((float)x3 * xmult) - 1.0f, ((float)y3 * ymult) - 1.0f, z, 0.0f, 0.0f, color3 };
-	vertices[3] = (renderVertex) { ((float)x2 * xmult) - 1.0f, ((float)y2 * ymult) - 1.0f, z, 0.0f, 0.0f, color2 };
-	vertices[4] = (renderVertex) { ((float)x3 * xmult) - 1.0f, ((float)y3 * ymult) - 1.0f, z, 0.0f, 0.0f, color3 };
-	vertices[5] = (renderVertex) { ((float)x4 * xmult) - 1.0f, ((float)y4 * ymult) - 1.0f, z, 0.0f, 0.0f, color4 };
+	vertices[0] = (renderVertex) { ((float)x1 * xmult) - xdisp, ((float)y1 * ymult) - ydisp, z, 0.0f, 0.0f, color1 };
+	vertices[1] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color2 };
+	vertices[2] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color3 };
+	vertices[3] = (renderVertex) { ((float)x2 * xmult) - xdisp, ((float)y2 * ymult) - ydisp, z, 0.0f, 0.0f, color2 };
+	vertices[4] = (renderVertex) { ((float)x3 * xmult) - xdisp, ((float)y3 * ymult) - ydisp, z, 0.0f, 0.0f, color3 };
+	vertices[5] = (renderVertex) { ((float)x4 * xmult) - xdisp, ((float)y4 * ymult) - ydisp, z, 0.0f, 0.0f, color4 };
 
 	drawVertices(renderer, vertices, 6);
 }
@@ -954,6 +1307,10 @@ void changeViewport(int *tag) {
 }
 
 void D3DPOLY_DrawOTag(int *tag) {
+	uint32_t *polyFlags = 0x0065c8ac;
+	uint32_t *alphaBlend = 0x0069c8b0;
+	uint32_t *nextPSXBlendMode = 0x0069d10c;
+
 	printf("STUB: D3DPOLY_DrawOTag: 0x%08x\n", tag);
 
 	/*uint8_t isWireframe = (*(uint32_t *)(tag + 8)) & 0x30000000 >> 28;
@@ -969,25 +1326,82 @@ void D3DPOLY_DrawOTag(int *tag) {
 	while(tag != NULL) {
 		if (tag[1] != 0) {
 			uint8_t cmd = *(uint8_t *)((int)tag + 7);
-			//printf("just think, we could be drawing now... %d, %d\n", cmd >> 2, cmd & 0xfffffffc);
 			if (!(cmd & 0x80)) {
-				
+				//*nextPSXBlendMode = 0;
+
+				uint8_t blendMode = cmd & 0xfffffffc;
+				uint8_t otherBlendMode = cmd & 4;
+				if (blendMode == 0x40 || blendMode == 0x48 || blendMode == 0x4c || blendMode == 0x50) {
+					otherBlendMode = 0;
+
+
+				} else if (!otherBlendMode) {
+					
+
+				} else {
+					if (!(cmd & 0x10)) {
+						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x16));
+					} else {
+						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x1a));
+					}
+				}
+
+				if (cmd & 0x02) {
+					setDepthState(renderer, 1, 0);
+
+					if (otherBlendMode) {
+						*nextPSXBlendMode = (blendMode >> 5) & 3;
+						printf("TEST!! %d\n", *nextPSXBlendMode);
+					}
+
+					// alpha blending
+					switch(*nextPSXBlendMode) {
+					case 0:
+						*alphaBlend = 0x80000000;
+						// blend mode 1
+						setBlendState(renderer, 1);
+						break;
+					case 1:
+						*alphaBlend = 0xff000000;
+						// blend mode 2
+						setBlendState(renderer, 2);
+						break;
+					case 2:
+						*alphaBlend = 0x00000000;
+						// blend mode 4
+						setBlendState(renderer, 4);
+						break;
+					case 3:
+						*alphaBlend = 0x40000000;
+						// blend mode 2
+						setBlendState(renderer, 2);
+						break;
+					default:
+						printf("unknown blend mode 0x%08x\n", *nextPSXBlendMode);
+						*alphaBlend = 0xff000000;
+					}
+
+				} else {
+					*alphaBlend = 0xff000000;
+					setDepthState(renderer, 1, 1);
+					setBlendState(renderer, 1);
+				}
 
 				switch(cmd >> 2) {
 					case 8: 
-						printf("renderPolyF3\n");
+						renderPolyF3(tag);
 						break;
 					case 9: 
 						printf("renderPolyFT3\n");
 						break;
 					case 10: 
-						printf("renderPolyF4\n");
+						renderPolyF4(tag);
 						break;
 					case 11: 
 						renderPolyFT4(tag);
 						break;
 					case 12: 
-						printf("renderPolyG3\n");
+						renderPolyG3(tag);
 						break;
 					case 13: 
 						printf("renderPolyGT3\n");
@@ -999,16 +1413,16 @@ void D3DPOLY_DrawOTag(int *tag) {
 						printf("renderPolyGT4\n");
 						break;
 					case 16: 
-						printf("renderLineF2\n");
+						renderLineF2(tag);
 						break;
 					case 18: 
-						printf("renderLineF3\n");
+						renderLineF3(tag);
+						break;
+					case 19: 
+						renderLineF4(tag);
 						break;
 					case 20: 
-						printf("renderLineF4\n");
-						break;
-					case 21: 
-						printf("renderLineG2\n");
+						renderLineG2(tag);
 						break;
 					case 24: 
 						printf("renderTile\n");
@@ -1029,6 +1443,8 @@ void D3DPOLY_DrawOTag(int *tag) {
 				renderDXPoly(tag);
 			} else if (cmd == 0xE1) {
 				// maybe blend mode
+				uint32_t blendMode = tag[1];
+				*nextPSXBlendMode = (blendMode >> 5) & 3;
 			} else if (cmd == 0xE3) {
 				// set viewport
 				changeViewport(tag);

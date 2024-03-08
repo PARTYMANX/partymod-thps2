@@ -92,12 +92,18 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	// input assembly
 
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo;
-	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssemblyInfo.pNext = NULL;
-	inputAssemblyInfo.flags = 0;
-	inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo[2];
+	inputAssemblyInfo[0].sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyInfo[0].pNext = NULL;
+	inputAssemblyInfo[0].flags = 0;
+	inputAssemblyInfo[0].topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssemblyInfo[0].primitiveRestartEnable = VK_FALSE;
+
+	inputAssemblyInfo[1].sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyInfo[1].pNext = NULL;
+	inputAssemblyInfo[1].flags = 0;
+	inputAssemblyInfo[1].topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+	inputAssemblyInfo[1].primitiveRestartEnable = VK_FALSE;
 
 	// viewport/scissor
 
@@ -188,29 +194,77 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	// blending
 
-	VkPipelineColorBlendAttachmentState attachmentBlend[1];
+	VkPipelineColorBlendAttachmentState attachmentBlend[5];
 
 	attachmentBlend[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	attachmentBlend[0].blendEnable = VK_TRUE;
 	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
 	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
 	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
 	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
 
-	VkPipelineColorBlendStateCreateInfo blendInfo;
-	blendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	blendInfo.pNext = NULL;
-	blendInfo.flags = 0;
-	blendInfo.logicOpEnable = VK_FALSE;
-	blendInfo.logicOp = VK_LOGIC_OP_COPY;
-	blendInfo.attachmentCount = 1;
-	blendInfo.pAttachments = attachmentBlend;
-	blendInfo.blendConstants[0] = 0.0f;
-	blendInfo.blendConstants[1] = 0.0f;
-	blendInfo.blendConstants[2] = 0.0f;
-	blendInfo.blendConstants[3] = 0.0f;
+	attachmentBlend[1].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	attachmentBlend[1].blendEnable = VK_TRUE;
+	attachmentBlend[1].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	attachmentBlend[1].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	attachmentBlend[1].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	attachmentBlend[1].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	attachmentBlend[1].colorBlendOp = VK_BLEND_OP_ADD;
+	attachmentBlend[1].alphaBlendOp = VK_BLEND_OP_ADD;
+
+	attachmentBlend[2].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	attachmentBlend[2].blendEnable = VK_TRUE;
+	attachmentBlend[2].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	attachmentBlend[2].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	attachmentBlend[2].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[2].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[2].colorBlendOp = VK_BLEND_OP_ADD;
+	attachmentBlend[2].alphaBlendOp = VK_BLEND_OP_ADD;
+
+	attachmentBlend[3].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	attachmentBlend[3].blendEnable = VK_TRUE;
+	attachmentBlend[3].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	attachmentBlend[3].srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	attachmentBlend[3].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+	attachmentBlend[3].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+	attachmentBlend[3].colorBlendOp = VK_BLEND_OP_ADD;
+	attachmentBlend[3].alphaBlendOp = VK_BLEND_OP_ADD;
+
+	attachmentBlend[4].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	attachmentBlend[4].blendEnable = VK_TRUE;
+	attachmentBlend[4].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[4].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[4].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[4].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	attachmentBlend[4].colorBlendOp = VK_BLEND_OP_ADD;
+	attachmentBlend[4].alphaBlendOp = VK_BLEND_OP_ADD;
+
+	VkPipelineColorBlendStateCreateInfo blendInfo[5];
+	blendInfo[0].sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	blendInfo[0].pNext = NULL;
+	blendInfo[0].flags = 0;
+	blendInfo[0].logicOpEnable = VK_FALSE;
+	blendInfo[0].logicOp = VK_LOGIC_OP_COPY;
+	blendInfo[0].attachmentCount = 1;
+	blendInfo[0].pAttachments = attachmentBlend;
+	blendInfo[0].blendConstants[0] = 0.0f;
+	blendInfo[0].blendConstants[1] = 0.0f;
+	blendInfo[0].blendConstants[2] = 0.0f;
+	blendInfo[0].blendConstants[3] = 0.0f;
+
+	blendInfo[1] = blendInfo[0];
+	blendInfo[1].pAttachments = attachmentBlend + 1;
+
+	blendInfo[2] = blendInfo[0];
+	blendInfo[2].pAttachments = attachmentBlend + 2;
+
+	blendInfo[3] = blendInfo[0];
+	blendInfo[3].pAttachments = attachmentBlend + 3;
+
+	blendInfo[4] = blendInfo[0];
+	blendInfo[4].pAttachments = attachmentBlend + 4;
 
 	// dynamic state
 
@@ -220,9 +274,9 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 		VK_DYNAMIC_STATE_DEPTH_BIAS, 
 		VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE,
 		VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE,
+		VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY,
 		VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT,
 		VK_DYNAMIC_STATE_POLYGON_MODE_EXT, 
-		VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY 
 	};
 
 	VkPipelineDynamicStateCreateInfo dynamicStateInfo;
@@ -273,25 +327,52 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	// finally, the pipeline
 
-	VkGraphicsPipelineCreateInfo pipelineInfo;
-	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.pNext = &renderingInfo;
-	pipelineInfo.flags = 0;
-	pipelineInfo.stageCount = 2;
-	pipelineInfo.pStages = shaderStageInfo;
-	pipelineInfo.pVertexInputState = &vertexInputInfo;
-	pipelineInfo.pInputAssemblyState = &inputAssemblyInfo;
-	pipelineInfo.pViewportState = &viewportInfo;
-	pipelineInfo.pRasterizationState = &rasterizerInfo;
-	pipelineInfo.pMultisampleState = &multisampleInfo;
-	pipelineInfo.pDepthStencilState = &depthStencilInfo;
-	pipelineInfo.pColorBlendState = &blendInfo;
-	pipelineInfo.pDynamicState = &dynamicStateInfo;
-	pipelineInfo.layout = layout;
-	pipelineInfo.renderPass = VK_NULL_HANDLE;
-	pipelineInfo.subpass = 0;
-	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-	pipelineInfo.basePipelineIndex = -1;
+	VkGraphicsPipelineCreateInfo pipelineInfo[10];
+	pipelineInfo[0].sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineInfo[0].pNext = &renderingInfo;
+	pipelineInfo[0].flags = 0;
+	pipelineInfo[0].stageCount = 2;
+	pipelineInfo[0].pStages = shaderStageInfo;
+	pipelineInfo[0].pVertexInputState = &vertexInputInfo;
+	pipelineInfo[0].pInputAssemblyState = inputAssemblyInfo;
+	pipelineInfo[0].pViewportState = &viewportInfo;
+	pipelineInfo[0].pRasterizationState = &rasterizerInfo;
+	pipelineInfo[0].pMultisampleState = &multisampleInfo;
+	pipelineInfo[0].pDepthStencilState = &depthStencilInfo;
+	pipelineInfo[0].pColorBlendState = blendInfo;
+	pipelineInfo[0].pDynamicState = &dynamicStateInfo;
+	pipelineInfo[0].layout = layout;
+	pipelineInfo[0].renderPass = VK_NULL_HANDLE;
+	pipelineInfo[0].subpass = 0;
+	pipelineInfo[0].basePipelineHandle = VK_NULL_HANDLE;
+	pipelineInfo[0].basePipelineIndex = -1;
+
+	pipelineInfo[1] = pipelineInfo[0];
+	pipelineInfo[1].pColorBlendState = blendInfo + 1;
+
+	pipelineInfo[2] = pipelineInfo[0];
+	pipelineInfo[2].pColorBlendState = blendInfo + 2;
+
+	pipelineInfo[3] = pipelineInfo[0];
+	pipelineInfo[3].pColorBlendState = blendInfo + 3;
+
+	pipelineInfo[4] = pipelineInfo[0];
+	pipelineInfo[4].pColorBlendState = blendInfo + 4;
+
+	pipelineInfo[5] = pipelineInfo[0];
+	pipelineInfo[5].pInputAssemblyState = inputAssemblyInfo + 1;
+
+	pipelineInfo[6] = pipelineInfo[1];
+	pipelineInfo[6].pInputAssemblyState = inputAssemblyInfo + 1;
+
+	pipelineInfo[7] = pipelineInfo[2];
+	pipelineInfo[7].pInputAssemblyState = inputAssemblyInfo + 1;
+
+	pipelineInfo[8] = pipelineInfo[3];
+	pipelineInfo[8].pInputAssemblyState = inputAssemblyInfo + 1;
+
+	pipelineInfo[9] = pipelineInfo[4];
+	pipelineInfo[9].pInputAssemblyState = inputAssemblyInfo + 1;
 
 	uint8_t shaderResult = 0;
 
@@ -307,60 +388,8 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	// to avoid having to use a dynamic state extension (even though probably everyone has it), make one pipeline per blend mode
 
-	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[0]));
-	if (result != VK_SUCCESS) {
-		goto end;
-	}
+	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 10, pipelineInfo, NULL, renderer->renderPipelines);
 
-	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
-	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
-
-	result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[1]));
-	if (result != VK_SUCCESS) {
-		goto end;
-	}
-
-	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
-	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
-
-	result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[2]));
-	if (result != VK_SUCCESS) {
-		goto end;
-	}
-
-	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
-	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
-
-	result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[3]));
-	if (result != VK_SUCCESS) {
-		goto end;
-	}
-
-	attachmentBlend[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	attachmentBlend[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	attachmentBlend[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	attachmentBlend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	attachmentBlend[0].colorBlendOp = VK_BLEND_OP_ADD;
-	attachmentBlend[0].alphaBlendOp = VK_BLEND_OP_ADD;
-
-	result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &(renderer->renderPipelines[4]));
-	if (result != VK_SUCCESS) {
-		goto end;
-	}
-
-end:
 	free(vertexAttributeDesc);
 	free(vertexBindingDesc);
 	free(attachmentBlend);
@@ -373,7 +402,7 @@ end:
 }*/
 
 void destroyPipeline(partyRenderer *renderer) {
-	for (int i = 0; i < 5; i++) {
+	for (int i = 0; i < 10; i++) {
 		vkDestroyPipeline(renderer->device->device, renderer->renderPipelines[i], NULL);
 	}
 	

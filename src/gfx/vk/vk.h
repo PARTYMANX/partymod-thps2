@@ -165,9 +165,13 @@ typedef struct partyRenderer {
 	uint8_t currentDepthTestState;
 	uint8_t currentDepthWriteState;
 	uint8_t currentBlendState;
+	uint8_t currentLineState;
+
+	uint32_t lastDraw;
+	uint32_t processedVerts;
 
 	VkCommandBuffer renderCommandBuffer;
-	VkPipeline renderPipelines[5];
+	VkPipeline renderPipelines[10];
 
 	rbVkImage renderImage;
 	rbVkImage depthImage;

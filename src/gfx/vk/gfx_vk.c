@@ -610,25 +610,97 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	renderer->currentDepthTestState = 0;
 	renderer->currentDepthWriteState = 0;
 	renderer->currentBlendState = 0;
+	renderer->currentLineState = 0;
+
+	renderer->lastDraw = 0;
+	renderer->processedVerts = 0;
 }
 
-void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
+void flushVerts(partyRenderer *renderer) {
+	if (renderer->processedVerts > 0) {
+		vkCmdDraw(renderer->renderCommandBuffer, renderer->processedVerts, 1, renderer->lastDraw, 0);
+		renderer->lastDraw += renderer->processedVerts;
+		renderer->processedVerts = 0;
+	}
+}
+
+void setPipeline(partyRenderer *renderer, uint32_t pipeline) {
+	flushVerts(renderer);
+	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->renderPipelines[pipeline]);
+	//vkCmdSetViewport(renderer->renderCommandBuffer, 0, 1, &renderer->currentViewport);
+	//vkCmdSetScissor(renderer->renderCommandBuffer, 0, 1, &renderer->currentScissor);
+	//vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, (renderer->currentDepthTestState) ? VK_TRUE : VK_FALSE);
+	//vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, (renderer->currentDepthWriteState) ? VK_TRUE : VK_FALSE);
+}
+
+int getBlendPipeline(uint32_t mode) {
+	switch(mode) {
+		case 1:
+			return 1;
+		case 2:
+			return 2;
+		case 4:
+			return 3;
+		case 6:
+			return 4;
+		default:
+			printf("UNKNOWN BLEND MODE %d\n", mode);
+		case 0:
+		case 3:
+			return 0;
+		}
+}
+
+void setBlendState(partyRenderer *renderer, uint32_t mode) {
+	uint32_t state = getBlendPipeline(mode);
+
+	if (renderer->currentBlendState != state) {
+		renderer->currentBlendState = state;
+
+		uint32_t lineState = (renderer->currentLineState) ? 5 : 0;
+
+		setPipeline(renderer, state + lineState);
+	}
+
+	//vkCmdSetColorBlendEquationEXT(renderer->renderCommandBuffer, 0, 1, &equation);
+}
+
+/*void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
 	// convenience function for reordering triangle fans (DXPoly is stored like this)
-	vkCmdDraw(renderer->renderCommandBuffer, (vertex_count - 2) * 3, 1, renderer->polyBuffer.currentVertex, 0);
+	//vkCmdDraw(renderer->renderCommandBuffer, (vertex_count - 2) * 3, 1, renderer->polyBuffer.currentVertex, 0);
+	renderer->processedVerts += vertex_count;
 
 	for (int i = 1; i < vertex_count - 2 + 1; i++) {
 		appendPolyBuffer(renderer, vertices, 1);
 		appendPolyBuffer(renderer, vertices + i, 2);
 	}
-}
+}*/
 
 void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
-	vkCmdDraw(renderer->renderCommandBuffer, vertex_count, 1, renderer->polyBuffer.currentVertex, 0);
+	//vkCmdDraw(renderer->renderCommandBuffer, vertex_count, 1, renderer->polyBuffer.currentVertex, 0);
+	if (renderer->currentLineState) {
+		setPipeline(renderer, renderer->currentBlendState);
+		renderer->currentLineState = 0;
+	}
+	renderer->processedVerts += vertex_count;
+
+	appendPolyBuffer(renderer, vertices, vertex_count);
+}
+
+void drawLines(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
+	//vkCmdDraw(renderer->renderCommandBuffer, vertex_count, 1, renderer->polyBuffer.currentVertex, 0);
+	if (!renderer->currentLineState) {
+		setPipeline(renderer, renderer->currentBlendState + 5);
+		renderer->currentLineState = 1;
+	}
+	renderer->processedVerts += vertex_count;
 
 	appendPolyBuffer(renderer, vertices, vertex_count);
 }
 
 void setViewport(partyRenderer *renderer, float x, float y, float width, float height) {
+	flushVerts(renderer);
+
 	VkViewport viewport;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
@@ -643,6 +715,8 @@ void setViewport(partyRenderer *renderer, float x, float y, float width, float h
 }
 
 void setScissor(partyRenderer *renderer, float x, float y, float width, float height) {
+	flushVerts(renderer);
+
 	VkRect2D renderArea;
 	renderArea.offset = (VkOffset2D) { x, y };
 	renderArea.extent = (VkExtent2D) { width, height };
@@ -653,6 +727,10 @@ void setScissor(partyRenderer *renderer, float x, float y, float width, float he
 }
 
 void setDepthState(partyRenderer *renderer, uint8_t test, uint8_t write) {
+	if (renderer->currentDepthTestState != test || renderer->currentDepthWriteState != write) {
+		flushVerts(renderer);
+	}
+
 	if (renderer->currentDepthTestState != test) {
 		renderer->currentDepthTestState = test;
 		vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, (test) ? VK_TRUE : VK_FALSE);
@@ -664,48 +742,9 @@ void setDepthState(partyRenderer *renderer, uint8_t test, uint8_t write) {
 	}
 }
 
-void setPipeline(partyRenderer *renderer, uint32_t pipeline) {
-	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->renderPipelines[pipeline]);
-	//vkCmdSetViewport(renderer->renderCommandBuffer, 0, 1, &renderer->currentViewport);
-	//vkCmdSetScissor(renderer->renderCommandBuffer, 0, 1, &renderer->currentScissor);
-	//vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, (renderer->currentDepthTestState) ? VK_TRUE : VK_FALSE);
-	//vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, (renderer->currentDepthWriteState) ? VK_TRUE : VK_FALSE);
-}
-
-void setBlendState(partyRenderer *renderer, uint32_t mode) {
-	if (renderer->currentBlendState != mode) {
-		renderer->currentBlendState = mode;
-
-		switch(mode) {
-		case 1:
-			// 1
-			setPipeline(renderer, 1);
-			break;
-		case 2:
-			// 2
-			setPipeline(renderer, 2);
-			break;
-		case 4:
-			// 3
-			setPipeline(renderer, 3);
-			break;
-		case 6:
-			// 4
-			setPipeline(renderer, 4);
-			break;
-		default:
-			printf("UNKNOWN BLEND MODE %d\n", mode);
-		case 0:
-		case 3:
-			// 0
-			setPipeline(renderer, 0);
-		}
-	}
-
-	//vkCmdSetColorBlendEquationEXT(renderer->renderCommandBuffer, 0, 1, &equation);
-}
-
 void finishRender(partyRenderer *renderer) {
+	flushVerts(renderer);
+
 	vkCmdEndRendering(renderer->renderCommandBuffer);
 
 	// START IMAGE TRANSITION
