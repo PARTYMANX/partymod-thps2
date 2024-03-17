@@ -53,6 +53,17 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	renderer->depthImage.arrayLength = 0;
 	renderer->depthImage.sampleCount = 1;
 
+	renderer->renderImage.type = VK_IMAGE_TYPE_2D;
+	renderer->renderImage.pixelFormat = depthFmt;
+
+	renderer->renderImage.width = width;
+	renderer->renderImage.height = height;
+	renderer->renderImage.depth = 1;
+
+	renderer->renderImage.mipmapCount = 0;
+	renderer->renderImage.arrayLength = 0;
+	renderer->renderImage.sampleCount = 1;
+
 	//renderer->depthImage.flags = 0;
 
 	VkImageCreateInfo imgCreateInfo;
@@ -82,6 +93,14 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 		exit(1);
 	}
 
+	imgCreateInfo.format = colorFmt;
+	imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+	if (vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(renderer->renderImage.image)) != VK_SUCCESS) {
+		printf("Failed to create render texture!\n");
+		exit(1);
+	}
+
 	// allocate memory
 
 	VmaAllocationCreateInfo allocInfo;
@@ -97,6 +116,10 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->depthImage.image, &allocInfo, &renderer->depthImage.allocation, NULL);
 
 	vmaBindImageMemory(renderer->memoryManager->allocator, renderer->depthImage.allocation, renderer->depthImage.image);
+
+	vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->renderImage.image, &allocInfo, &renderer->renderImage.allocation, NULL);
+
+	vmaBindImageMemory(renderer->memoryManager->allocator, renderer->renderImage.allocation, renderer->renderImage.image);
 
 	// create image view
 
@@ -124,12 +147,60 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 		printf("Failed to create depth image view");
 		exit(1);
 	}
+
+	viewCreateInfo.image = renderer->renderImage.image;
+	viewCreateInfo.format = colorFmt;
+	viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+	if(vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(renderer->renderImage.imageView)) != VK_SUCCESS) {
+		printf("Failed to create render image view");
+		exit(1);
+	}
+
+	// create render image sampler
+
+	VkSamplerCreateInfo samplerInfo;
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.pNext = NULL;
+	samplerInfo.flags = 0;
+
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+
+	samplerInfo.anisotropyEnable = VK_FALSE;
+	samplerInfo.maxAnisotropy = 0;
+
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0;
+	samplerInfo.minLod = VK_LOD_CLAMP_NONE;
+	samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+
+	if(vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &(renderer->renderSampler)) != VK_SUCCESS) {
+		printf("Failed to create sampler");
+		exit(1);
+	}
 }
 
 void destroyRenderTargets(partyRenderer *renderer) {
 	vkDestroyImageView(renderer->device->device, renderer->depthImage.imageView, NULL);
 	vkDestroyImage(renderer->device->device, renderer->depthImage.image, NULL);
 	vmaFreeMemory(renderer->memoryManager->allocator, renderer->depthImage.allocation);
+
+	vkDestroySampler(renderer->device->device, renderer->renderSampler, NULL);
+	vkDestroyImageView(renderer->device->device, renderer->renderImage.imageView, NULL);
+	vkDestroyImage(renderer->device->device, renderer->renderImage.image, NULL);
+	vmaFreeMemory(renderer->memoryManager->allocator, renderer->renderImage.allocation);
 }
 
 /*vid2_texture_t *vid2_createTexture(vid2_renderer_t *renderer, vid2_textureInfo_t *info) {

@@ -13,6 +13,7 @@
 #include <config.h>
 #include <script.h>
 #include <gfx.h>
+#include <mem.h>
 
 #define VERSION_NUMBER_MAJOR 0
 #define VERSION_NUMBER_MINOR 1
@@ -68,7 +69,7 @@ HWND initWindow() {
 		*resY = 480;
 	}*/
 
-	window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, SDL_WINDOW_SHOWN);   // TODO: fullscreen
+	window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 960, SDL_WINDOW_SHOWN);   // TODO: fullscreen
 
 	if (!window) {
 		printf("Failed to create window! Error: %s\n", SDL_GetError());
@@ -108,6 +109,10 @@ void initPatch() {
 	printf("PARTYMOD for THPS2 %d.%d.%d\n", VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH);
 
 	printf("DIRECTORY: %s\n", executableDirectory);
+
+	#ifdef MEM_AUDIT
+	initMemAudit();
+	#endif
 
 	printf("Patch Initialized\n");
 }
@@ -158,6 +163,10 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			// install patches
 			patchWindowAndInit();
 			installGfxPatches();
+
+			#ifdef MEM_AUDIT
+			installMemAudit();
+			#endif
 
 			break;
 
