@@ -1,4 +1,4 @@
-#include "hash.h"
+#include <util/hash.h>
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -10,9 +10,11 @@ set(SOURCE_FILES
 	"${SRC}/patch.c"
 	"${SRC}/gfx.c"
 	"${SRC}/window.c"
+	"${SRC}/mem.c"
 	# "${SRC}/config.c"
 	# "${SRC}/input.c"
-	"${SRC}/hash.c"
+	"${SRC}/util/hash.c"
+	"${SRC}/util/sb.c"
 	# "${SRC}/script.c"
 	# "${SRC}/patches.c"
 )
@@ -22,9 +24,11 @@ set(HEADER_FILES
 	"${SRC}/patch.h"
 	"${SRC}/gfx.h"
 	"${SRC}/window.h"
+	"${SRC}/mem.h"
 	# "${SRC}/config.h"
 	# "${SRC}/input.h"
-	"${SRC}/hash.h"
+	"${SRC}/util/hash.h"
+	"${SRC}/util/sb.h"
 	# "${SRC}/script.h"
 )
 
@@ -64,7 +68,7 @@ set(SOURCE_FILES
 	${SOURCE_FILES}
 	"${SRC}/gfx/vk/vid_vk_buffer.c"
 	"${SRC}/gfx/vk/vid_vk_cmdbuffer.c"
-	#"${SRC}/gfx/vk/vid_vk_descriptorset.c"
+	"${SRC}/gfx/vk/vid_vk_descriptorset.c"
 	"${SRC}/gfx/vk/vid_vk_device.c"
 	#"${SRC}/gfx/vk/vid_vk_framebuffer.c"
 	"${SRC}/gfx/vk/vid_vk_mem.c"

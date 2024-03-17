@@ -242,6 +242,47 @@ void updatePolyBuffer(partyRenderer *renderer) {
 	unmapBuffer(renderer, &(renderer->polyBuffer.buffer));
 }
 
+VkResult createScalerVertexBuffer(partyRenderer *renderer) {
+	rbVkBuffer result;
+
+	createBuffer(renderer, sizeof(scalerVertex) * 6, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &result);
+
+	scalerVertex vertices[6] = {
+		{ -1.0, 1.0, 0.0, 1.0 },
+		{ 1.0, 1.0, 1.0, 1.0 },
+		{ -1.0, -1.0, 0.0, 0.0 },
+		{ 1.0, 1.0, 1.0, 1.0 },
+		{ 1.0, -1.0, 1.0, 0.0 },
+		{ -1.0, -1.0, 0.0, 0.0 },
+	};
+	scalerVertex *buffer = mapBuffer(renderer, &result);
+
+	memcpy(buffer, vertices, sizeof(scalerVertex) * 6);
+
+	unmapBuffer(renderer, &result);
+
+	renderer->scalerBuffer = result;
+
+	return VK_SUCCESS;
+}
+
+VkResult createScalerImageInfoBuffer(partyRenderer *renderer) {
+	rbVkBuffer result;
+
+	createBuffer(renderer, sizeof(imageInfo), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &result);
+
+	imageInfo info = { renderer->renderImage.width, renderer->renderImage.height };
+	imageInfo *buffer = mapBuffer(renderer, &result);
+
+	memcpy(buffer, &info, sizeof(imageInfo));
+
+	unmapBuffer(renderer, &result);
+
+	renderer->renderImageInfoBuffer = result;
+
+	return VK_SUCCESS;
+}
+
 /*
 	RENDERER
 */
@@ -300,14 +341,41 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 		goto error_free;
 	}
 
-	createRenderTargets(result, result->swapchain->extent.width, result->swapchain->extent.height, VK_FORMAT_R8G8B8A8_SNORM, VK_FORMAT_D24_UNORM_S8_UINT);
+	struct PoolSizeRatio descriptor_ratios[4] = {
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 }, 
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 }, 
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 }, 
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 }, 
+	};
+	result->descriptorAllocator = init_descriptors(result, 1000, descriptor_ratios, 4);
+
+	// create default render targets at 640x480, 4:3
+	createRenderTargets(result, 640, 480, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D24_UNORM_S8_UINT);
+	result->aspectRatio = 4.0f / 3.0f;
+	result->renderWidth = 640;
+	result->renderHeight = 480;
 
 	r = createRenderPipelines(result);
 	if (r) {
 		goto error_free;
 	}
 
+	r = createScalerPipeline(result);
+	if (r) {
+		goto error_free;
+	}
+
 	r = createPolyBuffer(result);
+	if (r) {
+		goto error_free;
+	}
+
+	r = createScalerVertexBuffer(result);
+	if (r) {
+		goto error_free;
+	}
+
+	r = createScalerImageInfoBuffer(result);
 	if (r) {
 		goto error_free;
 	}
@@ -453,6 +521,22 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 		return;
 	}
 
+	// kind of disorganized here: we've waited for the relevant fance in rbVkGetNextImage, so we can reset descriptor sets safely
+	clear_descriptor_pools(renderer, renderer->descriptorAllocator);
+
+	if (renderer->renderWidth != renderer->renderImage.width || renderer->renderHeight != renderer->renderImage.height) {
+		printf("Adjusting internal render resolution from %dx%d to %dx%d\n", renderer->renderImage.width, renderer->renderImage.height, renderer->renderWidth, renderer->renderHeight);
+		destroyRenderTargets(renderer);
+		createRenderTargets(renderer, renderer->renderWidth, renderer->renderHeight, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D24_UNORM_S8_UINT);
+
+		imageInfo info = { renderer->renderImage.width, renderer->renderImage.height };
+		imageInfo *buffer = mapBuffer(renderer, &renderer->renderImageInfoBuffer);
+
+		memcpy(buffer, &info, sizeof(imageInfo));
+
+		unmapBuffer(renderer, &renderer->renderImageInfoBuffer);
+	}
+
 	// begin command buffer
 	VkCommandBufferBeginInfo beginInfo;
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -472,7 +556,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		.image = renderer->swapchain->images[renderer->swapchain->imageIdx],
+		.image = renderer->renderImage.image,
 		.subresourceRange = {
 		  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		  .baseMipLevel = 0,
@@ -544,10 +628,10 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	colorAttachment.pNext = NULL;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachment.imageView = renderer->swapchain->imageViews[currentImage];
+	colorAttachment.imageView = renderer->renderImage.imageView;
 	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
 	colorAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	colorAttachment.resolveImageView = renderer->swapchain->imageViews[currentImage];
+	colorAttachment.resolveImageView = renderer->renderImage.imageView;
 	colorAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
 	colorAttachment.clearValue = clearVal;
 
@@ -569,7 +653,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 
 	VkRect2D renderArea;
 	renderArea.offset = (VkOffset2D) { 0.0f, 0.0f };
-	renderArea.extent = renderer->swapchain->extent;
+	renderArea.extent = (VkExtent2D) { renderer->renderImage.width, renderer->renderImage.height };
 
 	VkRenderingInfo renderInfo;
 	renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -592,8 +676,8 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	viewport.maxDepth = 1.0f;
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = renderer->swapchain->extent.width;
-	viewport.height = renderer->swapchain->extent.height;
+	viewport.width = renderer->renderImage.width;
+	viewport.height = renderer->renderImage.height;
 
 	vkCmdSetViewport(renderer->renderCommandBuffer, 0, 1, &viewport);
 
@@ -742,14 +826,173 @@ void setDepthState(partyRenderer *renderer, uint8_t test, uint8_t write) {
 	}
 }
 
-void finishRender(partyRenderer *renderer) {
-	flushVerts(renderer);
+void drawRenderTexture(partyRenderer *renderer) {
+	// START IMAGE TRANSITION
+
+	const VkImageMemoryBarrier image_memory_barrier_start = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.image = renderer->swapchain->images[renderer->swapchain->imageIdx],
+		.subresourceRange = {
+		  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		  .baseMipLevel = 0,
+		  .levelCount = 1,
+		  .baseArrayLayer = 0,
+		  .layerCount = 1,
+		}
+	};
+
+	vkCmdPipelineBarrier(
+		renderer->renderCommandBuffer,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // dstStageMask
+		0,
+		0,
+		NULL,
+		0,
+		NULL,
+		1, // imageMemoryBarrierCount
+		&image_memory_barrier_start // pImageMemoryBarriers
+	);
+
+	// END IMAGE TRANSITION
+
+	// START IMAGE TRANSITION
+
+	/*const VkImageMemoryBarrier depth_image_memory_barrier = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.image = renderer->depthImage.image,
+		.subresourceRange = {
+		  .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+		  .baseMipLevel = 0,
+		  .levelCount = 1,
+		  .baseArrayLayer = 0,
+		  .layerCount = 1,
+		}
+	};
+
+	vkCmdPipelineBarrier(
+		renderer->renderCommandBuffer,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // dstStageMask
+		0,
+		0,
+		NULL,
+		0,
+		NULL,
+		1, // imageMemoryBarrierCount
+		&depth_image_memory_barrier // pImageMemoryBarriers
+	);*/
+
+	// END IMAGE TRANSITION
+
+	// begin rendering
+	VkClearColorValue clearColor;
+	clearColor.float32[0] = 0.0f;
+	clearColor.float32[1] = 0.0f;
+	clearColor.float32[2] = 0.0f;
+	clearColor.float32[3] = 1.0f;
+
+	VkClearValue clearVal;
+	clearVal.color = clearColor;
+
+	VkRenderingAttachmentInfo colorAttachment;
+	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	colorAttachment.pNext = NULL;
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachment.imageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx];
+	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+	colorAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	colorAttachment.resolveImageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx];
+	colorAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
+	colorAttachment.clearValue = clearVal;
+
+	VkClearValue clearDepth;
+	clearDepth.depthStencil.depth = 1.0f;
+	clearDepth.depthStencil.stencil = 0;
+
+	VkRenderingAttachmentInfo depthAttachment;
+	depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depthAttachment.pNext = NULL;
+	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachment.imageView = renderer->depthImage.imageView;
+	depthAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+	depthAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	depthAttachment.resolveImageView = renderer->depthImage.imageView;
+	depthAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
+	depthAttachment.clearValue = clearDepth;
+
+	VkRect2D renderArea;
+	renderArea.offset = (VkOffset2D) { 0.0f, 0.0f };
+	renderArea.extent = renderer->swapchain->extent;
+
+	VkRenderingInfo renderInfo;
+	renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderInfo.pNext = NULL;
+	renderInfo.flags = 0;
+	renderInfo.colorAttachmentCount = 1;
+	renderInfo.pColorAttachments = &colorAttachment;
+	renderInfo.pDepthAttachment = NULL;
+	renderInfo.pStencilAttachment = NULL;
+	renderInfo.layerCount = 1;
+	renderInfo.renderArea = renderArea;
+	renderInfo.viewMask = 0;
+
+	vkCmdBeginRendering(renderer->renderCommandBuffer, &renderInfo);
+
+	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->scalerPipeline);
+
+	VkViewport viewport;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = renderer->swapchain->extent.width;
+	viewport.height = renderer->swapchain->extent.height;
+
+	// modify viewport for letterboxing/pillarboxing
+	float windowAspectRatio = viewport.width / viewport.height;
+	if (windowAspectRatio > renderer->aspectRatio) {
+		// pillarbox
+		float newWidth = viewport.width * (renderer->aspectRatio / windowAspectRatio);
+		viewport.x = (viewport.width - newWidth) * 0.5f;
+		viewport.width = newWidth;
+	} else if (windowAspectRatio < renderer->aspectRatio) {
+		// letterbox
+		float newHeight = viewport.height * (windowAspectRatio / renderer->aspectRatio);
+		viewport.y = (viewport.height - newHeight) * 0.5f;
+		viewport.height = newHeight;
+	}
+
+	vkCmdSetViewport(renderer->renderCommandBuffer, 0, 1, &viewport);
+
+	vkCmdSetScissor(renderer->renderCommandBuffer, 0, 1, &renderArea);
+
+	uint64_t zero = 0;
+	vkCmdBindVertexBuffers(renderer->renderCommandBuffer, 0, 1, &(renderer->scalerBuffer.buffer), &zero);
+
+	VkDescriptorSet descSet = allocate_descriptor_set(renderer, renderer->descriptorAllocator, renderer->scalerLayout);
+	write_descriptor_image(renderer->descriptorAllocator, 0, renderer->renderSampler, renderer->renderImage.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+	write_descriptor_buffer(renderer->descriptorAllocator, 1, renderer->renderImageInfoBuffer.buffer, sizeof(imageInfo), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	update_set(renderer, renderer->descriptorAllocator, descSet);
+	clear_writes(renderer->descriptorAllocator);
+
+	vkCmdBindDescriptorSets(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->scalerPipelineLayout, 0, 1, &descSet, 0, NULL);
+
+	vkCmdDraw(renderer->renderCommandBuffer, 6, 1, 0, 0);
 
 	vkCmdEndRendering(renderer->renderCommandBuffer);
 
 	// START IMAGE TRANSITION
 
-	const VkImageMemoryBarrier image_memory_barrier = {
+	const VkImageMemoryBarrier image_memory_barrier_end = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 		.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -774,10 +1017,50 @@ void finishRender(partyRenderer *renderer) {
 		0,
 		NULL,
 		1, // imageMemoryBarrierCount
+		&image_memory_barrier_end // pImageMemoryBarriers
+	);
+
+	// END IMAGE TRANSITION
+}
+
+void finishRender(partyRenderer *renderer) {
+	flushVerts(renderer);
+
+	vkCmdEndRendering(renderer->renderCommandBuffer);
+
+	// START IMAGE TRANSITION
+
+	const VkImageMemoryBarrier image_memory_barrier = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		.image = renderer->renderImage.image,
+		.subresourceRange = {
+		  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		  .baseMipLevel = 0,
+		  .levelCount = 1,
+		  .baseArrayLayer = 0,
+		  .layerCount = 1,
+		}
+	};
+
+	vkCmdPipelineBarrier(
+		renderer->renderCommandBuffer,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // srcStageMask
+		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
+		0,
+		0,
+		NULL,
+		0,
+		NULL,
+		1, // imageMemoryBarrierCount
 		&image_memory_barrier // pImageMemoryBarriers
 	);
 
 	// END IMAGE TRANSITION
+
+	drawRenderTexture(renderer);
 
 	vkEndCommandBuffer(renderer->renderCommandBuffer);
 
@@ -809,4 +1092,10 @@ void finishRender(partyRenderer *renderer) {
 	if (!rbVkPresent(renderer)) {
 		printf("Present failed!\n");	
 	}
+}
+
+void setRenderResolution(partyRenderer *renderer, uint32_t width, uint32_t height, float aspectRatio) {
+	renderer->aspectRatio = aspectRatio;
+	renderer->renderWidth = width;
+	renderer->renderHeight = height;
 }

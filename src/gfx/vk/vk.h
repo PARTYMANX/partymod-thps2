@@ -1,7 +1,7 @@
 #ifndef _VK_H_
 #define _VK_H_
 
-//#include <hash.h>
+#include <util/sb.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -81,6 +81,11 @@ struct rbVkCommandQueue {
 };
 
 typedef struct {
+	VkPipeline pipeline;
+	VkPipelineLayout layout;
+} rbVkPipeline;
+
+typedef struct {
 	VkBuffer buffer;
 	VmaAllocation allocation;
 } rbVkBuffer;
@@ -151,6 +156,20 @@ struct rbVkMemoryManager {
 	VmaAllocator allocator;
 };
 
+struct PoolSizeRatio {
+	VkDescriptorType type;
+	float ratio;
+};
+
+typedef struct {
+	uint32_t sets_per_pool;
+
+	struct stretchyBuffer *ratios;
+	struct stretchyBuffer *full_pools;
+	struct stretchyBuffer *ready_pools;
+	struct stretchyBuffer *writes;
+} pmVkDescriptorAllocator;
+
 typedef struct partyRenderer {
 	//rbRenderer parent;
 
@@ -159,6 +178,7 @@ typedef struct partyRenderer {
 	struct rbVkSwapchain *swapchain;
 	struct rbVkCommandQueue *queue;
 	struct rbVkCommandQueue *memQueue;	// move this to a dedicated memory struct that handles the heap and all?
+	pmVkDescriptorAllocator *descriptorAllocator;
 
 	VkViewport currentViewport;
 	VkRect2D currentScissor;
@@ -172,11 +192,20 @@ typedef struct partyRenderer {
 
 	VkCommandBuffer renderCommandBuffer;
 	VkPipeline renderPipelines[10];
+	VkDescriptorSetLayout scalerLayout;
+	VkPipelineLayout scalerPipelineLayout;
+	VkPipeline scalerPipeline;
 
 	rbVkImage renderImage;
+	VkSampler renderSampler;
 	rbVkImage depthImage;
+	rbVkBuffer renderImageInfoBuffer;
+	float aspectRatio;
+	uint32_t renderWidth;
+	uint32_t renderHeight;
 
 	polyBuffer polyBuffer;
+	rbVkBuffer scalerBuffer;
 
 	struct rbVkMemoryManager *memoryManager;
 
@@ -217,6 +246,8 @@ void destroyRenderCommandBuffer(partyRenderer *renderer);
 VkResult createRenderPipelines(partyRenderer *renderer);
 void destroyRenderPipelines(partyRenderer *renderer);
 
+VkResult createScalerPipeline(partyRenderer *renderer);
+
 uint8_t createShaderFromFile(partyRenderer *renderer, char *filename, VkShaderModule *dst);
 VkShaderModule *createShader(partyRenderer *renderer, uint32_t codeSz, uint8_t *code);
 void vid2_destroyShader(partyRenderer *renderer, VkShaderModule *shader);
@@ -231,5 +262,14 @@ void unmapBuffer(partyRenderer *renderer, rbVkBuffer *buffer);
 
 void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t height, VkFormat colorFmt, VkFormat depthFmt);
 void destroyRenderTargets(partyRenderer *renderer);
+
+pmVkDescriptorAllocator *init_descriptors(partyRenderer *renderer, uint32_t max_sets, struct PoolSizeRatio *poolRatios, size_t poolRatioCount);
+void clear_descriptor_pools(partyRenderer *renderer, pmVkDescriptorAllocator *allocator);
+void destroy_descriptor_pools(partyRenderer *renderer, pmVkDescriptorAllocator *allocator);
+VkDescriptorSet allocate_descriptor_set(partyRenderer *renderer, pmVkDescriptorAllocator *allocator, VkDescriptorSetLayout layout);
+void write_descriptor_buffer(pmVkDescriptorAllocator *allocator, int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type);
+void write_descriptor_image(pmVkDescriptorAllocator *allocator, int binding, VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout, VkDescriptorType type);
+void update_set(partyRenderer *renderer, pmVkDescriptorAllocator *allocator, VkDescriptorSet set);
+void clear_writes(pmVkDescriptorAllocator *allocator);
 
 #endif

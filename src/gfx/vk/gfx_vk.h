@@ -22,6 +22,18 @@ typedef struct {
 	uint32_t color;
 } renderVertex;
 
+typedef struct {
+	float x;
+	float y;
+	float u;
+	float v;
+} scalerVertex;
+
+typedef struct {
+	float width;
+	float height;
+} imageInfo;
+
 /*
 	FUNC
 */
@@ -31,11 +43,12 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **dst);
 void startRender(partyRenderer *renderer, uint32_t clearColor);
 void finishRender(partyRenderer *renderer);
 void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
-void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
+//void drawTriangleFan(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
 void drawLines(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count);
 void setViewport(partyRenderer *renderer, float x, float y, float width, float height);
 void setScissor(partyRenderer *renderer, float x, float y, float width, float height);
 void setDepthState(partyRenderer *renderer, uint8_t test, uint8_t write);
 void setBlendState(partyRenderer *renderer, uint32_t blendState);
+void setRenderResolution(partyRenderer *renderer, uint32_t width, uint32_t height, float aspectRatio);
 
 #endif _GFX_VK_H_
