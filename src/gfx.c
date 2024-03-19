@@ -535,14 +535,18 @@ void patchD3D() {
 
 partyRenderer *renderer = NULL;
 
+int resolution_x = 640;
+int resolution_y = 480;
+float aspectRatio = 4.0f / 3.0f;
+
 void initDDraw() {
 	printf("STUB: initDDraw\n");
 
 	int *width = 0x029d6fe4;
 	int *height = 0x029d6fe8;
 
-	*width = 640;
-	*height = 480;
+	*width = resolution_x;
+	*height = resolution_y;
 }
 
 void initD3D() {
@@ -556,6 +560,8 @@ void initD3D() {
 	} else {
 		printf("vulkan initialized!!\n");
 	}
+
+	setRenderResolution(renderer, resolution_x, resolution_y, aspectRatio);
 }
 
 void D3D_ClearBuffers() {
@@ -1118,7 +1124,7 @@ void renderPolyF3(int *tag) {
 	int16_t x3 = *(int16_t *)((uint8_t *)tag + 16);
 	int16_t y3 = *(int16_t *)((uint8_t *)tag + 18);
 
-	printf("(%d, %d) (%d, %d) (%d, %d)\n", x1, y1, x2, y2, x3, y3);
+	//printf("(%d, %d) (%d, %d) (%d, %d)\n", x1, y1, x2, y2, x3, y3);
 
 	float z = *(float *)((uint8_t *)tag + 20);
 	z = fixZ(z);
@@ -1177,7 +1183,7 @@ void renderPolyF4(int *tag) {
 }
 
 void renderPolyFT3(int *tag) {
-	//if (*(int *)((uint8_t *)tag + 36)) {
+	if (*(int *)((uint8_t *)tag + 36)) {
 		//printf("TEST!\n");
 
 		uint8_t r = *((uint8_t *)tag + 4);
@@ -1219,11 +1225,11 @@ void renderPolyFT3(int *tag) {
 		transformCoords(vertices, 3);
 
 		drawVertices(renderer, vertices, 3);
-	//}
+	}
 }
 
 void renderPolyFT4(int *tag) {
-	//if (*(int *)((uint8_t *)tag + 44)) {
+	if (*(int *)((uint8_t *)tag + 44)) {
 		//printf("TEST!\n");
 
 		uint8_t r = *((uint8_t *)tag + 4);
@@ -1273,7 +1279,7 @@ void renderPolyFT4(int *tag) {
 		transformCoords(vertices, 6);
 
 		drawVertices(renderer, vertices, 6);
-	//}
+	}
 }
 
 void renderPolyG3(int *tag) {
@@ -1348,7 +1354,7 @@ void renderPolyG4(int *tag) {
 }
 
 void renderPolyGT3(int *tag) {
-	//if (*(int *)((uint8_t *)tag + 44)) {
+	if (*(int *)((uint8_t *)tag + 44)) {
 		//printf("TEST!\n");
 
 		uint8_t r = *((uint8_t *)tag + 4);
@@ -1391,11 +1397,11 @@ void renderPolyGT3(int *tag) {
 		transformCoords(vertices, 3);
 
 		drawVertices(renderer, vertices, 3);
-	//}
+	}
 }
 
 void renderPolyGT4(int *tag) {
-	//if (*(int *)((uint8_t *)tag + 56)) {
+	if (*(int *)((uint8_t *)tag + 56)) {
 		//printf("TEST!\n");
 
 		uint8_t r = *((uint8_t *)tag + 4);
@@ -1447,7 +1453,7 @@ void renderPolyGT4(int *tag) {
 		transformCoords(vertices, 6);
 
 		drawVertices(renderer, vertices, 6);
-	//}
+	}
 }
 
 void renderTile(int *tag) {
@@ -1560,6 +1566,7 @@ void D3DPOLY_DrawOTag(int *tag) {
 
 	while(tag != NULL) {
 		if (tag[1] != 0) {
+			// hangar heli causes command 226, what's up there?
 			uint8_t cmd = *(uint8_t *)((int)tag + 7);
 			if (!(cmd & 0x80)) {
 				//*nextPSXBlendMode = 0;
@@ -1721,25 +1728,70 @@ int D3DTEX_AddToTextureList3(int a, int b, int c, int d) {
 	return 0;
 }
 
-void makeTextureListEntry(int **a, int b, int c, int d) {
+struct texture {
+	void *ptr;
+	uint8_t filler1[0x4];
+	uint32_t img_data;
+	uint32_t tex_checksum;
+	// 0x10
+	uint32_t flags;
+	// 0x14
+	uint16_t width;
+	uint16_t height;
+	//0x18
+	uint16_t buf_width;
+	uint16_t buf_height;
+	//0x1c
+	uint16_t unk_width;
+	uint16_t unk_height;
+
+	// 0x20
+	int *palette;
+};
+
+void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 	printf("STUB: makeTextureListEntry: 0x%08x, 0x%08x, %d, %d\n", a, b, c, d);
 	int **palFront = 0x0069d174;
 
-	if (a[8] == NULL) {
-		int **idx = palFront;
-		while (idx != NULL) {
-			if (*idx == b) {
-				a[8] = idx;
+	if (a->palette == NULL) {
+		int *pal = *palFront;
+		while (pal) {
+			//printf("palette: 0x%08x\n", *pal);
+			if (*pal == b) {
+				a->palette = pal;
 				break;
 			}
 
-			idx = idx[4];
+			pal = pal[4];
 		}
 
-		if (a[8] == NULL) {
+		if (!a->palette) {
 			printf("Palette Checksum not found: 0x%08x\n", b);
-			a[8] = palFront;
+			a->palette = *palFront;
+		} else {
+			//printf("Found!\n");
 		}
+		
+		if (a->palette && (short*)(a->palette[3]) && *(short*)(a->palette[3]) == 0) {
+			a->flags = a->flags | 0x100;
+		}
+	}
+
+	printf("texture 0x%08x (0x%08x): width: %hu height: %hu\n", a->tex_checksum, a->img_data, a->width, a->height);
+
+	if (!(a->flags & 8)) {
+		printf("Load 1 - local data only\n");
+	} else {
+		printf("Load 2 - load higher res\n");
+		if (a->img_data && (a->flags & 0x40)) {
+			printf("image name: %s\n", a->img_data);
+		}
+	}
+
+	if (a->ptr == 0) {
+		// set buffer size (powers of two)
+
+		// create texture
 	}
 }
 
@@ -1798,16 +1850,44 @@ void WINMAIN_SwitchResolution() {
 	int *width = 0x029d6fe4;
 	int *height = 0x029d6fe8;
 
-	*width = 640;
-	*height = 480;
+	*width = resolution_x;
+	*height = resolution_y;
 
-	setRenderResolution(renderer, *width, *height, 4.0f / 3.0f);
+	setRenderResolution(renderer, *width, *height, aspectRatio);
 
 	/*int *fog = 0x0054546c;
 	float *fog2 = 0x00545334;
 
 	*fog = 10000;
 	*fog2 = 10000.0f;*/
+}
+
+uint16_t PixelAspectYFov = 0x1000;
+
+void m3dinit_setresolution() {
+	int *width = 0x029d6fe4;
+	int *height = 0x029d6fe8;
+
+	uint16_t *PixelAspectX = 0x005606cc;
+	uint16_t *PixelAspectY = 0x005606d0;
+	uint16_t *ResX = 0x0055ed00;
+	uint16_t *ResY = 0x0055ed18;
+
+	*ResX = *width;
+	*ResY = *height;
+
+	*PixelAspectX = 0x1000;
+	*PixelAspectY = ((*ResX * 0x3000) / (*ResY * 4));
+	//PixelAspectYFov = (float)*PixelAspectY / ((float)*ResY / (float)*ResX) / (3.0f / 4.0f);
+	//PixelAspectYFov = ((640 * 0x3000) / (480 * 4));
+
+	PixelAspectYFov = 4096.0f * (((float)*ResY / (float)*ResX) / (1.0f / aspectRatio));
+}
+
+void openExternalTexture(void *a, struct texture *b) {
+	// dummy version of this method to cancel any high res loads
+
+	return -1;
 }
 
 void WINMAIN_Configure() {
@@ -1835,7 +1915,7 @@ void installGfxPatches() {
 	patchJmp(0x004d7430, D3DTEX_TextureCountColors);
 	patchJmp(0x004d7120, D3DTEX_GrayTexture);
 	patchJmp(0x004d6100, makeTextureListEntry);
-	//patchJmp(0x004d5fe0, openExternalTexture);
+	patchJmp(0x004d5fe0, openExternalTexture);
 
 	// remove DX usage in AddToTextureList3
 	patchByte(0x004d6d1a, 0xEB);
@@ -1847,4 +1927,7 @@ void installGfxPatches() {
 	
 	patchJmp(0x004f3f10, WINMAIN_SwitchResolution);
 	patchJmp(0x004cc240, WINMAIN_Configure);
+
+	patchJmp(0x00464620, m3dinit_setresolution);
+	patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
 }
