@@ -58,34 +58,39 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	// vertex input state
 
-	VkVertexInputAttributeDescription vertexAttributeDesc[3];
+	VkVertexInputAttributeDescription vertexAttributeDesc[4];
 
 	vertexAttributeDesc[0].binding = 0;
 	vertexAttributeDesc[0].location = 0;
-	vertexAttributeDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexAttributeDesc[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	vertexAttributeDesc[0].offset = 0;
 
 	vertexAttributeDesc[1].binding = 0;
 	vertexAttributeDesc[1].location = 1;
 	vertexAttributeDesc[1].format = VK_FORMAT_R32G32_SFLOAT;
-	vertexAttributeDesc[1].offset = (sizeof(float) * 3);
+	vertexAttributeDesc[1].offset = (sizeof(float) * 4);
 
 	vertexAttributeDesc[2].binding = 0;
 	vertexAttributeDesc[2].location = 2;
 	vertexAttributeDesc[2].format = VK_FORMAT_R8G8B8A8_UNORM;
-	vertexAttributeDesc[2].offset = (sizeof(float) * 3) + (sizeof(float) * 2);
+	vertexAttributeDesc[2].offset = (sizeof(float) * 4) + (sizeof(float) * 2);
+
+	vertexAttributeDesc[3].binding = 0;
+	vertexAttributeDesc[3].location = 3;
+	vertexAttributeDesc[3].format = VK_FORMAT_R32_SINT;
+	vertexAttributeDesc[3].offset = (sizeof(float) * 4) + (sizeof(float) * 2) + (sizeof(uint32_t));
 
 	VkVertexInputBindingDescription vertexBindingDesc[1];
 
 	vertexBindingDesc[0].binding = 0;
 	vertexBindingDesc[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-	vertexBindingDesc[0].stride = (sizeof(float) * 3) + (sizeof(float) * 2) + (sizeof(uint32_t));
+	vertexBindingDesc[0].stride = (sizeof(float) * 4) + (sizeof(float) * 2) + (sizeof(uint32_t)) + (sizeof(int32_t));
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo;
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.pNext = NULL;
 	vertexInputInfo.flags = 0;
-	vertexInputInfo.vertexAttributeDescriptionCount = 3;
+	vertexInputInfo.vertexAttributeDescriptionCount = 4;
 	vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDesc;
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
 	vertexInputInfo.pVertexBindingDescriptions = vertexBindingDesc;
@@ -168,7 +173,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	depthStencilInfo.flags = 0;
 	depthStencilInfo.depthTestEnable = VK_TRUE;
 	depthStencilInfo.depthWriteEnable = VK_TRUE;
-	depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 
 	depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
 	depthStencilInfo.minDepthBounds = 0.0f;
@@ -300,14 +305,33 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	free(layout.bindings);*/
 
+	VkDescriptorSetLayoutBinding descBindings[1];
+	descBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	descBindings[0].binding = 0;
+	descBindings[0].descriptorCount = 2048;
+	descBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descBindings[0].pImmutableSamplers = NULL;
+
+	VkDescriptorSetLayoutCreateInfo descInfo;
+	descInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descInfo.pNext = NULL;
+	descInfo.flags = 0;
+	descInfo.bindingCount = 1;
+	descInfo.pBindings = descBindings;
+
+	if (vkCreateDescriptorSetLayout(renderer->device->device, &descInfo, NULL, &renderer->renderDescriptorLayout) != VK_SUCCESS) {
+		printf("Failed to create descriptor set layout!\n");
+		exit(1);
+	}
+
 	VkPipelineLayout layout;
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo;
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.pNext = NULL;
 	pipelineLayoutInfo.flags = 0;
-	pipelineLayoutInfo.setLayoutCount = 0;
-	pipelineLayoutInfo.pSetLayouts = NULL;
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &renderer->renderDescriptorLayout;
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = NULL;
 
@@ -315,6 +339,8 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 		printf("Failed to create pipeline layout!\n");
 		exit(1);
 	}
+
+	renderer->renderPipelineLayout = layout;
 
 	VkPipelineRenderingCreateInfo renderingInfo;
 	renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -376,12 +402,12 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	uint8_t shaderResult = 0;
 
-	shaderResult = createShaderFromFile(renderer, "shaders/base.vert.spv", &(shaderStageInfo[0].module));
+	shaderResult = createShaderFromFile(renderer, "shaders/base-texture.vert.spv", &(shaderStageInfo[0].module));
 	if (!shaderResult) {
 		printf("failed to create vertex shader!\n");
 	}
 
-	shaderResult = createShaderFromFile(renderer, "shaders/base.frag.spv", &(shaderStageInfo[1].module));
+	shaderResult = createShaderFromFile(renderer, "shaders/base-texture.frag.spv", &(shaderStageInfo[1].module));
 	if (!shaderResult) {
 		printf("failed to create fragment shader!\n");
 	}

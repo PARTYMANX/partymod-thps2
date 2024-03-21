@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -242,6 +243,77 @@ void updatePolyBuffer(partyRenderer *renderer) {
 	unmapBuffer(renderer, &(renderer->polyBuffer.buffer));
 }
 
+/*
+	TEXTURE MANAGER
+*/
+
+void createTextureManager(partyRenderer *renderer) {
+	textureManager result;
+
+	result.capacity = 2048;
+	result.count = 0;
+	result.sampler = createSampler(renderer);
+	result.images = malloc(sizeof(rbVkImage) * result.capacity);
+	result.occupied = calloc(result.capacity, sizeof(uint8_t));
+
+	renderer->textureManager = result;
+}
+
+uint32_t createTextureEntry(partyRenderer *renderer, uint32_t width, uint32_t height) {
+	rbVkImage result;
+	createTexture(renderer, width, height, &result);
+
+	int i = 0;
+	while(renderer->textureManager.occupied[i] && i < renderer->textureManager.capacity) {
+		i++;
+	}
+
+	renderer->textureManager.occupied[i] = 1;
+	renderer->textureManager.images[i] = result;
+
+	renderer->textureManager.count++;
+
+	return i;
+}
+
+void updateTextureEntry(partyRenderer *renderer, uint32_t idx, uint32_t width, uint32_t height, void *data) {
+	updateTexture(renderer, renderer->textureManager.images + idx, width, height, data);
+}
+
+void destroyTextureEntry(partyRenderer *renderer, uint32_t idx) {
+	sb_push_back(renderer->pendingImageDeletes, &renderer->textureManager.images[idx]);
+	renderer->textureManager.occupied[idx] = 0;
+	renderer->textureManager.count--;
+}
+
+void writeTextureDescriptors(partyRenderer *renderer) {
+	printf("writing %d descriptors...\n", renderer->textureManager.count);
+	int i = 0;
+	int count = 0;
+	while(count < renderer->textureManager.count) {
+		if (renderer->textureManager.occupied[i]) {
+			write_descriptor_image_array(renderer->descriptorAllocator, 0, count, renderer->textureManager.sampler, renderer->textureManager.images[i].imageView, VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+			count++;
+		}
+
+		i++;
+	}
+}
+
+void flushTextureDeletes(partyRenderer *renderer) {
+	for (int i = 0; i < renderer->pendingImageDeletes->count; i++){
+		rbVkImage *img = ((rbVkImage *)renderer->pendingImageDeletes->data) + i;
+
+		destroyTexture(renderer, *img);
+	}
+
+	renderer->pendingImageDeletes->count = 0;
+}
+
+/*
+	SCALER
+*/
+
 VkResult createScalerVertexBuffer(partyRenderer *renderer) {
 	rbVkBuffer result;
 
@@ -369,6 +441,11 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 	if (r) {
 		goto error_free;
 	}
+
+	createTextureManager(result);
+
+	result->pendingImageWrites = sb_alloc(sizeof(pendingImageWrite), 64);
+	result->pendingImageDeletes = sb_alloc(sizeof(rbVkImage), 64);
 
 	r = createScalerVertexBuffer(result);
 	if (r) {
@@ -523,6 +600,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 
 	// kind of disorganized here: we've waited for the relevant fance in rbVkGetNextImage, so we can reset descriptor sets safely
 	clear_descriptor_pools(renderer, renderer->descriptorAllocator);
+	flushTextureDeletes(renderer);
 
 	if (renderer->renderWidth != renderer->renderImage.width || renderer->renderHeight != renderer->renderImage.height) {
 		printf("Adjusting internal render resolution from %dx%d to %dx%d\n", renderer->renderImage.width, renderer->renderImage.height, renderer->renderWidth, renderer->renderHeight);
@@ -636,7 +714,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	colorAttachment.clearValue = clearVal;
 
 	VkClearValue clearDepth;
-	clearDepth.depthStencil.depth = 1.0f;
+	clearDepth.depthStencil.depth = 0.0f;
 	clearDepth.depthStencil.stencil = 0;
 
 	VkRenderingAttachmentInfo depthAttachment;
@@ -685,6 +763,13 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 
 	vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, VK_FALSE);
 	vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, VK_FALSE);
+
+	VkDescriptorSet descSet = allocate_descriptor_set(renderer, renderer->descriptorAllocator, renderer->renderDescriptorLayout);
+	writeTextureDescriptors(renderer);
+	update_set(renderer, renderer->descriptorAllocator, descSet);
+	clear_writes(renderer->descriptorAllocator);
+
+	vkCmdBindDescriptorSets(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->renderPipelineLayout, 0, 1, &descSet, 0, NULL);
 
 	uint64_t zero = 0;
 	vkCmdBindVertexBuffers(renderer->renderCommandBuffer, 0, 1, &(renderer->polyBuffer.buffer.buffer), &zero);
@@ -769,6 +854,8 @@ void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vert
 	renderer->processedVerts += vertex_count;
 
 	appendPolyBuffer(renderer, vertices, vertex_count);
+
+	flushVerts(renderer);
 }
 
 void drawLines(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
@@ -780,6 +867,8 @@ void drawLines(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_
 	renderer->processedVerts += vertex_count;
 
 	appendPolyBuffer(renderer, vertices, vertex_count);
+
+	flushVerts(renderer);
 }
 
 void setViewport(partyRenderer *renderer, float x, float y, float width, float height) {
@@ -1084,6 +1173,10 @@ void finishRender(partyRenderer *renderer) {
 	updatePolyBuffer(renderer);
 	resetPolyBuffer(renderer);
 
+	if (renderer->pendingImageWrites->count > 0) {
+		vkQueueWaitIdle(renderer->memQueue->queue);
+	}
+
 	if (vkQueueSubmit(renderer->queue->queue, 1, &submitInfo, renderer->swapchain->fence) != VK_SUCCESS) {
 		printf("ERROR: Failed to submit command queue!");
 		exit(1);
@@ -1091,6 +1184,15 @@ void finishRender(partyRenderer *renderer) {
 
 	if (!rbVkPresent(renderer)) {
 		printf("Present failed!\n");	
+	}
+
+	if (renderer->pendingImageWrites->count > 0) {
+		for (int i = 0; i < renderer->pendingImageWrites->count; i++) {
+			pendingImageWrite *imgWrite = ((pendingImageWrite *)renderer->pendingImageWrites->data) + i;
+			vkFreeCommandBuffers(renderer->device->device, renderer->memQueue->commandPool, 1, &imgWrite->cmdbuf);
+			destroyBuffer(renderer, &imgWrite->transferbuf);
+		}
+		renderer->pendingImageWrites->count = 0;
 	}
 }
 

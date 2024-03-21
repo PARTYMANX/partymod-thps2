@@ -170,6 +170,27 @@ void write_descriptor_image(pmVkDescriptorAllocator *allocator, int binding, VkS
 	sb_push_back(allocator->writes, &write);
 }
 
+void write_descriptor_image_array(pmVkDescriptorAllocator *allocator, int binding, int idx, VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout, VkDescriptorType type) {
+	VkDescriptorImageInfo *imageInfo = malloc(sizeof(VkDescriptorImageInfo));
+	imageInfo->sampler = sampler;
+	imageInfo->imageView = imageView;
+	imageInfo->imageLayout = imageLayout;
+
+	VkWriteDescriptorSet write;
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.pNext = NULL;
+	write.dstBinding = binding;
+	write.dstSet = VK_NULL_HANDLE;
+	write.dstArrayElement = idx;
+	write.descriptorCount = 1;
+	write.descriptorType = type;
+	write.pBufferInfo = NULL;
+	write.pImageInfo = imageInfo;
+	write.pTexelBufferView = NULL;
+	
+	sb_push_back(allocator->writes, &write);
+}
+
 void update_set(partyRenderer *renderer, pmVkDescriptorAllocator *allocator, VkDescriptorSet set) {
 	for (int i = 0; i < allocator->writes->count; i++) {
 		((VkWriteDescriptorSet *)allocator->writes->data)[i].dstSet = set;

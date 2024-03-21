@@ -114,6 +114,14 @@ typedef struct {
 	rbVkBuffer buffer;
 } polyBuffer;
 
+typedef struct {
+	size_t capacity;
+	size_t count;
+	VkSampler sampler;
+	uint8_t *occupied;
+	rbVkImage *images;
+} textureManager;
+
 /*
 	CACHES
 */
@@ -170,6 +178,11 @@ typedef struct {
 	struct stretchyBuffer *writes;
 } pmVkDescriptorAllocator;
 
+typedef struct {
+	VkCommandBuffer cmdbuf;
+	rbVkBuffer transferbuf;
+} pendingImageWrite;
+
 typedef struct partyRenderer {
 	//rbRenderer parent;
 
@@ -177,7 +190,7 @@ typedef struct partyRenderer {
 	struct rbVkDevice *device;
 	struct rbVkSwapchain *swapchain;
 	struct rbVkCommandQueue *queue;
-	struct rbVkCommandQueue *memQueue;	// move this to a dedicated memory struct that handles the heap and all?
+	struct rbVkCommandQueue *memQueue;
 	pmVkDescriptorAllocator *descriptorAllocator;
 
 	VkViewport currentViewport;
@@ -191,6 +204,8 @@ typedef struct partyRenderer {
 	uint32_t processedVerts;
 
 	VkCommandBuffer renderCommandBuffer;
+	VkDescriptorSetLayout renderDescriptorLayout;
+	VkPipelineLayout renderPipelineLayout;
 	VkPipeline renderPipelines[10];
 	VkDescriptorSetLayout scalerLayout;
 	VkPipelineLayout scalerPipelineLayout;
@@ -205,7 +220,11 @@ typedef struct partyRenderer {
 	uint32_t renderHeight;
 
 	polyBuffer polyBuffer;
+	textureManager textureManager;
 	rbVkBuffer scalerBuffer;
+
+	struct stretchyBuffer *pendingImageWrites;
+	struct stretchyBuffer *pendingImageDeletes;
 
 	struct rbVkMemoryManager *memoryManager;
 
@@ -242,6 +261,8 @@ VkResult rbVkCreateCommandQueue(struct rbVkDevice *device, VkCommandPoolCreateFl
 void rbVkDestroyCommandQueue(struct rbVkCommandQueue *queue);
 VkResult createRenderCommandBuffer(partyRenderer *renderer);
 void destroyRenderCommandBuffer(partyRenderer *renderer);
+VkCommandBuffer startStagingCommandBuffer(partyRenderer *renderer);
+void endStagingCommandBuffer(partyRenderer *renderer, VkCommandBuffer cmdbuf);
 
 VkResult createRenderPipelines(partyRenderer *renderer);
 void destroyRenderPipelines(partyRenderer *renderer);
@@ -269,7 +290,13 @@ void destroy_descriptor_pools(partyRenderer *renderer, pmVkDescriptorAllocator *
 VkDescriptorSet allocate_descriptor_set(partyRenderer *renderer, pmVkDescriptorAllocator *allocator, VkDescriptorSetLayout layout);
 void write_descriptor_buffer(pmVkDescriptorAllocator *allocator, int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type);
 void write_descriptor_image(pmVkDescriptorAllocator *allocator, int binding, VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout, VkDescriptorType type);
+void write_descriptor_image_array(pmVkDescriptorAllocator *allocator, int binding, int idx, VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout, VkDescriptorType type);
 void update_set(partyRenderer *renderer, pmVkDescriptorAllocator *allocator, VkDescriptorSet set);
 void clear_writes(pmVkDescriptorAllocator *allocator);
+
+VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height, rbVkImage *result);
+void destroyTexture(partyRenderer *renderer, rbVkImage img);
+void updateTexture(partyRenderer *renderer, rbVkImage *img, uint32_t width, uint32_t height, void *data);
+VkSampler createSampler(partyRenderer *renderer);
 
 #endif

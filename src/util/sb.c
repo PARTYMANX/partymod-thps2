@@ -18,7 +18,8 @@ struct stretchyBuffer *sb_alloc(size_t unit, size_t initial_capacity){
 void sb_push_back(struct stretchyBuffer *buffer, void *data) {
 	if (buffer->count >= buffer->capacity) {
 		buffer->capacity *= 2;
-		buffer->data = realloc(buffer->data, buffer->capacity);
+		//printf("resizing stretchy buffer to %d!\n", buffer->capacity);
+		buffer->data = realloc(buffer->data, buffer->unit * buffer->capacity);
 	}
 
 	memcpy(((uint8_t *)buffer->data) + (buffer->unit * buffer->count), data, buffer->unit);

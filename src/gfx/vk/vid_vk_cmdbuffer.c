@@ -73,6 +73,48 @@ void destroyRenderCommandBuffer(partyRenderer *renderer) {
 	vkFreeCommandBuffers(renderer->device->device, renderer->queue->commandPool, 1, &(renderer->renderCommandBuffer));
 }
 
+VkCommandBuffer startStagingCommandBuffer(partyRenderer *renderer) {
+	VkCommandBufferAllocateInfo cmdbufAllocInfo;
+	cmdbufAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdbufAllocInfo.pNext = NULL;
+	cmdbufAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmdbufAllocInfo.commandPool = renderer->memQueue->commandPool;
+	cmdbufAllocInfo.commandBufferCount = 1;
+
+	VkCommandBuffer cmdbuf;
+	vkAllocateCommandBuffers(renderer->device->device, &cmdbufAllocInfo, &cmdbuf);
+
+	VkCommandBufferBeginInfo cmdbufBeginInfo;
+	cmdbufBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	cmdbufBeginInfo.pNext = NULL;
+	cmdbufBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	cmdbufBeginInfo.pInheritanceInfo = NULL;
+
+	vkBeginCommandBuffer(cmdbuf, &cmdbufBeginInfo);
+
+	return cmdbuf;
+}
+
+void endStagingCommandBuffer(partyRenderer *renderer, VkCommandBuffer cmdbuf) {
+	vkEndCommandBuffer(cmdbuf);
+
+	VkSubmitInfo submitInfo;
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = NULL;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &cmdbuf;
+	submitInfo.signalSemaphoreCount = 0;
+	submitInfo.pSignalSemaphores = NULL;
+	submitInfo.waitSemaphoreCount = 0;
+	submitInfo.pWaitSemaphores = NULL;
+	submitInfo.pWaitDstStageMask = NULL;
+
+	vkQueueSubmit(renderer->memQueue->queue, 1, &submitInfo, VK_NULL_HANDLE);
+	//vkQueueWaitIdle(renderer->memQueue->queue);	// TODO: maybe make a queue of sorts of the command buffers to free?  lets us load faster
+
+	//vkFreeCommandBuffers(renderer->device->device, renderer->memQueue->commandPool, 1, &cmdbuf);
+}
+
 /*commandBuffer_t createCommandBuffer(vid2_renderer_t *renderer) {
 	commandBuffer_t buffer;
 

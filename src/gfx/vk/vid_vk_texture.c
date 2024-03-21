@@ -49,8 +49,8 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	renderer->depthImage.height = height;
 	renderer->depthImage.depth = 1;
 
-	renderer->depthImage.mipmapCount = 0;
-	renderer->depthImage.arrayLength = 0;
+	renderer->depthImage.mipmapCount = 1;
+	renderer->depthImage.arrayLength = 1;
 	renderer->depthImage.sampleCount = 1;
 
 	renderer->renderImage.type = VK_IMAGE_TYPE_2D;
@@ -60,8 +60,8 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	renderer->renderImage.height = height;
 	renderer->renderImage.depth = 1;
 
-	renderer->renderImage.mipmapCount = 0;
-	renderer->renderImage.arrayLength = 0;
+	renderer->renderImage.mipmapCount = 1;
+	renderer->renderImage.arrayLength = 1;
 	renderer->renderImage.sampleCount = 1;
 
 	//renderer->depthImage.flags = 0;
@@ -203,47 +203,47 @@ void destroyRenderTargets(partyRenderer *renderer) {
 	vmaFreeMemory(renderer->memoryManager->allocator, renderer->renderImage.allocation);
 }
 
-/*vid2_texture_t *vid2_createTexture(vid2_renderer_t *renderer, vid2_textureInfo_t *info) {
-	rbVkImage *result = malloc(sizeof(rbVkImage));
+VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height, rbVkImage *result) {
+	result->type = VK_IMAGE_TYPE_2D;
+	result->pixelFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
-	result->type = info->type;
-	result->pixelFormat = info->pixelFormat;
+	result->width = width;
+	result->height = height;
+	result->depth = 1;
+	result->pixelFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
-	result->width = info->width;
-	result->height = info->height;
-	result->depth = info->depth;
+	result->mipmapCount = 1;
+	result->arrayLength = 1;
+	result->sampleCount = 1;
 
-	result->mipmapCount = info->mipmapCount;
-	result->arrayLength = info->arrayLength;
-	result->sampleCount = info->sampleCount;
-
-	result->flags = 0;
+	//result->flags = 0;
 
 	VkImageCreateInfo imgCreateInfo;
 	imgCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imgCreateInfo.pNext = NULL;
 	imgCreateInfo.flags = 0;
 	imgCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	imgCreateInfo.extent.width = info->width;
-	imgCreateInfo.extent.height = info->height;
-	imgCreateInfo.extent.depth = info->depth;
-	imgCreateInfo.mipLevels = info->mipmapCount;
-	imgCreateInfo.arrayLayers = info->arrayLength;
+	imgCreateInfo.extent.width = result->width;
+	imgCreateInfo.extent.height = result->height;
+	imgCreateInfo.extent.depth = 1;
+	imgCreateInfo.mipLevels = 1;
+	imgCreateInfo.arrayLayers = 1;
 
-	imgCreateInfo.format = pixelFormatLUT[info->pixelFormat];
+	imgCreateInfo.format = result->pixelFormat;
 	imgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 	imgCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;	// FIXME: ? causes issue if when trying to display before update + mipmap generation
-	imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | decodeUsage(info->usage, isDepthFormat(info->pixelFormat));
+	imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	imgCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;	// TODO: (probably) from info??
 
-	imgCreateInfo.samples = info->sampleCount;
+	imgCreateInfo.samples = 1;
 
 	imgCreateInfo.queueFamilyIndexCount = 0;
 	imgCreateInfo.pQueueFamilyIndices = NULL;
 
-	if (vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(result->image)) != VK_SUCCESS) {
+	VkResult r = vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(result->image));
+	if (r != VK_SUCCESS) {
 		printf("Failed to create texture!\n");
-		exit(1);
+		return r;
 	}
 
 	// allocate memory
@@ -270,94 +270,94 @@ void destroyRenderTargets(partyRenderer *renderer) {
 	viewCreateInfo.flags = 0;
 	viewCreateInfo.image = result->image;
 	viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewCreateInfo.format = pixelFormatLUT[info->pixelFormat];
+	viewCreateInfo.format = result->pixelFormat;
 
 	viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 	viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 	viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
 	viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 
-	viewCreateInfo.subresourceRange.aspectMask = (isDepthFormat(info->pixelFormat)) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+	viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	viewCreateInfo.subresourceRange.baseMipLevel = 0;
-	viewCreateInfo.subresourceRange.levelCount = info->mipmapCount;
+	viewCreateInfo.subresourceRange.levelCount = 1;
 	viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	viewCreateInfo.subresourceRange.layerCount = info->arrayLength;
+	viewCreateInfo.subresourceRange.layerCount = 1;
 
-	if(vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(result->imageView)) != VK_SUCCESS) {
+	r = vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(result->imageView));
+	if(r != VK_SUCCESS) {
 		printf("Failed to create image view");
-		exit(1);
 	}
 
-	return result;
-}*/
-
-void vid2_destroyTexture(partyRenderer *renderer, rbVkImage *img) {
-	vkDestroyImageView(renderer->device->device, img->imageView, NULL);
-	vkDestroyImage(renderer->device->device, img->image, NULL);
-	vmaFreeMemory(renderer->memoryManager->allocator, img->allocation);
-	free(img);
+	return r;
 }
 
-/*vid2_sampler_t *vid2_createSampler(vid2_renderer_t *renderer, vid2_samplerInfo_t *info) {
-	vid2_sampler_t *result = malloc(sizeof(vid2_sampler_t));
+void destroyTexture(partyRenderer *renderer, rbVkImage img) {
+	vkDestroyImageView(renderer->device->device, img.imageView, NULL);
+	vkDestroyImage(renderer->device->device, img.image, NULL);
+	vmaFreeMemory(renderer->memoryManager->allocator, img.allocation);
+	//free(img);
+}
 
-	result->renderer = renderer;
+VkSampler createSampler(partyRenderer *renderer) {
+	VkSampler result;
 
 	VkSamplerCreateInfo samplerInfo;
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerInfo.pNext = NULL;
 	samplerInfo.flags = 0;
 
-	samplerInfo.minFilter = filterLUT[info->minFilter];
-	samplerInfo.magFilter = filterLUT[info->magFilter];
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
 
-	samplerInfo.addressModeU = addressModeLUT[info->uAddressMode];
-	samplerInfo.addressModeV = addressModeLUT[info->vAddressMode];
-	samplerInfo.addressModeW = addressModeLUT[info->wAddressMode];
+	samplerInfo.minFilter = VK_FILTER_NEAREST;
+	samplerInfo.magFilter = VK_FILTER_NEAREST;
 
-	samplerInfo.anisotropyEnable = (info->maxAnisotropy != 1.0f) ? VK_TRUE : VK_FALSE;
-	samplerInfo.maxAnisotropy = info->maxAnisotropy;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
-	samplerInfo.borderColor = borderColorLUT[info->borderColor];
+	samplerInfo.anisotropyEnable = VK_FALSE;
+	samplerInfo.maxAnisotropy = 0;
 
-	samplerInfo.unnormalizedCoordinates = (info->unnormalizedCoordinates) ? VK_TRUE : VK_FALSE;
+	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
 
-	samplerInfo.compareEnable = info->compareEnable;
-	samplerInfo.compareOp = compareOpLUT[info->compareOp];
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
 
-	samplerInfo.mipmapMode = mipmapModeLUT[info->mipmapMode];
-	samplerInfo.mipLodBias = info->mipmapLodBias;
-	samplerInfo.minLod = info->minLod;
-	samplerInfo.maxLod = (info->maxLod == VID2_LOD_CLAMP_NONE) ? VK_LOD_CLAMP_NONE : info->maxLod;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 
-	if(vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &(result->sampler)) != VK_SUCCESS) {
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0;
+	samplerInfo.minLod = VK_LOD_CLAMP_NONE;
+	samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+
+	if(vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &result) != VK_SUCCESS) {
 		printf("Failed to create sampler");
 		exit(1);
 	}
 
 	return result;
-}*/
+}
 
 /*void vid2_destroySampler(vid2_sampler_t *sampler) {
 	vkDestroySampler(sampler->renderer->device->device, sampler->sampler, NULL);
-	free(sampler);
-}
+}*/
 
-void transitionImageLayout(VkCommandBuffer cmdbuf, vid2_texture_t *img, vid2_textureCopyInfo *info) {
+/*void transitionImageLayout(VkCommandBuffer cmdbuf, vid2_texture_t *img, vid2_textureCopyInfo *info) {
 	
 }*/
 
-/*void vid2_updateTexture(vid2_texture_t *img, vid2_textureCopyInfo *info) {
+void updateTexture(partyRenderer *renderer, rbVkImage *img, uint32_t width, uint32_t height, void *data) {
+	VkDeviceSize sz = width * height * 4;	// assuming rgba8
 
-	VkDeviceSize sz = info->bytesPerRow * info->region.to[1] * info->region.to[2];
+	rbVkBuffer transferBuffer;
+	createBuffer(renderer, sz, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &transferBuffer);
 
-	vid2_buffer_t *buffer = createStagingBuffer(img->renderer, sz);
+	void *buf = mapBuffer(renderer, &transferBuffer);
+	memcpy(buf, data, sz);
+	unmapBuffer(renderer, &transferBuffer);
 
-	void *buf = mapMemory((buffer->memory));
-	memcpy(buf, info->data, sz);
-	unmapMemory((buffer->memory));
-
-	VkCommandBuffer cmdbuf = startStagingCommandBuffer(img->renderer);
+	VkCommandBuffer cmdbuf = startStagingCommandBuffer(renderer);
 
 	//IMAGE COPY GOES HERE
 
@@ -370,10 +370,10 @@ void transitionImageLayout(VkCommandBuffer cmdbuf, vid2_texture_t *img, vid2_tex
 	imgMemBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	imgMemBarrier.image = img->image;
 	imgMemBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	imgMemBarrier.subresourceRange.baseMipLevel = info->mipLevel;
+	imgMemBarrier.subresourceRange.baseMipLevel = 0;
 	imgMemBarrier.subresourceRange.levelCount = 1;
-	imgMemBarrier.subresourceRange.baseArrayLayer = info->baseArrayLayer;
-	imgMemBarrier.subresourceRange.layerCount = info->layerCount;
+	imgMemBarrier.subresourceRange.baseArrayLayer = 0;
+	imgMemBarrier.subresourceRange.layerCount = 1;
 
 	imgMemBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imgMemBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -392,19 +392,19 @@ void transitionImageLayout(VkCommandBuffer cmdbuf, vid2_texture_t *img, vid2_tex
 	copyRegion.bufferImageHeight = 0;
 
 	copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	copyRegion.imageSubresource.mipLevel = info->mipLevel;
-	copyRegion.imageSubresource.baseArrayLayer = info->baseArrayLayer;
-	copyRegion.imageSubresource.layerCount = info->layerCount;
+	copyRegion.imageSubresource.mipLevel = 0;
+	copyRegion.imageSubresource.baseArrayLayer = 0;
+	copyRegion.imageSubresource.layerCount = 1;
 
-	copyRegion.imageOffset.x = info->region.from[0];
-	copyRegion.imageOffset.y = info->region.from[1];
-	copyRegion.imageOffset.z = info->region.from[2];
+	copyRegion.imageOffset.x = 0;
+	copyRegion.imageOffset.y = 0;
+	copyRegion.imageOffset.z = 0;
 
-	copyRegion.imageExtent.width = info->region.to[0];
-	copyRegion.imageExtent.height = info->region.to[1];
-	copyRegion.imageExtent.depth = info->region.to[2];
+	copyRegion.imageExtent.width = width;
+	copyRegion.imageExtent.height = height;
+	copyRegion.imageExtent.depth = 1;
 
-	vkCmdCopyBufferToImage(cmdbuf, buffer->buffer, img->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+	vkCmdCopyBufferToImage(cmdbuf, transferBuffer.buffer, img->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 	// end image copy
 	
@@ -421,10 +421,15 @@ void transitionImageLayout(VkCommandBuffer cmdbuf, vid2_texture_t *img, vid2_tex
 
 	//END IMAGE COPY
 
-	endStagingCommandBuffer(img->renderer, cmdbuf);
+	endStagingCommandBuffer(renderer, cmdbuf);
 
-	vid2_destroyBuffer(buffer);
-}*/
+	//destroyBuffer(renderer, &transferBuffer);
+	pendingImageWrite imageWrite;
+	imageWrite.cmdbuf = cmdbuf;
+	imageWrite.transferbuf = transferBuffer;
+
+	sb_push_back(renderer->pendingImageWrites, &imageWrite);
+}
 
 inline int32_t i32max(int32_t a, int32_t b) {
 	return (a > b) ? a : b;
