@@ -529,6 +529,7 @@ void patchD3D() {
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <patch.h>
 #include <global.h>
@@ -814,6 +815,7 @@ void renderDXPoly(int *tag) {
 	}
 
 	uint32_t alpha;
+	uint16_t renderFlags = 0;
 
 	if (polyflags & 0x40) {
 		setDepthState(renderer, 1, 0);
@@ -834,6 +836,7 @@ void renderDXPoly(int *tag) {
 			alpha = 0x00000000;
 			// blend mode 4
 			setBlendState(renderer, 4);
+			renderFlags |= 1;
 			break;
 		case 0x180:
 			alpha = 0x40000000;
@@ -894,6 +897,7 @@ void renderDXPoly(int *tag) {
 			buf[outputVert].v = 0.0f;
 			buf[outputVert].color = fixDXColor(vertices[0].color);
 			buf[outputVert].texture = -1;
+			buf[outputVert].flags = 0;
 
 			buf[outputVert + 1].x = vertices[i].x;
 			buf[outputVert + 1].y = vertices[i].y;
@@ -903,6 +907,7 @@ void renderDXPoly(int *tag) {
 			buf[outputVert + 1].v = 0.0f;
 			buf[outputVert + 1].color = fixDXColor(vertices[i].color);
 			buf[outputVert + 1].texture = -1;
+			buf[outputVert + 1].flags = 0;
 
 			buf[outputVert + 2].x = vertices[i + 1].x;
 			buf[outputVert + 2].y = vertices[i + 1].y;
@@ -912,6 +917,7 @@ void renderDXPoly(int *tag) {
 			buf[outputVert + 2].v = 0.0f;
 			buf[outputVert + 2].color = fixDXColor(vertices[i + 1].color);
 			buf[outputVert + 2].texture = -1;
+			buf[outputVert + 2].flags = 0;
 
 			outputVert += 3;
 		} 
@@ -921,9 +927,10 @@ void renderDXPoly(int *tag) {
 	} else {
 		struct dxpolytextured *vertices = ((uint8_t *)tag + 0x18);
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 0x10) + 0x14);
 
-		if (!(*(uint8_t *)(*(uint32_t *)(*(uint32_t *)((uint8_t *)tag + 0x10) + 0x14) + 0x10) & 0x10)) {
-			printf("TEST???\n");
+		if (!(tex->flags & 0x10)) {
+			//printf("TEST???\n");
 			setDepthState(renderer, 1, 0);
 		}
 
@@ -952,7 +959,7 @@ void renderDXPoly(int *tag) {
 		//printf("1: %f\n", ((vertices[0].x / 640.0f) * 2.0f) - 1.0f);
 
 		//struct texture *tex = (*(uint32_t **)*((uint8_t *)tag + 0x10) + 0x14);
-		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 0x10) + 0x14);
+		
 		//printf("using texture %d\n", tex->idx);
 
 		renderVertex buf[18];
@@ -966,28 +973,31 @@ void renderDXPoly(int *tag) {
 			buf[outputVert].y = vertices[0].y;
 			buf[outputVert].z = vertices[0].z;
 			buf[outputVert].w = vertices[0].w;
-			buf[outputVert].u = vertices[0].u;
-			buf[outputVert].v = vertices[0].v;
+			buf[outputVert].u = vertices[0].u * tex->width / tex->buf_width;
+			buf[outputVert].v = vertices[0].v * tex->height / tex->buf_height;
 			buf[outputVert].color = fixDXColor(vertices[0].color);
 			buf[outputVert].texture = tex->idx;
+			buf[outputVert].flags = renderFlags;
 
 			buf[outputVert + 1].x = vertices[i].x;
 			buf[outputVert + 1].y = vertices[i].y;
 			buf[outputVert + 1].z = vertices[i].z; 
 			buf[outputVert + 1].w = vertices[i].w;
-			buf[outputVert + 1].u = vertices[i].u;
-			buf[outputVert + 1].v = vertices[i].v;
+			buf[outputVert + 1].u = vertices[i].u * tex->width / tex->buf_width;
+			buf[outputVert + 1].v = vertices[i].v * tex->height / tex->buf_height;
 			buf[outputVert + 1].color = fixDXColor(vertices[i].color);
 			buf[outputVert + 1].texture = tex->idx;
+			buf[outputVert + 1].flags = renderFlags;
 
 			buf[outputVert + 2].x = vertices[i + 1].x;
 			buf[outputVert + 2].y = vertices[i + 1].y;
 			buf[outputVert + 2].z = vertices[i + 1].z;
 			buf[outputVert + 2].w = vertices[i + 1].w;
-			buf[outputVert + 2].u = vertices[i + 1].u;
-			buf[outputVert + 2].v = vertices[i + 1].v;
+			buf[outputVert + 2].u = vertices[i + 1].u * tex->width / tex->buf_width;
+			buf[outputVert + 2].v = vertices[i + 1].v * tex->height / tex->buf_height;
 			buf[outputVert + 2].color = fixDXColor(vertices[i + 1].color);
 			buf[outputVert + 2].texture = tex->idx;
+			buf[outputVert + 2].flags = renderFlags;
 
 			outputVert += 3;
 		} 
@@ -1019,10 +1029,10 @@ void transformCoords(renderVertex *vertices, int count) {
 	int *screen_width = 0x029d6fe4;
 	int *screen_height = 0x029d6fe8;
 
-	float xmult = (1.0f / (float)*screen_width) * 2.0f;
-	float ymult = (1.0f / (float)*screen_height) * 2.0f;
-	float xdisp = 1.0f - (xmult * 0.5);
-	float ydisp = 1.0f - (ymult * 0.5);
+	float xmult = (1.0f / ((float)*screen_width)) * 2.0f;
+	float ymult = (1.0f / ((float)*screen_height)) * 2.0f;
+	float xdisp = 1.0f;
+	float ydisp = 1.0f;
 
 	// first, check that the y position is on-screen
 	uint8_t on_screen = 0;
@@ -1034,12 +1044,43 @@ void transformCoords(renderVertex *vertices, int count) {
 	}
 
 	for (int i = 0; i < count; i++) {
-		vertices[i].x = (vertices[i].x * xmult) - xdisp;
-
 		if (vertices[i].y > 4368.0f - (float)*screen_height && on_screen) {
 			vertices[i].y -= 4368.0f;
 		}
+	}
 
+	for (int i = 0; i < count; i++) {
+		vertices[i].x = (vertices[i].x * xmult) - xdisp;
+		vertices[i].y = (vertices[i].y * ymult) - ydisp;
+	}
+}
+
+void transformCoordsLine(renderVertex *vertices, int count) {
+	int *screen_width = 0x029d6fe4;
+	int *screen_height = 0x029d6fe8;
+
+	float xmult = (1.0f / ((float)*screen_width)) * 2.0f;
+	float ymult = (1.0f / ((float)*screen_height)) * 2.0f;
+	float xdisp = 1.0f + (xmult * 0.5);
+	float ydisp = 1.0f + (ymult * 0.5);
+
+	// first, check that the y position is on-screen
+	uint8_t on_screen = 0;
+
+	for (int i = 0; i < count; i++) {
+		if (vertices[i].y <= (float)*screen_height) {
+			on_screen = 1;
+		}
+	}
+
+	for (int i = 0; i < count; i++) {
+		if (vertices[i].y > 4368.0f - (float)*screen_height && on_screen) {
+			vertices[i].y -= 4368.0f;
+		}
+	}
+
+	for (int i = 0; i < count; i++) {
+		vertices[i].x = (vertices[i].x * xmult) - xdisp;
 		vertices[i].y = (vertices[i].y * ymult) - ydisp;
 	}
 }
@@ -1054,6 +1095,37 @@ float fixZ(float z) {
 	}
 
 	return z;
+}
+
+void fixUVs(renderVertex *vertices, int count, int width, int height) {
+	float wrecip = 1.0f / width;
+	float hrecip = 1.0f / height;
+
+	// find lowest coord on each axis
+	float lowestU = vertices[0].u;
+	float lowestV = vertices[0].v;
+	for (int i = 1; i < count; i++) {
+		if (vertices[i].u < lowestU) {
+			lowestU = vertices[i].u;
+		}
+
+		if (vertices[i].v < lowestV) {
+			lowestV = vertices[i].v;
+		}
+	}
+
+	for (int i = 1; i < count; i++) {
+		if (vertices[i].u > lowestU) {
+			vertices[i].u += 1.0f;
+		}
+
+		if (vertices[i].v > lowestV) {
+			vertices[i].v += 1.0f;
+		}
+
+		vertices[i].u *= wrecip;
+		vertices[i].v *= hrecip;
+	}
 }
 
 void renderLineF2(int *tag) {
@@ -1072,13 +1144,11 @@ void renderLineF2(int *tag) {
 	float z = *(float *)((uint8_t *)tag + 16);
 	z = fixZ(z);
 
-	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
-
 	renderVertex vertices[2];
-	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1 };
+	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
 
-	transformCoords(vertices, 2);
+	transformCoordsLine(vertices, 2);
 
 	drawLines(renderer, vertices, 2);
 }
@@ -1101,15 +1171,13 @@ void renderLineF3(int *tag) {
 	float z = *(float *)((uint8_t *)tag + 20);
 	z = fixZ(z);
 
-	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
-
 	renderVertex vertices[4];
-	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[2] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[3] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1 };
+	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[2] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[3] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
 
-	transformCoords(vertices, 4);
+	transformCoordsLine(vertices, 4);
 
 	drawLines(renderer, vertices, 4);
 }
@@ -1134,19 +1202,15 @@ void renderLineF4(int *tag) {
 	float z = *(float *)((uint8_t *)tag + 24);
 	z = fixZ(z);
 
-	//printf("renderLineF4 %f %d %d %d %d\n", z, x1, y1, x2, y2);
-
-	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
-
 	renderVertex vertices[6];
-	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[2] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[3] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color, -1 };
+	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[2] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[3] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
 
-	transformCoords(vertices, 6);
+	transformCoordsLine(vertices, 6);
 
 	drawLines(renderer, vertices, 6);
 }
@@ -1165,13 +1229,11 @@ void renderLineG2(int *tag) {
 	float z = *(float *)((uint8_t *)tag + 20);
 	z = fixZ(z);
 
-	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
-
 	renderVertex vertices[2];
-	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color1, -1 };
-	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color2, -1 };
+	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color1, -1, 0 };
+	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color2, -1, 0 };
 	
-	transformCoords(vertices, 2);
+	transformCoordsLine(vertices, 2);
 
 	drawLines(renderer, vertices, 2);
 }
@@ -1191,15 +1253,13 @@ void renderPolyF3(int *tag) {
 	int16_t x3 = *(int16_t *)((uint8_t *)tag + 16);
 	int16_t y3 = *(int16_t *)((uint8_t *)tag + 18);
 
-	//printf("(%d, %d) (%d, %d) (%d, %d)\n", x1, y1, x2, y2, x3, y3);
-
 	float z = *(float *)((uint8_t *)tag + 20);
 	z = fixZ(z);
 
 	renderVertex vertices[3];
-	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1 };
+	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
 
 	if (!validateShard(vertices, 3)) {
 		return;
@@ -1230,15 +1290,13 @@ void renderPolyF4(int *tag) {
 	float z = *(float *)((uint8_t *)tag + 24);
 	z = fixZ(z);
 
-	//printf("drawing quad (%d, %d), (%d, %d), (%d, %d), (%d, %d), z %f (0x%08x)\n", x1, y1, x2, y2, x3, y3, x4, y4, z, zi);
-
 	renderVertex vertices[6];
-	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[3] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color, -1 };
+	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[3] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
 
 	if (!validateShard(vertices, 6)) {
 		return;
@@ -1252,10 +1310,6 @@ void renderPolyF4(int *tag) {
 void renderPolyFT3(int *tag) {
 	if (*(int *)((uint8_t *)tag + 36)) {
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 36) + 0x14);
-		float wrecip = 1.0f / tex->buf_width;
-		float hrecip = 1.0f / tex->buf_height;
-
-		//printf("TEST!\n");
 
 		uint8_t r = *((uint8_t *)tag + 4);
 		uint8_t g = *((uint8_t *)tag + 5);
@@ -1278,21 +1332,20 @@ void renderPolyFT3(int *tag) {
 		int16_t y3 = *(int16_t *)((uint8_t *)tag + 26);
 		uint8_t u3 = *(uint8_t *)((uint8_t *)tag + 28);
 		uint8_t v3 = *(uint8_t *)((uint8_t *)tag + 29);
-
-		//printf("UVS: (%d, %d) (%d, %d) (%d, %d) (%d, %d)\n", u1, v1, u2, v2, u3, v3);
 		
 		float z = *(float *)((uint8_t *)tag + 32);
 		z = fixZ(z);
 
 		renderVertex vertices[3];
-		vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, (float)u1 * wrecip, (float)v1 * hrecip, color, tex->idx };
-		vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2 * wrecip, (float)v2 * hrecip, color, tex->idx };
-		vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3 * wrecip, (float)v3 * hrecip, color, tex->idx };
+		vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, (float)u1, (float)v1, color, tex->idx, 0 };
+		vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2, (float)v2, color, tex->idx, 0 };
+		vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3, (float)v3, color, tex->idx, 0 };
 
 		if (!validateShard(vertices, 3)) {
 			return;
 		}
 
+		fixUVs(vertices, 3, tex->width, tex->height);
 		transformCoords(vertices, 3);
 
 		drawVertices(renderer, vertices, 3);
@@ -1302,9 +1355,6 @@ void renderPolyFT3(int *tag) {
 void renderPolyFT4(int *tag) {
 	if (*(int *)((uint8_t *)tag + 44)) {
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 44) + 0x14);
-		float wrecip = 1.0f / tex->buf_width;
-		float hrecip = 1.0f / tex->buf_height;
-		//printf("TEST!\n");
 
 		uint8_t r = *((uint8_t *)tag + 4);
 		uint8_t g = *((uint8_t *)tag + 5);
@@ -1332,24 +1382,23 @@ void renderPolyFT4(int *tag) {
 		int16_t y4 = *(int16_t *)((uint8_t *)tag + 34);
 		uint8_t u4 = *(uint8_t *)((uint8_t *)tag + 36);
 		uint8_t v4 = *(uint8_t *)((uint8_t *)tag + 37);
-
-		//printf("UVS: (%d, %d) (%d, %d) (%d, %d) (%d, %d)\n", u1, v1, u2, v2, u3, v3, u4, v4);
 		
 		float z = *(float *)((uint8_t *)tag + 40);
 		z = fixZ(z);
 
 		renderVertex vertices[6];
-		vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, (float)u1 * wrecip, (float)v1 * hrecip, color, tex->idx };
-		vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2 * wrecip, (float)v2 * hrecip, color, tex->idx };
-		vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3 * wrecip, (float)v3 * hrecip, color, tex->idx };
-		vertices[3] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2 * wrecip, (float)v2 * hrecip, color, tex->idx };
-		vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3 * wrecip, (float)v3 * hrecip, color, tex->idx };
-		vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, (float)u4 * wrecip, (float)v4 * hrecip, color, tex->idx };
+		vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, (float)u1, (float)v1, color, tex->idx, 0 };
+		vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2, (float)v2, color, tex->idx, 0 };
+		vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3, (float)v3, color, tex->idx, 0 };
+		vertices[3] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2, (float)v2, color, tex->idx, 0 };
+		vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3, (float)v3, color, tex->idx, 0 };
+		vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, (float)u4, (float)v4, color, tex->idx, 0 };
 
 		if (!validateShard(vertices, 6)) {
 			return;
 		}
 
+		fixUVs(vertices, 6, tex->buf_width, tex->buf_height);
 		transformCoords(vertices, 6);
 
 		drawVertices(renderer, vertices, 6);
@@ -1375,9 +1424,9 @@ void renderPolyG3(int *tag) {
 	z = fixZ(z);
 
 	renderVertex vertices[3];
-	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color1, -1 };
-	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color2, -1 };
-	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color3, -1 };
+	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color1, -1, 0 };
+	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color2, -1, 0 };
+	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color3, -1, 0 };
 
 	if (!validateShard(vertices, 3)) {
 		return;
@@ -1411,12 +1460,12 @@ void renderPolyG4(int *tag) {
 	z = fixZ(z);
 
 	renderVertex vertices[6];
-	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color1, -1 };
-	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color2, -1 };
-	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color3, -1 };
-	vertices[3] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color2, -1 };
-	vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color3, -1 };
-	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color4, -1 };
+	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color1, -1, 0 };
+	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color2, -1, 0 };
+	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color3, -1, 0 };
+	vertices[3] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color2, -1, 0 };
+	vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color3, -1, 0 };
+	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color4, -1, 0 };
 
 	if (!validateShard(vertices, 6)) {
 		return;
@@ -1430,9 +1479,6 @@ void renderPolyG4(int *tag) {
 void renderPolyGT3(int *tag) {
 	if (*(int *)((uint8_t *)tag + 44)) {
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 44) + 0x14);
-		float wrecip = 1.0f / tex->buf_width;
-		float hrecip = 1.0f / tex->buf_height;
-		//printf("TEST!\n");
 
 		uint8_t r = *((uint8_t *)tag + 4);
 		uint8_t g = *((uint8_t *)tag + 5);
@@ -1456,21 +1502,20 @@ void renderPolyGT3(int *tag) {
 		int16_t y3 = *(int16_t *)((uint8_t *)tag + 34);
 		uint8_t u3 = *(uint8_t *)((uint8_t *)tag + 36);
 		uint8_t v3 = *(uint8_t *)((uint8_t *)tag + 37);
-
-		//printf("UVS: (%d, %d) (%d, %d) (%d, %d) (%d, %d)\n", u1, v1, u2, v2, u3, v3, u4, v4);
 		
 		float z = *(float *)((uint8_t *)tag + 40);
 		z = fixZ(z);
 
 		renderVertex vertices[6];
-		vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, (float)u1 * wrecip, (float)v1 * hrecip, color1, tex->idx };
-		vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2 * wrecip, (float)v2 * hrecip, color2, tex->idx };
-		vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3 * wrecip, (float)v3 * hrecip, color3, tex->idx };
+		vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, (float)u1, (float)v1, color1, tex->idx, 0 };
+		vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2, (float)v2, color2, tex->idx, 0 };
+		vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3, (float)v3, color3, tex->idx, 0 };
 
 		if (!validateShard(vertices, 3)) {
 			return;
 		}
 
+		fixUVs(vertices, 3, tex->width, tex->height);
 		transformCoords(vertices, 3);
 
 		drawVertices(renderer, vertices, 3);
@@ -1480,9 +1525,6 @@ void renderPolyGT3(int *tag) {
 void renderPolyGT4(int *tag) {
 	if (*(int *)((uint8_t *)tag + 56)) {
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 56) + 0x14);
-		float wrecip = 1.0f / tex->buf_width;
-		float hrecip = 1.0f / tex->buf_height;
-		//printf("TEST!\n");
 
 		uint8_t r = *((uint8_t *)tag + 4);
 		uint8_t g = *((uint8_t *)tag + 5);
@@ -1519,17 +1561,18 @@ void renderPolyGT4(int *tag) {
 		z = fixZ(z);
 
 		renderVertex vertices[6];
-		vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, (float)u1 * wrecip, (float)v1 * hrecip, color1, tex->idx };
-		vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2 * wrecip, (float)v2 * hrecip, color2, tex->idx };
-		vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3 * wrecip, (float)v3 * hrecip, color3, tex->idx };
-		vertices[3] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2 * wrecip, (float)v2 * hrecip, color2, tex->idx };
-		vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3 * wrecip, (float)v3 * hrecip, color3, tex->idx };
-		vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, (float)u4 * wrecip, (float)v4 * hrecip, color4, tex->idx };
+		vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, (float)u1, (float)v1, color1, tex->idx, 0 };
+		vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2, (float)v2, color2, tex->idx, 0 };
+		vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3, (float)v3, color3, tex->idx, 0 };
+		vertices[3] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2, (float)v2, color2, tex->idx, 0 };
+		vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3, (float)v3, color3, tex->idx, 0 };
+		vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, (float)u4, (float)v4, color4, tex->idx, 0 };
 
 		if (!validateShard(vertices, 6)) {
 			return;
 		}
 
+		fixUVs(vertices, 6, tex->width, tex->height);
 		transformCoords(vertices, 6);
 
 		drawVertices(renderer, vertices, 6);
@@ -1563,12 +1606,12 @@ void renderTile(int *tag) {
 	z = fixZ(z);
 
 	renderVertex vertices[6];
-	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[3] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1 };
-	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color, -1 };
+	vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[3] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[4] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
+	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
 
 	transformCoords(vertices, 6);
 
@@ -1632,18 +1675,6 @@ void D3DPOLY_DrawOTag(int *tag) {
 	uint32_t *alphaBlend = 0x0069c8b0;
 	uint32_t *nextPSXBlendMode = 0x0069d10c;
 
-	//printf("STUB: D3DPOLY_DrawOTag: 0x%08x\n", tag);
-
-	/*uint8_t isWireframe = (*(uint32_t *)(tag + 8)) & 0x30000000 >> 28;
-	if (isWireframe) {
-		printf("Draw wireframe!");
-		if (!(isWireframe & 0x2)) {
-			return;
-		}
-	}*/
-
-	// call to 4fe396?
-
 	while(tag != NULL) {
 		if (tag[1] != 0) {
 			// hangar heli causes command 226, what's up there?
@@ -1655,10 +1686,12 @@ void D3DPOLY_DrawOTag(int *tag) {
 				uint8_t otherBlendMode = cmd & 4;
 				if (blendMode == 0x40 || blendMode == 0x48 || blendMode == 0x4c || blendMode == 0x50) {
 					otherBlendMode = 0;
-
-
 				} else if (!otherBlendMode) {
+					if (!(cmd & 0x04)) {
 					
+					} else {
+					
+					}
 
 				} else {
 					if (!(cmd & 0x10)) {
@@ -1770,7 +1803,7 @@ void D3DPOLY_DrawOTag(int *tag) {
 				// set viewport
 				changeViewport(tag);
 			} else {
-				printf("UNKNOWN RENDER COMMAND: %d\n", cmd);
+				//printf("UNKNOWN RENDER COMMAND: %d\n", cmd);
 			}
 		}
 		tag = *tag;
@@ -1797,10 +1830,10 @@ void D3DTEX_Init() {
 	*g_bits = 5;
 	*b_bits = 5;
 	*a_bits = 1;
-	*r_offset = 11;
-	*g_offset = 6;
-	*b_offset = 1;
-	*a_offset = 0;
+	*r_offset = 0;
+	*g_offset = 5;
+	*b_offset = 10;
+	*a_offset = 15;
 }
 
 int D3DTEX_AddToTextureList(int a, int b, int c, char d) {
@@ -1825,6 +1858,10 @@ int D3DTEX_AddToTextureList3(int a, int b, int c, int d) {
 	printf("STUB: D3DTEX_AddToTextureList3\n");
 
 	return 0;
+}
+
+void D3DTEX_ConvertTexturePalette(uint16_t *palette, int size) {
+	
 }
 
 uint32_t colorHSB(uint32_t hue, float saturation, float brightness, float opacity) {
@@ -1924,76 +1961,85 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 
 		// create texture
 		a->idx = createTextureEntry(renderer, a->buf_width, a->buf_height);
-
-		// create random image data
-		uint32_t hue = rand() % 360;
-		uint32_t colorlight = colorHSB(hue, 0.75f, 1.0f, 1.0f);
-		uint32_t colordark = colorHSB(hue, 0.75f, 0.5f, 1.0f);
-
-		uint32_t *buf = malloc(sizeof(uint32_t) * a->buf_width * a->buf_height);
-
-		for (int y = 0; y < a->buf_height; y++) {
-			for (int x = 0; x < a->buf_width; x++) {
-				buf[(y * a->buf_width) + x] = ((x + y) % 2) ? colordark : colorlight;
-			}
-			
-		}
-
-		if (!(a->flags & 8)) {
-			uint16_t *colors = *(uint16_t **)((uint8_t *)a->palette + 8);
-
-			
-			if (*(uint32_t *)((uint8_t *)a->palette + 4) == 0x10) {
-				// 4-bit
-				int linewidth = a->width + (a->width % 2);
-				for (int y = 0; y < a->height; y++) {
-					for (int x = 0; x < a->width; x++) {
-						uint32_t pixel_idx = ((y * linewidth) + x);
-						uint8_t color_idx = ((uint8_t *)a->img_data)[pixel_idx / 2];
-
-						if (x % 2) {
-							color_idx = (color_idx & 0xf0) >> 4;
-						} else {
-							color_idx = color_idx & 0x0f;
-						}
-
-						uint16_t color = colors[color_idx];
-
-						uint8_t alpha = ((color >> 0) & 0x0001) * 255;
-						uint8_t r = ((float)((color >> 11) & 0x1f) / 31.0f) * 255.0f;
-						uint8_t g = ((float)((color >> 6) & 0x1f) / 31.0f) * 255.0f;
-						uint8_t b = ((float)((color >> 1) & 0x1f) / 31.0f) * 255.0f;
-
-						buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
-					}
-				}
-			} else {
-				// 8-bit
-				for (int y = 0; y < a->height; y++) {
-					for (int x = 0; x < a->width; x++) {
-						uint8_t color_idx = ((uint8_t *)a->img_data)[(y * a->width) + x];
-						uint16_t color = colors[color_idx];
-
-						uint8_t alpha = ((color >> 0) & 0x0001) * 255;
-						uint8_t r = ((float)((color >> 11) & 0x1f) / 31.0f) * 255.0f;
-						uint8_t g = ((float)((color >> 6) & 0x1f) / 31.0f) * 255.0f;
-						uint8_t b = ((float)((color >> 1) & 0x1f) / 31.0f) * 255.0f;
-
-						buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
-					}
-				}
-			}
-			
-		}
-
-		updateTextureEntry(renderer, a->idx, a->buf_width, a->buf_height, buf);
-
-		free(buf);
 	}
+
+	// create random image data
+	uint32_t hue = rand() % 360;
+	uint32_t colorlight = colorHSB(hue, 0.75f, 1.0f, 1.0f);
+	uint32_t colordark = colorHSB(hue, 0.75f, 0.5f, 1.0f);
+
+	uint32_t *buf = malloc(sizeof(uint32_t) * a->buf_width * a->buf_height);
+
+	for (int y = 0; y < a->buf_height; y++) {
+		for (int x = 0; x < a->buf_width; x++) {
+			//buf[(y * a->buf_width) + x] = ((x + y) % 2) ? colordark : colorlight;
+			buf[(y * a->buf_width) + x] = 0;
+		}
+			
+	}
+
+	if (!(a->flags & 8)) {
+		uint16_t *colors = *(uint16_t **)((uint8_t *)a->palette + 8);
+		a->flags |= 0x10;
+			
+		if (*(uint32_t *)((uint8_t *)a->palette + 4) == 0x10) {
+			// 4-bit
+			int linewidth = (a->width + (a->width % 2)) / 2;
+			linewidth += linewidth % 2;
+			for (int y = 0; y < a->height; y++) {
+				for (int x = 0; x < a->width; x++) {
+					uint32_t pixel_idx = ((y * linewidth) + (x / 2));
+					uint8_t color_idx = ((uint8_t *)a->img_data)[pixel_idx];
+
+					if (x % 2) {
+						color_idx = (color_idx & 0xf0) >> 4;
+					} else {
+						color_idx = color_idx & 0x0f;
+					}
+
+					uint16_t color = colors[color_idx];
+					if (color == 0) {
+						a->flags &= ~0x10;
+					}
+
+					uint8_t alpha = ((color >> 15) & 0x0001) * 255;
+					uint8_t r = ((float)((color >> 0) & 0x1f) / 31.0f) * 255.0f;
+					uint8_t g = ((float)((color >> 5) & 0x1f) / 31.0f) * 255.0f;
+					uint8_t b = ((float)((color >> 10) & 0x1f) / 31.0f) * 255.0f;
+
+					buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
+				}
+			}
+		} else {
+			// 8-bit
+			for (int y = 0; y < a->height; y++) {
+				for (int x = 0; x < a->width; x++) {
+					uint8_t color_idx = ((uint8_t *)a->img_data)[(y * a->width) + x];
+
+					uint16_t color = colors[color_idx];
+					if (color == 0) {
+						a->flags &= ~0x10;
+					}
+
+					uint8_t alpha = ((color >> 15) & 0x0001) * 255;
+					uint8_t r = ((float)((color >> 0) & 0x1f) / 31.0f) * 255.0f;
+					uint8_t g = ((float)((color >> 5) & 0x1f) / 31.0f) * 255.0f;
+					uint8_t b = ((float)((color >> 10) & 0x1f) / 31.0f) * 255.0f;
+
+					buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
+				}
+			}
+		}
+			
+	}
+
+	updateTextureEntry(renderer, a->idx, a->buf_width, a->buf_height, buf);
+
+	free(buf);
 }
 
-void freeD3DTexture(struct texture *a) {
-	destroyTextureEntry(renderer, a->idx);
+void __stdcall freeD3DTexture(int idx) {
+	destroyTextureEntry(renderer, idx);
 }
 
 void *D3DTEX_GetTexturePalette(void *a) {
@@ -2014,10 +2060,49 @@ void D3DTEX_SetPalette(void *a, void *b) {
 	printf("STUB: D3DTEX_SetPalette\n");
 }
 
-int D3DTEX_TextureCountColors(void *a) {
+int D3DTEX_TextureCountColors(struct texture *a) {
 	printf("STUB: D3DTEX_TextureCountColors\n");
 
-	return 1;
+	uint8_t counted[256];
+	memset(counted, 0, 256);
+	int count = 0;
+
+	if (!(a->flags & 8)) {
+		uint16_t *colors = *(uint16_t **)((uint8_t *)a->palette + 8);
+		a->flags |= 0x10;
+			
+		if (*(uint32_t *)((uint8_t *)a->palette + 4) == 0x10) {
+			// 4-bit
+			int linewidth = (a->width + (a->width % 2)) / 2;
+			linewidth += linewidth % 2;
+			for (int y = 0; y < a->height; y++) {
+				for (int x = 0; x < a->width; x++) {
+					uint32_t pixel_idx = ((y * linewidth) + (x / 2));
+					uint8_t color_idx = ((uint8_t *)a->img_data)[pixel_idx];
+
+					if (!counted[color_idx]) {
+						counted[color_idx] = 1;
+						count++;
+					}
+				}
+			}
+		} else {
+			// 8-bit
+			for (int y = 0; y < a->height; y++) {
+				for (int x = 0; x < a->width; x++) {
+					uint8_t color_idx = ((uint8_t *)a->img_data)[(y * a->width) + x];
+
+					if (!counted[color_idx]) {
+						counted[color_idx] = 1;
+						count++;
+					}
+				}
+			}
+		}
+			
+	}
+
+	return count;
 }
 
 void D3DTEX_GrayTexture(void *a) {
@@ -2034,7 +2119,7 @@ void *__fastcall D3DSprite_D3DSprite(void *sprite, void *pad, int a, char *b, ch
 }
 
 void __fastcall D3DSprite_Draw(void *sprite, void *pad, int a, float b, float c) {
-	printf("STUB: D3DSprite::Draw: 0x%08x, %f, %f\n", a, b, c);
+	//printf("STUB: D3DSprite::Draw: 0x%08x, %f, %f\n", a, b, c);
 }
 
 void __fastcall D3DSprite_Destroy(void *sprite) {
@@ -2106,14 +2191,20 @@ void installGfxPatches() {
 	//patchJmp(0x004d5ec0, D3DTEX_AddToTextureList);
 	//patchJmp(0x004d6ac0, D3DTEX_AddToTextureList2);
 	//patchJmp(0x004d6b40, D3DTEX_AddToTextureList3);
-	patchJmp(0x004d7110, D3DTEX_GetTexturePalette);
-	patchJmp(0x004d7750, D3DTEX_GetPalette);
-	patchJmp(0x004d77e0, D3DTEX_SetPalette);
+	//patchJmp(0x004d7110, D3DTEX_GetTexturePalette);
+	//patchJmp(0x004d7750, D3DTEX_GetPalette);
+	//patchJmp(0x004d77e0, D3DTEX_SetPalette);
 	patchJmp(0x004d7430, D3DTEX_TextureCountColors);
 	patchJmp(0x004d7120, D3DTEX_GrayTexture);
+	patchJmp(0x004d7940, D3DTEX_ConvertTexturePalette);
 	patchJmp(0x004d6100, makeTextureListEntry);
-	patchJmp(0x004d5d40, freeD3DTexture);
+	//patchJmp(0x004d5d40, freeD3DTexture);
 	patchJmp(0x004d5fe0, openExternalTexture);
+
+	// patch freeD3DTexture to call our code
+	patchNop(0x004d5d4c, 69);
+	patchByte(0x004d5d4c, 0x50);
+	patchCall(0x004d5d4c + 1, freeD3DTexture);
 
 	// remove DX usage in AddToTextureList3
 	patchByte(0x004d6d1a, 0xEB);
@@ -2128,4 +2219,21 @@ void installGfxPatches() {
 
 	patchJmp(0x00464620, m3dinit_setresolution);
 	patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
+
+	//patchByte(0x004ced21, 0xEB);
+	patchByte(0x004ced26, 0xEB);	// don't brighten sky in philadelphia
+
+	//patchNop(0x004cde18, 3);
+	patchNop(0x004cf4c2, 5);
+
+	// disable palette conversion
+	patchNop(0x004d7887, 1);
+	patchByte(0x004d7887 + 1, 0xe9);
+
+	// pal_loadpalette - don't mess with alpha
+
+	//patchByte(0x00488216, 0xeb);
+	//patchNop(0x00488218, 6);
+	//patchByte(0x00488234, 0xeb);
+	//patchByte(0x004881f8, 0xeb);
 }

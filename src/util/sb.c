@@ -28,8 +28,19 @@ void sb_push_back(struct stretchyBuffer *buffer, void *data) {
 }
 
 void sb_pop(struct stretchyBuffer *buffer, void *dst) {
+	if (buffer->count > 0) {
+		if (dst) {
+			memcpy(dst, ((uint8_t *)buffer->data) + (buffer->unit * (buffer->count - 1)), buffer->unit);
+		}
+
+		buffer->count--;
+	}
+}
+
+void sb_pop_front(struct stretchyBuffer *buffer, void *dst) {
 	if (dst) {
-		memcpy(dst, ((uint8_t *)buffer->data) + (buffer->unit * (buffer->count - 1)), buffer->unit);
+		memcpy(dst, buffer->data, buffer->unit);
+		memmove(buffer->data, ((uint8_t *)buffer->data) + (buffer->unit), buffer->unit * (buffer->count - 1));
 	}
 
 	buffer->count--;

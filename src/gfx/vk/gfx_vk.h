@@ -13,6 +13,7 @@
 */
 
 typedef struct partyRenderer partyRenderer;
+
 typedef struct {
 	float x;
 	float y;
@@ -21,7 +22,8 @@ typedef struct {
 	float u;
 	float v;
 	uint32_t color;
-	int32_t texture;
+	int16_t texture;
+	int16_t flags;
 } renderVertex;
 
 typedef struct {

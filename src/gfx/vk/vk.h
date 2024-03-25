@@ -183,6 +183,11 @@ typedef struct {
 	rbVkBuffer transferbuf;
 } pendingImageWrite;
 
+typedef struct {
+	rbVkImage img;
+	uint8_t remainingFrames;
+} pendingImageDelete;
+
 typedef struct partyRenderer {
 	//rbRenderer parent;
 

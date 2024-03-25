@@ -226,6 +226,12 @@ void appendPolyBuffer(partyRenderer *renderer, renderVertex *vertices, uint32_t 
 		renderer->polyBuffer.vertices[renderer->polyBuffer.currentVertex + i] = vertices[i];
 	}
 
+	if (vertices[0].texture > 0) {
+		if (!renderer->textureManager.occupied[vertices[0].texture]) {
+			printf("Referencing freed texture %d!!!\n", vertices[0].texture);
+		}
+	}
+
 	renderer->polyBuffer.currentVertex += vertex_count;
 }
 
@@ -234,7 +240,7 @@ void resetPolyBuffer(partyRenderer *renderer) {
 }
 
 void updatePolyBuffer(partyRenderer *renderer) {
-	printf("Updating poly buffer with %d vertices\n", renderer->polyBuffer.currentVertex);
+	//printf("Updating poly buffer with %d vertices\n", renderer->polyBuffer.currentVertex);
 
 	renderVertex *buffer = mapBuffer(renderer, &(renderer->polyBuffer.buffer));
 
@@ -273,26 +279,34 @@ uint32_t createTextureEntry(partyRenderer *renderer, uint32_t width, uint32_t he
 
 	renderer->textureManager.count++;
 
-	return i;
+	return i + 1;
 }
 
 void updateTextureEntry(partyRenderer *renderer, uint32_t idx, uint32_t width, uint32_t height, void *data) {
-	updateTexture(renderer, renderer->textureManager.images + idx, width, height, data);
+	updateTexture(renderer, renderer->textureManager.images + idx - 1, width, height, data);
 }
 
 void destroyTextureEntry(partyRenderer *renderer, uint32_t idx) {
-	sb_push_back(renderer->pendingImageDeletes, &renderer->textureManager.images[idx]);
-	renderer->textureManager.occupied[idx] = 0;
+	//printf("deleting texture %d\n", idx);
+
+	pendingImageDelete del;
+	del.img = renderer->textureManager.images[idx - 1];
+	// i'll be honest, this is a bit of a hack for a validation error i was seeing when switching to certain screens.  
+	// sometimes we were deleting images too soon that i'm pretty sure weren't in use but we were getting validation errors anyway.  whoops!
+	del.remainingFrames = 1;	
+
+	sb_push_back(renderer->pendingImageDeletes, &del);
+	renderer->textureManager.occupied[idx - 1] = 0;
 	renderer->textureManager.count--;
 }
 
 void writeTextureDescriptors(partyRenderer *renderer) {
-	printf("writing %d descriptors...\n", renderer->textureManager.count);
+	//printf("writing %d descriptors...\n", renderer->textureManager.count);
 	int i = 0;
 	int count = 0;
 	while(count < renderer->textureManager.count) {
 		if (renderer->textureManager.occupied[i]) {
-			write_descriptor_image_array(renderer->descriptorAllocator, 0, count, renderer->textureManager.sampler, renderer->textureManager.images[i].imageView, VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+			write_descriptor_image_array(renderer->descriptorAllocator, 0, i, renderer->textureManager.sampler, renderer->textureManager.images[i].imageView, VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 			count++;
 		}
 
@@ -302,12 +316,17 @@ void writeTextureDescriptors(partyRenderer *renderer) {
 
 void flushTextureDeletes(partyRenderer *renderer) {
 	for (int i = 0; i < renderer->pendingImageDeletes->count; i++){
-		rbVkImage *img = ((rbVkImage *)renderer->pendingImageDeletes->data) + i;
-
-		destroyTexture(renderer, *img);
+		pendingImageDelete del;
+		sb_pop_front(renderer->pendingImageDeletes, &del);
+		if (del.remainingFrames > 0) {
+			del.remainingFrames--;
+			sb_push_back(renderer->pendingImageDeletes, &del);
+			//printf("delaying delete for %d frames\n", del.remainingFrames);
+		} else {
+			//printf("TEST\n");
+			destroyTexture(renderer, del.img);
+		}
 	}
-
-	renderer->pendingImageDeletes->count = 0;
 }
 
 /*
@@ -445,7 +464,7 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 	createTextureManager(result);
 
 	result->pendingImageWrites = sb_alloc(sizeof(pendingImageWrite), 64);
-	result->pendingImageDeletes = sb_alloc(sizeof(rbVkImage), 64);
+	result->pendingImageDeletes = sb_alloc(sizeof(pendingImageDelete), 64);
 
 	r = createScalerVertexBuffer(result);
 	if (r) {
@@ -597,6 +616,8 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 		printf("ERROR: failed to get next image\n");
 		return;
 	}
+
+	vkResetCommandBuffer(renderer->renderCommandBuffer, 0);
 
 	// kind of disorganized here: we've waited for the relevant fance in rbVkGetNextImage, so we can reset descriptor sets safely
 	clear_descriptor_pools(renderer, renderer->descriptorAllocator);
@@ -847,6 +868,11 @@ void setBlendState(partyRenderer *renderer, uint32_t mode) {
 
 void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
 	//vkCmdDraw(renderer->renderCommandBuffer, vertex_count, 1, renderer->polyBuffer.currentVertex, 0);
+	// fix texture idx for each vertex
+	for (int i = 0; i < vertex_count; i++) {
+		vertices[i].texture -= 1;
+	}
+
 	if (renderer->currentLineState) {
 		setPipeline(renderer, renderer->currentBlendState);
 		renderer->currentLineState = 0;
@@ -1194,6 +1220,7 @@ void finishRender(partyRenderer *renderer) {
 		}
 		renderer->pendingImageWrites->count = 0;
 	}
+	vkResetCommandPool(renderer->device->device, renderer->memQueue->commandPool, 0);
 }
 
 void setRenderResolution(partyRenderer *renderer, uint32_t width, uint32_t height, float aspectRatio) {

@@ -58,7 +58,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	// vertex input state
 
-	VkVertexInputAttributeDescription vertexAttributeDesc[4];
+	VkVertexInputAttributeDescription vertexAttributeDesc[5];
 
 	vertexAttributeDesc[0].binding = 0;
 	vertexAttributeDesc[0].location = 0;
@@ -68,29 +68,34 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	vertexAttributeDesc[1].binding = 0;
 	vertexAttributeDesc[1].location = 1;
 	vertexAttributeDesc[1].format = VK_FORMAT_R32G32_SFLOAT;
-	vertexAttributeDesc[1].offset = (sizeof(float) * 4);
+	vertexAttributeDesc[1].offset = offsetof(renderVertex, u);
 
 	vertexAttributeDesc[2].binding = 0;
 	vertexAttributeDesc[2].location = 2;
 	vertexAttributeDesc[2].format = VK_FORMAT_R8G8B8A8_UNORM;
-	vertexAttributeDesc[2].offset = (sizeof(float) * 4) + (sizeof(float) * 2);
+	vertexAttributeDesc[2].offset = offsetof(renderVertex, color);
 
 	vertexAttributeDesc[3].binding = 0;
 	vertexAttributeDesc[3].location = 3;
-	vertexAttributeDesc[3].format = VK_FORMAT_R32_SINT;
-	vertexAttributeDesc[3].offset = (sizeof(float) * 4) + (sizeof(float) * 2) + (sizeof(uint32_t));
+	vertexAttributeDesc[3].format = VK_FORMAT_R16_SINT;
+	vertexAttributeDesc[3].offset = offsetof(renderVertex, texture);
+
+	vertexAttributeDesc[4].binding = 0;
+	vertexAttributeDesc[4].location = 4;
+	vertexAttributeDesc[4].format = VK_FORMAT_R16_SINT;
+	vertexAttributeDesc[4].offset = offsetof(renderVertex, flags);
 
 	VkVertexInputBindingDescription vertexBindingDesc[1];
 
 	vertexBindingDesc[0].binding = 0;
 	vertexBindingDesc[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-	vertexBindingDesc[0].stride = (sizeof(float) * 4) + (sizeof(float) * 2) + (sizeof(uint32_t)) + (sizeof(int32_t));
+	vertexBindingDesc[0].stride = sizeof(renderVertex);
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo;
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.pNext = NULL;
 	vertexInputInfo.flags = 0;
-	vertexInputInfo.vertexAttributeDescriptionCount = 4;
+	vertexInputInfo.vertexAttributeDescriptionCount = 5;
 	vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDesc;
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
 	vertexInputInfo.pVertexBindingDescriptions = vertexBindingDesc;

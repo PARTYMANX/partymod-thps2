@@ -328,7 +328,7 @@ VkSampler createSampler(partyRenderer *renderer) {
 
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	samplerInfo.mipLodBias = 0;
-	samplerInfo.minLod = VK_LOD_CLAMP_NONE;
+	samplerInfo.minLod = 0;
 	samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
 
 	if(vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &result) != VK_SUCCESS) {
