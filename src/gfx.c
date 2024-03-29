@@ -1031,8 +1031,9 @@ void transformCoords(renderVertex *vertices, int count) {
 
 	float xmult = (1.0f / ((float)*screen_width)) * 2.0f;
 	float ymult = (1.0f / ((float)*screen_height)) * 2.0f;
-	float xdisp = 1.0f;
-	float ydisp = 1.0f;
+	// 0.125 of a pixel added to help align scaled elements to a single pixel (important for UI)
+	float xdisp = 1.0f - (xmult * 0.125f);
+	float ydisp = 1.0f - (ymult * 0.125f);
 
 	// first, check that the y position is on-screen
 	uint8_t on_screen = 0;
@@ -1345,7 +1346,7 @@ void renderPolyFT3(int *tag) {
 			return;
 		}
 
-		fixUVs(vertices, 3, tex->width, tex->height);
+		fixUVs(vertices, 3, tex->buf_width, tex->buf_height);
 		transformCoords(vertices, 3);
 
 		drawVertices(renderer, vertices, 3);
@@ -1515,7 +1516,7 @@ void renderPolyGT3(int *tag) {
 			return;
 		}
 
-		fixUVs(vertices, 3, tex->width, tex->height);
+		fixUVs(vertices, 3, tex->buf_width, tex->buf_height);
 		transformCoords(vertices, 3);
 
 		drawVertices(renderer, vertices, 3);
@@ -1554,8 +1555,6 @@ void renderPolyGT4(int *tag) {
 		int16_t y4 = *(int16_t *)((uint8_t *)tag + 46);
 		uint8_t u4 = *(uint8_t *)((uint8_t *)tag + 48);
 		uint8_t v4 = *(uint8_t *)((uint8_t *)tag + 49);
-
-		//printf("UVS: (%d, %d) (%d, %d) (%d, %d) (%d, %d)\n", u1, v1, u2, v2, u3, v3, u4, v4);
 		
 		float z = *(float *)((uint8_t *)tag + 52);
 		z = fixZ(z);
@@ -1572,7 +1571,7 @@ void renderPolyGT4(int *tag) {
 			return;
 		}
 
-		fixUVs(vertices, 6, tex->width, tex->height);
+		fixUVs(vertices, 6, tex->buf_width, tex->buf_height);
 		transformCoords(vertices, 6);
 
 		drawVertices(renderer, vertices, 6);
@@ -1659,6 +1658,10 @@ void changeViewport(int *tag) {
 
 	if (y < 0) {
 		y = 0;
+	}
+
+	if (width == 1) {
+		width = 0;	// incredibly stupid hack to fix the stats menu.  my theory is that gray matter clamped to 1 to prevent directx from yelling at them for making a 0 width viewport.  needs revisit
 	}
 
 	x = (x / 512.0f) * (float)*screen_width;
@@ -2007,6 +2010,17 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 					uint8_t g = ((float)((color >> 5) & 0x1f) / 31.0f) * 255.0f;
 					uint8_t b = ((float)((color >> 10) & 0x1f) / 31.0f) * 255.0f;
 
+					// if input was 16 for a channel, force it to 128 to smooth sky texture edge transitions out
+					if (r == 131) {
+						r = 128;
+					}
+					if (g == 131) {
+						g = 128;
+					}
+					if (b == 131) {
+						b = 128;
+					}
+
 					buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
 				}
 			}
@@ -2025,6 +2039,17 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 					uint8_t r = ((float)((color >> 0) & 0x1f) / 31.0f) * 255.0f;
 					uint8_t g = ((float)((color >> 5) & 0x1f) / 31.0f) * 255.0f;
 					uint8_t b = ((float)((color >> 10) & 0x1f) / 31.0f) * 255.0f;
+
+					// if input was 16 for a channel, force it to 128 to smooth sky texture edge transitions out
+					if (r == 131) {
+						r = 128;
+					}
+					if (g == 131) {
+						g = 128;
+					}
+					if (b == 131) {
+						b = 128;
+					}
 
 					buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
 				}
@@ -2203,7 +2228,7 @@ void installGfxPatches() {
 
 	// patch freeD3DTexture to call our code
 	patchNop(0x004d5d4c, 69);
-	patchByte(0x004d5d4c, 0x50);
+	patchByte(0x004d5d4c, 0x50);	// PUSH EAX
 	patchCall(0x004d5d4c + 1, freeD3DTexture);
 
 	// remove DX usage in AddToTextureList3
