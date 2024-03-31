@@ -929,6 +929,12 @@ void renderDXPoly(int *tag) {
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 0x10) + 0x14);
 
+		if (tex->flags & 0x01000000) {
+			renderFlags |= 1;
+		}
+
+		//printf("TEST!! 0x%08x %d %d %d\n", tex, tex->idx, tex->width, tex->height);
+
 		if (!(tex->flags & 0x10)) {
 			//printf("TEST???\n");
 			setDepthState(renderer, 1, 0);
@@ -2024,7 +2030,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 					buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
 				}
 			}
-		} else {
+		} else if (*(uint32_t *)((uint8_t *)a->palette + 4) == 0x100) {
 			// 8-bit
 			for (int y = 0; y < a->height; y++) {
 				for (int x = 0; x < a->width; x++) {
@@ -2054,8 +2060,12 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 					buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
 				}
 			}
+		} else {
+			printf("TEST!\n");
 		}
 			
+	} else {
+		printf("TEXTURE NOT PALETTED\n");
 	}
 
 	updateTextureEntry(renderer, a->idx, a->buf_width, a->buf_height, buf);
@@ -2134,11 +2144,83 @@ void D3DTEX_GrayTexture(void *a) {
 	printf("STUB: D3DTEX_GrayTexture\n");
 }
 
-void *__fastcall D3DSprite_D3DSprite(void *sprite, void *pad, int a, char *b, char c) {
+// why does this store so many textures
+typedef struct {
+	struct texture *texture;
+	struct texture *unk_texture;
+	int *dimensions;
+	int texture_count;
+	struct texture *textures;
+	float unk_float;
+	uint8_t *data;
+} D3DSprite;
+
+void *__fastcall D3DSprite_D3DSprite(D3DSprite *sprite, void *pad, int a, char *b, char c) {
 	printf("STUB: D3DSprite: 0x%08x, %s, %d\n", a, b, c);
 
+	void *(__cdecl *operator_new)(int sz) = 0x004fd32e;
+	void (__cdecl *operator_delete)(void *) = 0x004fd323;
+	void (__cdecl *D3DTEX_FreePaletteEntry)(void *, int) = 0x004d7680;
 	void (__cdecl *mem_delete)(void *) = 0x0046f460;
+
+	sprite->data = NULL;
+
+	// presumably depth
+	if (c) {
+		D3DSprite **gBackground = 0x0069d118;
+		*gBackground = sprite;
+		sprite->unk_float = 0.01f;
+	} else {
+		sprite->unk_float = 0.9f;
+	}
+
+	sprite->texture = operator_new(sizeof(struct texture));
+	memset(sprite->texture, 0, sizeof(struct texture));
+
+	struct texture *(__cdecl *D3DTEX_AddToTextureList3)(int a, int b, int c, int d) = 0x004d6b40;
+	sprite->texture = D3DTEX_AddToTextureList3(a, sprite->texture, 1, b);
+
+	printf("texture info %d, %d, %d, 0x%08x\n", sprite->texture->width, sprite->texture->height, sprite->texture->idx, sprite->texture->flags);
+	sprite->texture->flags |= 0x01000000;
+
+	if (!(sprite->texture->flags & 8) && sprite->texture->img_data) {
+		operator_delete(sprite->texture->img_data);
+	}
+
+	D3DTEX_FreePaletteEntry(sprite->texture->palette, 1);
+
 	mem_delete(a);
+
+	// create the texture
+	sprite->texture_count = 1;
+
+	sprite->textures = operator_new(sizeof(struct texture) * sprite->texture_count);
+
+	sprite->unk_texture = operator_new(sizeof(struct texture));
+	memset(sprite->unk_texture, 0, sizeof(struct texture));
+
+	*sprite->unk_texture = *sprite->texture;
+
+	sprite->dimensions = operator_new(sizeof(int) * 4);
+	sprite->dimensions[0] = 0;
+	sprite->dimensions[1] = 0;
+	sprite->dimensions[2] = sprite->texture->width;
+	sprite->dimensions[3] = sprite->texture->height;
+
+	printf("test1\n");
+
+	sprite->textures[0] = *sprite->texture;
+	sprite->textures[0].width = 256;
+
+	((uint32_t *)sprite->textures)[5] = sprite->unk_texture;
+
+	printf("???? 0x%08x 0x%08x, %d\n", sprite->textures, sprite->unk_texture, sprite->textures[0].idx);
+
+	operator_delete(sprite->texture);
+
+	//sprite->texture_count = 0;
+
+	printf("D3DSPRITE DONE\n");
 
 	return sprite;
 }
@@ -2236,7 +2318,7 @@ void installGfxPatches() {
 	patchByte(0x004d6d32, 0xEB);
 
 	patchJmp(0x004d46b0, D3DSprite_D3DSprite);
-	patchJmp(0x004d4ba0, D3DSprite_Draw);
+	//patchJmp(0x004d4ba0, D3DSprite_Draw);
 	patchJmp(0x004d4ad0, D3DSprite_Destroy);
 	
 	patchJmp(0x004f3f10, WINMAIN_SwitchResolution);
