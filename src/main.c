@@ -69,7 +69,7 @@ HWND initWindow() {
 		*resY = 480;
 	}*/
 
-	window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1920, 1440, SDL_WINDOW_SHOWN);   // TODO: fullscreen
+	window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 2560, 1440, SDL_WINDOW_SHOWN);   // TODO: fullscreen
 
 	if (!window) {
 		printf("Failed to create window! Error: %s\n", SDL_GetError());

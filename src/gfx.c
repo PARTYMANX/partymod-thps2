@@ -560,6 +560,8 @@ struct texture {
 
 	// 0x20
 	int *palette;
+
+	uint32_t unk[2];
 };
 
 void initDDraw() {
@@ -2150,14 +2152,12 @@ typedef struct {
 	struct texture *unk_texture;
 	int *dimensions;
 	int texture_count;
-	struct texture *textures;
+	struct texture *textures;	// not actually texture but just an identically sized thing used when rendering.  weird.
 	float unk_float;
 	uint8_t *data;
 } D3DSprite;
 
 void *__fastcall D3DSprite_D3DSprite(D3DSprite *sprite, void *pad, int a, char *b, char c) {
-	printf("STUB: D3DSprite: 0x%08x, %s, %d\n", a, b, c);
-
 	void *(__cdecl *operator_new)(int sz) = 0x004fd32e;
 	void (__cdecl *operator_delete)(void *) = 0x004fd323;
 	void (__cdecl *D3DTEX_FreePaletteEntry)(void *, int) = 0x004d7680;
@@ -2180,26 +2180,28 @@ void *__fastcall D3DSprite_D3DSprite(D3DSprite *sprite, void *pad, int a, char *
 	struct texture *(__cdecl *D3DTEX_AddToTextureList3)(int a, int b, int c, int d) = 0x004d6b40;
 	sprite->texture = D3DTEX_AddToTextureList3(a, sprite->texture, 1, b);
 
-	printf("texture info %d, %d, %d, 0x%08x\n", sprite->texture->width, sprite->texture->height, sprite->texture->idx, sprite->texture->flags);
-	sprite->texture->flags |= 0x01000000;
+	//printf("texture info %d, %d, %d, 0x%08x 0x%08x 0x%08x\n", sprite->texture->width, sprite->texture->height, sprite->texture->idx, sprite->texture->flags, sprite->texture->unk[0], sprite->texture->unk[1]);
+	sprite->texture->flags |= 0x01000000;	// hack for drawing: don't multiply texture color 2x
 
 	if (!(sprite->texture->flags & 8) && sprite->texture->img_data) {
 		operator_delete(sprite->texture->img_data);
+		sprite->texture->img_data = NULL;
+		sprite->texture->flags = sprite->texture->flags & ~0x01;
 	}
 
 	D3DTEX_FreePaletteEntry(sprite->texture->palette, 1);
+	sprite->texture->palette = NULL;
+	sprite->texture->flags = sprite->texture->flags & ~0x20;
 
 	mem_delete(a);
 
 	// create the texture
 	sprite->texture_count = 1;
 
-	sprite->textures = operator_new(sizeof(struct texture) * sprite->texture_count);
+	sprite->textures = operator_new(0x2c * sprite->texture_count);
+	memset(sprite->textures, 0, 0x2c * sprite->texture_count);
 
-	sprite->unk_texture = operator_new(sizeof(struct texture));
-	memset(sprite->unk_texture, 0, sizeof(struct texture));
-
-	*sprite->unk_texture = *sprite->texture;
+	sprite->unk_texture = NULL;
 
 	sprite->dimensions = operator_new(sizeof(int) * 4);
 	sprite->dimensions[0] = 0;
@@ -2207,20 +2209,7 @@ void *__fastcall D3DSprite_D3DSprite(D3DSprite *sprite, void *pad, int a, char *
 	sprite->dimensions[2] = sprite->texture->width;
 	sprite->dimensions[3] = sprite->texture->height;
 
-	printf("test1\n");
-
-	sprite->textures[0] = *sprite->texture;
-	sprite->textures[0].width = 256;
-
-	((uint32_t *)sprite->textures)[5] = sprite->unk_texture;
-
-	printf("???? 0x%08x 0x%08x, %d\n", sprite->textures, sprite->unk_texture, sprite->textures[0].idx);
-
-	operator_delete(sprite->texture);
-
-	//sprite->texture_count = 0;
-
-	printf("D3DSPRITE DONE\n");
+	((uint32_t *)sprite->textures)[5] = sprite->texture;
 
 	return sprite;
 }
@@ -2229,8 +2218,13 @@ void __fastcall D3DSprite_Draw(void *sprite, void *pad, int a, float b, float c)
 	//printf("STUB: D3DSprite::Draw: 0x%08x, %f, %f\n", a, b, c);
 }
 
-void __fastcall D3DSprite_Destroy(void *sprite) {
-	printf("STUB: ~D3DSprite\n");
+void __fastcall D3DSprite_Destroy(D3DSprite *sprite) {
+	void (__cdecl *operator_delete)(void *) = 0x004fd323;
+
+	operator_delete(sprite->dimensions);
+	operator_delete(sprite->textures);
+	freeD3DTexture(sprite->texture->idx);
+	operator_delete(sprite->texture);
 }
 
 void WINMAIN_SwitchResolution() {
