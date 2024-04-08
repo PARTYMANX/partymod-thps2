@@ -533,6 +533,7 @@ void patchD3D() {
 
 #include <patch.h>
 #include <global.h>
+#include <gfx/gfx_movie.h>
 #include <gfx/vk/gfx_vk.h>
 
 partyRenderer *renderer = NULL;
@@ -587,6 +588,14 @@ void initD3D() {
 	}
 
 	setRenderResolution(renderer, resolution_x, resolution_y, aspectRatio);
+
+	uint32_t *is_software_renderer = 0x029d6ff0;
+	uint32_t *unk_related_to_sw_renderer = 0x00546cc4;
+
+	*is_software_renderer = 0;
+	*unk_related_to_sw_renderer = 1;
+
+	// TODO: fog settings
 }
 
 void D3D_ClearBuffers() {
@@ -1123,7 +1132,7 @@ void fixUVs(renderVertex *vertices, int count, int width, int height) {
 		}
 	}
 
-	for (int i = 1; i < count; i++) {
+	for (int i = 0; i < count; i++) {
 		if (vertices[i].u > lowestU) {
 			vertices[i].u += 1.0f;
 		}
@@ -2098,8 +2107,6 @@ void D3DTEX_SetPalette(void *a, void *b) {
 }
 
 int D3DTEX_TextureCountColors(struct texture *a) {
-	printf("STUB: D3DTEX_TextureCountColors\n");
-
 	uint8_t counted[256];
 	memset(counted, 0, 256);
 	int count = 0;
@@ -2116,6 +2123,12 @@ int D3DTEX_TextureCountColors(struct texture *a) {
 				for (int x = 0; x < a->width; x++) {
 					uint32_t pixel_idx = ((y * linewidth) + (x / 2));
 					uint8_t color_idx = ((uint8_t *)a->img_data)[pixel_idx];
+
+					if (x % 2) {
+						color_idx = (color_idx & 0xf0) >> 4;
+					} else {
+						color_idx = color_idx & 0x0f;
+					}
 
 					if (!counted[color_idx]) {
 						counted[color_idx] = 1;
@@ -2142,8 +2155,82 @@ int D3DTEX_TextureCountColors(struct texture *a) {
 	return count;
 }
 
-void D3DTEX_GrayTexture(void *a) {
-	printf("STUB: D3DTEX_GrayTexture\n");
+void D3DTEX_GrayTexture(struct texture *a) {
+	// NOTE: luma is intentionally crushed here to match original PS1/PC behavior
+	uint32_t *buf = malloc(sizeof(uint32_t) * a->buf_width * a->buf_height);
+
+	for (int y = 0; y < a->buf_height; y++) {
+		for (int x = 0; x < a->buf_width; x++) {
+			//buf[(y * a->buf_width) + x] = ((x + y) % 2) ? colordark : colorlight;
+			buf[(y * a->buf_width) + x] = 0;
+		}
+	}
+
+	if (!(a->flags & 8)) {
+		uint16_t *colors = *(uint16_t **)((uint8_t *)a->palette + 8);
+		a->flags |= 0x10;
+			
+		if (*(uint32_t *)((uint8_t *)a->palette + 4) == 0x10) {
+			// 4-bit
+			int linewidth = (a->width + (a->width % 2)) / 2;
+			linewidth += linewidth % 2;
+			for (int y = 0; y < a->height; y++) {
+				for (int x = 0; x < a->width; x++) {
+					uint32_t pixel_idx = ((y * linewidth) + (x / 2));
+					uint8_t color_idx = ((uint8_t *)a->img_data)[pixel_idx];
+
+					if (x % 2) {
+						color_idx = (color_idx & 0xf0) >> 4;
+					} else {
+						color_idx = color_idx & 0x0f;
+					}
+
+					uint16_t color = colors[color_idx];
+					if (color == 0) {
+						a->flags &= ~0x10;
+					}
+
+					uint8_t alpha = ((color >> 15) & 0x0001) * 255;
+					uint32_t r = (color >> 0) & 0x1f;
+					uint32_t g = (color >> 5) & 0x1f;
+					uint32_t b = (color >> 10) & 0x1f;
+
+					uint8_t luma = ((r + g + b) * 0x226) / 3000;
+
+					luma = ((float)luma / 31.0f) * 255.0f;
+
+					buf[(y * a->buf_width) + x] = luma << 0 | luma << 8 | luma << 16 | alpha << 24;
+				}
+			}
+		} else if (*(uint32_t *)((uint8_t *)a->palette + 4) == 0x100) {
+			// 8-bit
+			for (int y = 0; y < a->height; y++) {
+				for (int x = 0; x < a->width; x++) {
+					uint8_t color_idx = ((uint8_t *)a->img_data)[(y * a->width) + x];
+
+					uint16_t color = colors[color_idx];
+					if (color == 0) {
+						a->flags &= ~0x10;
+					}
+
+					uint8_t alpha = ((color >> 15) & 0x0001) * 255;
+					uint32_t r = (color >> 0) & 0x1f;
+					uint32_t g = (color >> 5) & 0x1f;
+					uint32_t b = (color >> 10) & 0x1f;
+
+					uint8_t luma = ((r + g + b) * 0x226) / 3000;
+
+					luma = ((float)luma / 31.0f) * 255.0f;
+
+					buf[(y * a->buf_width) + x] = luma << 0 | luma << 8 | luma << 16 | alpha << 24;
+				}
+			}
+		}	
+	}
+
+	updateTextureEntry(renderer, a->idx, a->buf_width, a->buf_height, buf);
+
+	free(buf);
 }
 
 // why does this store so many textures
@@ -2337,4 +2424,6 @@ void installGfxPatches() {
 	//patchNop(0x00488218, 6);
 	//patchByte(0x00488234, 0xeb);
 	//patchByte(0x004881f8, 0xeb);
+
+	installMoviePatches();
 }
