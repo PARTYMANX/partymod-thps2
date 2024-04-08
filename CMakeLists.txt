@@ -8,7 +8,7 @@ set(THIRDPARTY "${CMAKE_SOURCE_DIR}/thirdparty")
 set(SOURCE_FILES
 	"${SRC}/main.c"
 	"${SRC}/patch.c"
-	"${SRC}/gfx.c"
+	"${SRC}/gfx/gfx.c"
 	"${SRC}/gfx/gfx_movie.c"
 	"${SRC}/window.c"
 	"${SRC}/mem.c"
@@ -23,7 +23,7 @@ set(SOURCE_FILES
 set(HEADER_FILES
 	"${SRC}/global.h"
 	"${SRC}/patch.h"
-	"${SRC}/gfx.h"
+	"${SRC}/gfx/gfx.h"
 	"${SRC}/gfx/gfx_movie.h"
 	"${SRC}/window.h"
 	"${SRC}/mem.h"
@@ -68,19 +68,16 @@ set(SOURCE_FILES
 
 set(SOURCE_FILES
 	${SOURCE_FILES}
-	"${SRC}/gfx/vk/vid_vk_buffer.c"
-	"${SRC}/gfx/vk/vid_vk_cmdbuffer.c"
-	"${SRC}/gfx/vk/vid_vk_descriptorset.c"
-	"${SRC}/gfx/vk/vid_vk_device.c"
-	#"${SRC}/gfx/vk/vid_vk_framebuffer.c"
-	"${SRC}/gfx/vk/vid_vk_mem.c"
-	"${SRC}/gfx/vk/vid_vk_pipeline.c"
-	#"${SRC}/gfx/vk/vid_vk_renderer.c"
-	#"${SRC}/gfx/vk/vid_vk_renderpass.c"
-	"${SRC}/gfx/vk/vid_vk_shader.c"
-	"${SRC}/gfx/vk/vid_vk_swapchain.c"
-	"${SRC}/gfx/vk/vid_vk_texture.c"
-	"${SRC}/gfx/vk/vid_vk_win32.c"
+	"${SRC}/gfx/vk/gfx_vk_buffer.c"
+	"${SRC}/gfx/vk/gfx_vk_cmdbuffer.c"
+	"${SRC}/gfx/vk/gfx_vk_descriptorset.c"
+	"${SRC}/gfx/vk/gfx_vk_device.c"
+	"${SRC}/gfx/vk/gfx_vk_mem.c"
+	"${SRC}/gfx/vk/gfx_vk_pipeline.c"
+	"${SRC}/gfx/vk/gfx_vk_shader.c"
+	"${SRC}/gfx/vk/gfx_vk_swapchain.c"
+	"${SRC}/gfx/vk/gfx_vk_texture.c"
+	"${SRC}/gfx/vk/gfx_vk_win32.c"
 	# new things go here
 	"${SRC}/gfx/vk/gfx_vk.c"
 )

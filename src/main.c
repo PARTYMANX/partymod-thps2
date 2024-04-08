@@ -12,7 +12,7 @@
 #include <input.h>
 #include <config.h>
 #include <script.h>
-#include <gfx.h>
+#include <gfx/gfx.h>
 #include <mem.h>
 
 #define VERSION_NUMBER_MAJOR 0
