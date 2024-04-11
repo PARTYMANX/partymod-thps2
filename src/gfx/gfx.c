@@ -7,35 +7,11 @@
 #include <global.h>
 #include <gfx/gfx_movie.h>
 #include <gfx/vk/gfx_vk.h>
-
-partyRenderer *renderer = NULL;
+#include <gfx/gfx_global.h>
 
 int resolution_x = 512;
 int resolution_y = 240;
 float aspectRatio = 4.0f / 3.0f;
-
-struct texture {
-	uint32_t idx;
-	uint8_t filler1[0x4];
-	uint32_t img_data;
-	uint32_t tex_checksum;
-	// 0x10
-	uint32_t flags;
-	// 0x14
-	uint16_t width;
-	uint16_t height;
-	//0x18
-	uint16_t buf_width;
-	uint16_t buf_height;
-	//0x1c
-	uint16_t unk_width;
-	uint16_t unk_height;
-
-	// 0x20
-	int *palette;
-
-	uint32_t unk[2];
-};
 
 void initDDraw() {
 	printf("STUB: initDDraw\n");
@@ -105,6 +81,8 @@ void D3DPOLY_StartScene(int a, int b) {
 
 	//float *fog = 0x00546b38;
 	//*fog = 10000.0f;
+
+	updateMovieTexture();	// a bit of a hack: update the movie texture here in the main thread, as the music thread also updates it.  not exactly safe, but it avoids invalid vulkan use
 
 	*fogThreshold = (float)*DpqMin / (float)*DpqMaxMaybe;
 	if (gShellMode == 1) {
@@ -411,6 +389,11 @@ void renderDXPoly(int *tag) {
 		struct dxpolytextured *vertices = ((uint8_t *)tag + 0x18);
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 0x10) + 0x14);
+
+		if (!tex) {
+			printf("TEXTURE WAS NULL!!!\n");
+			return;
+		}
 
 		if (tex->flags & 0x01000000) {
 			renderFlags |= 1;

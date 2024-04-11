@@ -57,5 +57,6 @@ void setRenderResolution(partyRenderer *renderer, uint32_t width, uint32_t heigh
 uint32_t createTextureEntry(partyRenderer *renderer, uint32_t width, uint32_t height);
 void updateTextureEntry(partyRenderer *renderer, uint32_t idx, uint32_t width, uint32_t height, void *data);
 void destroyTextureEntry(partyRenderer *renderer, uint32_t idx);
+void renderImageFrame(partyRenderer *renderer, uint32_t texIdx);
 
 #endif _GFX_VK_H_
