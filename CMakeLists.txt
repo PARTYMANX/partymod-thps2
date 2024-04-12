@@ -25,6 +25,7 @@ set(HEADER_FILES
 	"${SRC}/patch.h"
 	"${SRC}/gfx/gfx.h"
 	"${SRC}/gfx/gfx_movie.h"
+	"${SRC}/gfx/gfx_global.h"
 	"${SRC}/window.h"
 	"${SRC}/mem.h"
 	# "${SRC}/config.h"

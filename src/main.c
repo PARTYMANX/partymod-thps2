@@ -110,9 +110,9 @@ void initPatch() {
 
 	printf("DIRECTORY: %s\n", executableDirectory);
 
-	#ifdef MEM_AUDIT
+	//#ifdef MEM_AUDIT
 	initMemAudit();
-	#endif
+	//#endif
 
 	printf("Patch Initialized\n");
 }
@@ -167,6 +167,8 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			#ifdef MEM_AUDIT
 			installMemAudit();
 			#endif
+
+			installAltMemManager();
 
 			break;
 

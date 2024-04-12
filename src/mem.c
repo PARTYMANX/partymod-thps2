@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <patch.h>
 #include <util/hash.h>
@@ -60,15 +61,66 @@ void __cdecl mem_delete_wrapper(int p) {
 	printf("MEM_DELETE - 0x%08x, TOTAL: %d\n", p, allocbytes);
 }
 
-void *__cdecl mem_new_simple(int size, void *b, void *c, int d) {
-	return malloc(size);
-}
-
-void __cdecl mem_delete_simple(void *p) {
-	free(p);
-}
-
 void installMemAudit() {
 	patchJmp(0x0046f420, mem_new_wrapper);
 	patchJmp(0x0046f460, mem_delete_wrapper);
+}
+
+void *__cdecl mem_new(int size, int a, int b, int c) {
+	
+	uint32_t *result = malloc(size + 4);
+
+	*result = size;
+
+	#ifdef MEM_AUDIT
+	allocbytes += size;
+	printf("allocated %d bytes at 0x%08x (total %d)\n", size, result, allocbytes);
+	#endif
+
+	return result + 1;
+}
+
+void __cdecl mem_delete(void *p) {
+	if (p) {
+		uint32_t *pp = ((uint32_t *)p) - 1;
+
+		#ifdef MEM_AUDIT
+		allocbytes -= *pp;
+
+		printf("mem delete for 0x%08x (total allocated %d)\n", pp, allocbytes);
+		#endif
+
+		free(pp);
+	}
+}
+
+void __cdecl mem_copy(void *dst, void *src, int size) {
+	memcpy(dst, src, size);
+}
+
+void __cdecl mem_copybytes(void *dst, void *src, int size) {
+	memcpy(dst, src, size);
+}
+
+void __cdecl mem_shrink(void *p, int newsize) {
+	//printf("mem shrink 0x%08x to %d (not implemented)\n", p, newsize);
+}
+
+int __cdecl mem_getblocksize(void *p) {
+	if (p) {
+		uint32_t *pp = ((uint32_t *)p) - 1;
+
+		return *pp;
+	} else {
+		return 0;
+	}
+}
+
+void installAltMemManager() {
+	patchJmp(0x0046f420, mem_new);
+	patchJmp(0x0046f460, mem_delete);
+	patchJmp(0x0046f270, mem_copy);
+	patchJmp(0x0046f340, mem_copybytes);
+	patchJmp(0x0046f470, mem_shrink);
+	patchJmp(0x0046f4a0, mem_getblocksize);
 }

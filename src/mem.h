@@ -3,5 +3,6 @@
 
 void installMemAudit();
 void initMemAudit();
+void installAltMemManager();
 
 #endif
