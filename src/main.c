@@ -110,9 +110,9 @@ void initPatch() {
 
 	printf("DIRECTORY: %s\n", executableDirectory);
 
-	//#ifdef MEM_AUDIT
+#ifdef MEM_AUDIT
 	initMemAudit();
-	//#endif
+#endif
 
 	printf("Patch Initialized\n");
 }
@@ -138,6 +138,10 @@ int eventHandler() {
 	return result;
 }
 
+void drawSync() {
+	//SDL_Delay(16);
+};
+
 void patchWindowAndInit() {
 	patchNop(0x004f4ff1, 47);
 	patchCall(0x004f4ff1, initPatch);
@@ -146,6 +150,8 @@ void patchWindowAndInit() {
 	patchJmp(0x004f4d70, eventHandler);
 
 	patchNop(0x004f502b, 39);	// patch out window setup stuff that we no longer need
+
+	//patchJmp(0x004e5910, drawSync);
 
 	//patchByte(0x004f544d + 1, 0x8); // windowed mode
 	//patchByte(0x004f552e + 7, 0x1); // windowed mode
@@ -164,11 +170,9 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			patchWindowAndInit();
 			installGfxPatches();
 
-			#ifdef MEM_AUDIT
-			installMemAudit();
-			#endif
+			installMemPatches();
 
-			installAltMemManager();
+			//installAltMemManager();
 
 			break;
 

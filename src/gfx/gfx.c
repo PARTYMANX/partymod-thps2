@@ -14,7 +14,7 @@ int resolution_y = 240;
 float aspectRatio = 4.0f / 3.0f;
 
 void initDDraw() {
-	printf("STUB: initDDraw\n");
+	//printf("STUB: initDDraw\n");
 
 	int *width = 0x029d6fe4;
 	int *height = 0x029d6fe8;
@@ -47,11 +47,11 @@ void initD3D() {
 }
 
 void D3D_ClearBuffers() {
-	printf("STUB: D3D_ClearBuffers\n");
+	//printf("STUB: D3D_ClearBuffers\n");
 }
 
 void D3DPOLY_Init() {
-	printf("STUB: D3DPOLY_Init\n");
+	//printf("STUB: D3DPOLY_Init\n");
 	void (__cdecl *D3DMODEL_Startup)() = 0x004cffb0;
 	void (__cdecl *SOFTREND_Startup)() = 0x004ef810;
 	void (__cdecl *Init_PolyBuf)() = 0x004d4640;
@@ -1770,7 +1770,7 @@ void __fastcall D3DSprite_Destroy(D3DSprite *sprite) {
 }
 
 void WINMAIN_SwitchResolution() {
-	printf("STUB: WINMAIN_SwitchResolution\n");
+	//printf("STUB: WINMAIN_SwitchResolution\n");
 
 	int *width = 0x029d6fe4;
 	int *height = 0x029d6fe8;
@@ -1879,6 +1879,8 @@ void installGfxPatches() {
 	//patchNop(0x00488218, 6);
 	//patchByte(0x00488234, 0xeb);
 	//patchByte(0x004881f8, 0xeb);
+
+	//patchDWord(0x00449c48 + 3, 0x808080ff);
 
 	installMoviePatches();
 }

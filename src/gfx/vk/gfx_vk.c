@@ -293,11 +293,41 @@ void destroyTextureEntry(partyRenderer *renderer, uint32_t idx) {
 	del.img = renderer->textureManager.images[idx - 1];
 	// i'll be honest, this is a bit of a hack for a validation error i was seeing when switching to certain screens.  
 	// sometimes we were deleting images too soon that i'm pretty sure weren't in use but we were getting validation errors anyway.  whoops!
-	del.remainingFrames = 1;	
+	del.remainingFrames = 2;	
 
 	sb_push_back(renderer->pendingImageDeletes, &del);
 	renderer->textureManager.occupied[idx - 1] = 0;
 	renderer->textureManager.count--;
+
+	if (renderer->pendingImageDeletes->count > 1024) {
+		// emergency flush last half of pending image deletes.  something went horribly wrong 
+		// this can actually happen if images don't get cleared during a long-held soft reset
+
+		printf("DOING EMERGENCY TEXTURE DELETION FLUSH\n");
+		if (renderer->pendingImageWrites->count > 0) {
+			vkQueueWaitIdle(renderer->memQueue->queue);
+
+			for (int i = 0; i < renderer->pendingImageWrites->count; i++) {
+				pendingImageWrite *imgWrite = ((pendingImageWrite *)renderer->pendingImageWrites->data) + i;
+				vkFreeCommandBuffers(renderer->device->device, renderer->memQueue->commandPool, 1, &imgWrite->cmdbuf);
+				destroyBuffer(renderer, &imgWrite->transferbuf);
+			}
+			renderer->pendingImageWrites->count = 0;
+		}
+
+		while (renderer->pendingImageDeletes->count > 512) {
+			pendingImageDelete del;
+			sb_pop_front(renderer->pendingImageDeletes, &del);
+			destroyTexture(renderer, del.img);
+		}
+		
+	}
+
+	/*if (renderer->pendingImageWrites->count > 0) {
+		vkQueueWaitIdle(renderer->memQueue->queue);
+	}
+
+	destroyTexture(renderer, renderer->textureManager.images[idx - 1]);*/
 }
 
 void writeTextureDescriptors(partyRenderer *renderer) {
