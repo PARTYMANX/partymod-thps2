@@ -43,6 +43,7 @@ typedef struct {
 */
 
 uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **dst);
+void updateRenderer(partyRenderer *renderer);
 
 void startRender(partyRenderer *renderer, uint32_t clearColor);
 void finishRender(partyRenderer *renderer);

@@ -217,7 +217,7 @@ VkResult createVulkanDevice(struct rbVkWindow *window, struct rbVkDevice **devic
 	}
 
 	r = getPhysicalDevice(window, &(result->physicalDevice));
-	if (r) {
+	if (r || result->physicalDevice.device == VK_NULL_HANDLE) {
 		printf("Failed to get physical device!\n");
 		free(result);
 		return r;
@@ -229,6 +229,7 @@ VkResult createVulkanDevice(struct rbVkWindow *window, struct rbVkDevice **devic
 
 	uint32_t deviceQueueCount = 0;
 	VkDeviceQueueCreateInfo deviceQueueInfo[QUEUE_FAMILY_COUNT];
+
 	for (int i = 0; i < QUEUE_FAMILY_COUNT; i++) {
 		// check if it's a unique queue family
 		uint8_t isUnique = 1;
@@ -263,8 +264,13 @@ VkResult createVulkanDevice(struct rbVkWindow *window, struct rbVkDevice **devic
 	deviceInfo.pEnabledFeatures = &phDeviceFeatures;
 	deviceInfo.enabledExtensionCount = deviceExtCount;
 	deviceInfo.ppEnabledExtensionNames = deviceExtNames;
+#ifdef VK_VALIDATION
 	deviceInfo.enabledLayerCount = validationLayerCount;
 	deviceInfo.ppEnabledLayerNames = validationLayerNames;
+#else
+	deviceInfo.enabledLayerCount = 0;
+	deviceInfo.ppEnabledLayerNames = NULL;
+#endif
 
 	r = vkCreateDevice(result->physicalDevice.device, &deviceInfo, NULL, &(result->device));
 	if (r) {

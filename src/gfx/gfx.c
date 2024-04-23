@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <SDL2/SDL.h>
+
+#include <window.h>
+#include <event.h>
 #include <patch.h>
 #include <global.h>
 #include <gfx/gfx_movie.h>
@@ -12,6 +16,22 @@
 int resolution_x = 512;
 int resolution_y = 240;
 float aspectRatio = 4.0f / 3.0f;
+
+int isMinimized = 0;
+
+void handleGfxEvent(SDL_Event *e) {
+	switch (e->type) {
+		case SDL_WINDOWEVENT:
+			if (e->window.event == SDL_WINDOWEVENT_MINIMIZED) {
+				isMinimized = 1;
+			} else if (e->window.event == SDL_WINDOWEVENT_RESTORED) {
+				isMinimized = 0;
+			} else if (e->window.event == SDL_WINDOWEVENT_RESIZED) {
+				updateRenderer(renderer);
+			}
+			return;
+	}
+}
 
 void initDDraw() {
 	//printf("STUB: initDDraw\n");
@@ -44,6 +64,8 @@ void initD3D() {
 	*unk_related_to_sw_renderer = 1;
 
 	// TODO: fog settings
+
+	registerEventHandler(handleGfxEvent);
 }
 
 void D3D_ClearBuffers() {
@@ -55,7 +77,6 @@ void D3DPOLY_Init() {
 	void (__cdecl *D3DMODEL_Startup)() = 0x004cffb0;
 	void (__cdecl *SOFTREND_Startup)() = 0x004ef810;
 	void (__cdecl *Init_PolyBuf)() = 0x004d4640;
-
 
 	D3DMODEL_Startup();
 	SOFTREND_Startup();
@@ -102,7 +123,9 @@ void D3DPOLY_StartScene(int a, int b) {
 
 	uint32_t clearColor = fixDXColor(b);
 
-	startRender(renderer, clearColor);
+	if (!isMinimized) {
+		startRender(renderer, clearColor);
+	}
 }
 
 void (*D3DPOLY_EndScene)() = 0x004d12e0;
@@ -111,7 +134,9 @@ void D3D_EndSceneAndFlip() {
 	D3DPOLY_EndScene();
 	//printf("STUB: D3D_EndSceneAndFlip\n");
 
-	finishRender(renderer);
+	if (!isMinimized) {
+		finishRender(renderer);
+	}
 }
 
 struct dxpolytextured {
@@ -1150,6 +1175,10 @@ void D3DPOLY_DrawOTag(int *tag) {
 	uint32_t *alphaBlend = 0x0069c8b0;
 	uint32_t *nextPSXBlendMode = 0x0069d10c;
 
+	if (isMinimized) {
+		return;
+	}
+
 	while(tag != NULL) {
 		if (tag[1] != 0) {
 			// hangar heli causes command 226, what's up there?
@@ -1817,6 +1846,49 @@ void openExternalTexture(void *a, struct texture *b) {
 
 void WINMAIN_Configure() {
 	printf("STUB: WINMAIN_Configure\n");
+
+	float *VideoFogYonScale = 0x00545334;
+	*VideoFogYonScale = 1.5f;
+}
+
+void SaveVidConfig() {
+	printf("STUB: SaveVidConfig\n");
+}
+
+void toGameScreenCoord(int x, int y, int *xOut, int *yOut) {
+	// converts from window coord to game coord
+	int winwidth, winheight;
+	getWindowSize(&winwidth, &winheight);
+
+	float fx, fy;
+	fx = (float)x / (float)winwidth;
+	fy = (float)y / (float)winheight;
+
+	float windowaspect = (float)winwidth / (float)winheight;
+
+	if (windowaspect >= aspectRatio) {
+		float aspectConv = windowaspect / aspectRatio;
+		fx *= aspectConv;
+
+		fx -= 0.5f * (aspectConv - 1.0f);
+	} else {
+		float aspectConv = aspectRatio / windowaspect;
+		fy *= aspectConv;
+
+		fy -= 0.5f * (aspectConv - 1.0f);
+	}
+
+	*xOut = (fx * (float)resolution_x) + 0.5f;
+	*yOut = (fy * (float)resolution_y) + 0.5f;
+}
+
+void getGameResolution(int *w, int *h) {
+	*w = resolution_x;
+	*h = resolution_y;
+}
+
+void MENUPC_DrawMouseCursor() {
+
 }
 
 void installGfxPatches() {
@@ -1859,6 +1931,7 @@ void installGfxPatches() {
 	
 	patchJmp(0x004f3f10, WINMAIN_SwitchResolution);
 	patchJmp(0x004cc240, WINMAIN_Configure);
+	patchJmp(0x004cc510, SaveVidConfig);
 
 	patchJmp(0x00464620, m3dinit_setresolution);
 	patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
@@ -1872,6 +1945,9 @@ void installGfxPatches() {
 	// disable palette conversion
 	patchNop(0x004d7887, 1);
 	patchByte(0x004d7887 + 1, 0xe9);
+
+	// don't show in-game cursor
+	patchJmp(0x004d9060, MENUPC_DrawMouseCursor);
 
 	// pal_loadpalette - don't mess with alpha
 

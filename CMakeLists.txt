@@ -12,8 +12,10 @@ set(SOURCE_FILES
 	"${SRC}/gfx/gfx_movie.c"
 	"${SRC}/window.c"
 	"${SRC}/mem.c"
+	"${SRC}/input.c"
+	"${SRC}/event.c"
+	"${SRC}/window.c"
 	# "${SRC}/config.c"
-	# "${SRC}/input.c"
 	"${SRC}/util/hash.c"
 	"${SRC}/util/sb.c"
 	# "${SRC}/script.c"
@@ -28,8 +30,10 @@ set(HEADER_FILES
 	"${SRC}/gfx/gfx_global.h"
 	"${SRC}/window.h"
 	"${SRC}/mem.h"
+	"${SRC}/input.h"
+	"${SRC}/event.h"
+	"${SRC}/window.h"
 	# "${SRC}/config.h"
-	# "${SRC}/input.h"
 	"${SRC}/util/hash.h"
 	"${SRC}/util/sb.h"
 	# "${SRC}/script.h"
@@ -61,9 +65,7 @@ list(APPEND VKINCLUDES "${PROJECT_SOURCE_DIR}/thirdparty/VulkanMemoryAllocator")
 
 set(SOURCE_FILES
 	${SOURCE_FILES}
-	#"${SRC}/gfx/vk/vid_vk.h"
 	"${SRC}/gfx/vk/vk.h"
-	# new things go here
 	"${SRC}/gfx/vk/gfx_vk.h"
 )
 
@@ -79,7 +81,6 @@ set(SOURCE_FILES
 	"${SRC}/gfx/vk/gfx_vk_swapchain.c"
 	"${SRC}/gfx/vk/gfx_vk_texture.c"
 	"${SRC}/gfx/vk/gfx_vk_win32.c"
-	# new things go here
 	"${SRC}/gfx/vk/gfx_vk.c"
 )
 

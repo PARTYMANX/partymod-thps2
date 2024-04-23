@@ -567,7 +567,7 @@ uint8_t rbVkWaitIdle(partyRenderer *renderer) {
 	}
 }*/
 
-void rbVkUpdateRenderer(partyRenderer *renderer) {
+void updateRenderer(partyRenderer *renderer) {
 	rbVkWaitIdle(renderer);
 
 	//clearFramebufferCache(renderer->framebufferCache);	// avoid reusing old framebuffers
@@ -599,7 +599,7 @@ uint8_t rbVkGetNextImage(partyRenderer *renderer, uint32_t *idx) {
 	result = vkAcquireNextImageKHR(renderer->device->device, renderer->swapchain->swapchain, 1000000000, renderer->swapchain->imageReadySemaphore, VK_NULL_HANDLE, &(renderer->swapchain->imageIdx));
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-		rbVkUpdateRenderer(renderer);
+		updateRenderer(renderer);
 
 		vkAcquireNextImageKHR(renderer->device->device, renderer->swapchain->swapchain, UINT64_MAX, renderer->swapchain->imageReadySemaphore, VK_NULL_HANDLE, &(renderer->swapchain->imageIdx));
 	} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
@@ -630,7 +630,7 @@ uint8_t rbVkPresent(partyRenderer *renderer) {
 	vkQueuePresentKHR(renderer->queue->presentQueue, &presentInfo);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-		rbVkUpdateRenderer(renderer);
+		updateRenderer(renderer);
 	} else if (result != VK_SUCCESS) {
 		return 0;
 	}

@@ -1,7 +1,7 @@
 #ifndef _INPUT_H_
 #define _INPUT_H_
 
-int processIntroEvent();
-void patchInput();
+void installInputPatches();
+//int processInputEvent(SDL_Event *e);
 
 #endif
