@@ -11,10 +11,10 @@
 #include <global.h>
 #include <input.h>
 #include <config.h>
-#include <script.h>
 #include <gfx/gfx.h>
 #include <mem.h>
 #include <event.h>
+#include <window.h>
 
 #define VERSION_NUMBER_MAJOR 0
 #define VERSION_NUMBER_MINOR 1
@@ -32,8 +32,11 @@ void initPatch() {
 	char configFile[1024];
 	sprintf(configFile, "%s%s", executableDirectory, CONFIG_FILE_NAME);
 
-	//int isDebug = getIniBool("Miscellaneous", "Debug", 0, configFile);
-	int isDebug = 1;
+	initConfig();
+
+	int isDebug = getConfigBool("Miscellaneous", "Debug", 0);
+	isDebug = 1;
+	//int isDebug = 1;
 
 	if (isDebug) {
 		AllocConsole();

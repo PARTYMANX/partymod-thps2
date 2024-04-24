@@ -6,13 +6,13 @@
 #include <patch.h>
 #include <event.h>
 #include <gfx/gfx.h>
+#include <config.h>
 
 //
 
 struct keybinds {
 	SDL_Scancode menu;
 	SDL_Scancode cameraToggle;
-	SDL_Scancode cameraSwivelLock;
 
 	SDL_Scancode grind;
 	SDL_Scancode grab;
@@ -28,11 +28,6 @@ struct keybinds {
 	SDL_Scancode left;
 	SDL_Scancode up;
 	SDL_Scancode down;
-
-	SDL_Scancode cameraRight;
-	SDL_Scancode cameraLeft;
-	SDL_Scancode cameraUp;
-	SDL_Scancode cameraDown;
 };
 
 // a recreation of the SDL_GameControllerButton enum, but with the addition of right/left trigger
@@ -72,7 +67,6 @@ typedef enum {
 struct controllerbinds {
 	controllerButton menu;
 	controllerButton cameraToggle;
-	controllerButton cameraSwivelLock;
 
 	controllerButton grind;
 	controllerButton grab;
@@ -90,7 +84,6 @@ struct controllerbinds {
 	controllerButton down;
 
 	controllerStick movement;
-	controllerStick camera;
 };
 
 //
@@ -218,16 +211,16 @@ uint8_t getButton(SDL_GameController *controller, controllerButton button) {
 	}
 }
 
-void getStick(SDL_GameController *controller, controllerStick stick, uint8_t *xOut, uint8_t *yOut) {
+void getStick(SDL_GameController *controller, controllerStick stick, int16_t *xOut, int16_t *yOut) {
 	if (stick == CONTROLLER_STICK_LEFT) {
-		*xOut = (uint8_t)((SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX) >> 8) + 128);
-		*yOut = (uint8_t)((SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY) >> 8) + 128);
+		*xOut = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
+		*yOut = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
 	} else if (stick == CONTROLLER_STICK_RIGHT) {
-		*xOut = (uint8_t)((SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_RIGHTX) >> 8) + 128);
-		*yOut = (uint8_t)((SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_RIGHTY) >> 8) + 128);
+		*xOut = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_RIGHTX);
+		*yOut = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_RIGHTY);
 	} else {
-		*xOut = 0x80;
-		*yOut = 0x80;
+		*xOut = 0;
+		*yOut = 0;
 	}
 }
 
@@ -243,9 +236,6 @@ uint16_t pollController(SDL_GameController *controller) {
 		}
 		if (getButton(controller, padbinds.cameraToggle)) {
 			result |= 0x01 << 8;
-		}
-		if (getButton(controller, padbinds.cameraSwivelLock)) {
-			result |= 0x01 << 10;
 		}
 
 		if (getButton(controller, padbinds.grind)) {
@@ -291,97 +281,123 @@ uint16_t pollController(SDL_GameController *controller) {
 		if (SDL_GameControllerGetButton(controller, padbinds.left)) {
 			result |= 0x01 << 15;
 		}
+
+		int16_t moveX, moveY;
+		getStick(controller, padbinds.movement, &moveX, &moveY);
+		if (moveX > 16383) {
+			result |= 0x01 << 13;	// right
+		} else if (moveX < -16383) {
+			result |= 0x01 << 15;	// left
+		}
+
+		if (moveY > 16383) {
+			result |= 0x01 << 14;	// up
+		} else if (moveY < -16383) {
+			result |= 0x01 << 12;	// down
+		}
 	}
 
 	return result;
 }
 
 uint16_t pollKeyboard() {
+	int *gShellMode = 0x006a35b4;
 	uint8_t *keyboardState = SDL_GetKeyboardState(NULL);
+
+	printf("gShellMode: %d\n", *gShellMode);
 
 	uint16_t result = 0;
 
-	// buttons
-	if (keyboardState[keybinds.menu] && keybinds.menu != SDL_SCANCODE_ESCAPE) {	// is esc is bound to menu, it will only interfere with hardcoded keybinds.  similar effect on enter but i can't detect the things needed to work there
-		result |= 0x01 << 11;
-	}
-	if (keyboardState[keybinds.cameraToggle]) {
-		result |= 0x01 << 8;
-	}
-	if (keyboardState[keybinds.cameraSwivelLock]) {
-		result |= 0x01 << 10;
-	}
+	if (*gShellMode == 0) {
+		// buttons
+		if (keyboardState[keybinds.menu] || keyboardState[SDL_SCANCODE_ESCAPE]) {	// is esc is bound to menu, it will only interfere with hardcoded keybinds.  similar effect on enter but i can't detect the things needed to work there
+			result |= 0x01 << 11;
+		}
+		if (keyboardState[keybinds.cameraToggle]) {
+			result |= 0x01 << 8;
+		}
 
-	if (keyboardState[keybinds.grind]) {
-		result |= 0x01 << 4;
-	}
-	if (keyboardState[keybinds.grab]) {
-		result |= 0x01 << 5;
-	}
-	if (keyboardState[keybinds.ollie]) {
-		result |= 0x01 << 6;
-	}
-	if (keyboardState[keybinds.kick]) {
-		result |= 0x01 << 7;
-	}
+		if (keyboardState[keybinds.grind]) {
+			result |= 0x01 << 4;
+		}
+		if (keyboardState[keybinds.grab]) {
+			result |= 0x01 << 5;
+		}
+		if (keyboardState[keybinds.ollie]) {
+			result |= 0x01 << 6;
+		}
+		if (keyboardState[keybinds.kick]) {
+			result |= 0x01 << 7;
+		}
 
-	// shoulders
-	if (keyboardState[keybinds.leftSpin]) {
-		result |= 0x01 << 2;
-	}
-	if (keyboardState[keybinds.rightSpin]) {
-		result |= 0x01 << 3;
-	}
-	if (keyboardState[keybinds.nollie]) {
-		result |= 0x01 << 0;
-	}
-	if (keyboardState[keybinds.switchRevert]) {
-		result |= 0x01 << 1;
-	}
+		// shoulders
+		if (keyboardState[keybinds.leftSpin]) {
+			result |= 0x01 << 2;
+		}
+		if (keyboardState[keybinds.rightSpin]) {
+			result |= 0x01 << 3;
+		}
+		if (keyboardState[keybinds.nollie]) {
+			result |= 0x01 << 0;
+		}
+		if (keyboardState[keybinds.switchRevert]) {
+			result |= 0x01 << 1;
+		}
 		
-	// d-pad
-	if (keyboardState[keybinds.up] || (isUsingHardCodeControls && keyboardState[SDL_SCANCODE_UP])) {
-		result |= 0x01 << 12;
+		// d-pad
+		if (keyboardState[keybinds.up]) {
+			result |= 0x01 << 12;
+		}
+		if (keyboardState[keybinds.right]) {
+			result |= 0x01 << 13;
+		}
+		if (keyboardState[keybinds.down]) {
+			result |= 0x01 << 14;
+		}
+		if (keyboardState[keybinds.left]) {
+			result |= 0x01 << 15;
+		}
+	} else if (*gShellMode == 1) {
+		// buttons
+		if (keyboardState[SDL_SCANCODE_ESCAPE]) {
+			result |= 0x01 << 4;
+		}
+		if (keyboardState[SDL_SCANCODE_RETURN] || keyboardState[SDL_SCANCODE_SPACE]) {
+			result |= 0x01 << 6;
+		}
+
+		// d-pad
+		if (keyboardState[keybinds.up] || keyboardState[SDL_SCANCODE_UP]) {
+			result |= 0x01 << 12;
+		}
+		if (keyboardState[keybinds.right] || keyboardState[SDL_SCANCODE_RIGHT]) {
+			result |= 0x01 << 13;
+		}
+		if (keyboardState[keybinds.down] || keyboardState[SDL_SCANCODE_DOWN]) {
+			result |= 0x01 << 14;
+		}
+		if (keyboardState[keybinds.left] || keyboardState[SDL_SCANCODE_LEFT]) {
+			result |= 0x01 << 15;
+		}
 	}
-	if (keyboardState[keybinds.right] || (isUsingHardCodeControls && keyboardState[SDL_SCANCODE_RIGHT])) {
-		result |= 0x01 << 13;
-	}
-	if (keyboardState[keybinds.down] || (isUsingHardCodeControls && keyboardState[SDL_SCANCODE_DOWN])) {
-		result |= 0x01 << 14;
-	}
-	if (keyboardState[keybinds.left] || (isUsingHardCodeControls && keyboardState[SDL_SCANCODE_LEFT])) {
-		result |= 0x01 << 15;
-	}
+	
 
 	return result;
 }
 
 // returns 1 if a text entry prompt is on-screen so that keybinds don't interfere with text entry confirmation/cancellation
 int isKeyboardTyping() {
-	void *(__stdcall *getMenuFactorySingleton)(int) = (void *)0x004d12a0;
-	void (*deleteMenuFactorySingleton)() = (void *)0x004d12f0;
-	
-	void *menuFactory = getMenuFactorySingleton(0);
-
-	int result = *(int *)(((uint8_t *)menuFactory) + 0x154);
-	
-	deleteMenuFactorySingleton();
-
-	return result;
+	return 0;
 }
 
 void __cdecl processController() {
 	int *gShellMode = 0x006a35b4;
-	/*SDL_Event e;
-	while(SDL_PollEvent(&e)) {
-		processEvent(&e);
-	}*/
 
 	uint16_t controlData = 0;
 
-	/*if (!isKeyboardTyping()) {
-		pollKeyboard(dev);
-	}*/
+	if (!isKeyboardTyping()) {
+		controlData |= pollKeyboard();
+	}
 
 	// TODO: maybe smart selection of active controller?
 	for (int i = 0; i < controllerCount; i++) {
@@ -412,16 +428,6 @@ void __cdecl processController() {
 		//int32_t *unk = 0x001981c8;
 		//printf("unknown: 0x%08x\n", *unk);
 	}
-
-	//int (__stdcall *isVibrationOn)() = (void *)0x0041f910;
-	//int vibe = isVibrationOn();
-	//printf("IS VIBRATION ON: %d\n", vibe);	// enable vibration: 0041f970
-
-	//printf("VIBRATION BUFFERS:\n");
-	//printf("%08x%08x%08x%08x%08x%08x%08x%08x\n", dev->vibrationData_align[0], dev->vibrationData_align[1], dev->vibrationData_align[2], dev->vibrationData_align[3], dev->vibrationData_align[4], dev->vibrationData_align[5], dev->vibrationData_align[6], dev->vibrationData_align[7]);
-	//printf("%08x%08x%08x%08x%08x%08x%08x%08x\n", dev->vibrationData_direct[0], dev->vibrationData_direct[1], dev->vibrationData_direct[2], dev->vibrationData_direct[3], dev->vibrationData_direct[4], dev->vibrationData_direct[5], dev->vibrationData_direct[6], dev->vibrationData_direct[7]);
-	//printf("%08x%08x%08x%08x%08x%08x%08x%08x\n", dev->vibrationData_max[0], dev->vibrationData_max[1], dev->vibrationData_max[2], dev->vibrationData_max[3], dev->vibrationData_max[4], dev->vibrationData_max[5], dev->vibrationData_max[6], dev->vibrationData_max[7]);
-	//printf("\n");
 }
 
 void processMouse() {
@@ -509,24 +515,49 @@ void processInputEvent(SDL_Event *e) {
 	}
 }
 
-void configureController() {
-	padbinds.menu = CONTROLLER_BUTTON_START;
-	padbinds.cameraToggle = CONTROLLER_BUTTON_BACK;
+#define KEYBIND_SECTION "Keybinds"
+#define GAMEPAD_SECTION "Gamepad"
 
-	padbinds.ollie = CONTROLLER_BUTTON_A;
-	padbinds.kick = CONTROLLER_BUTTON_X;
-	padbinds.grab = CONTROLLER_BUTTON_B;
-	padbinds.grind = CONTROLLER_BUTTON_Y;
+void configureControls() {
+	// Keyboard
+	keybinds.menu = getConfigInt(KEYBIND_SECTION, "Pause", SDL_SCANCODE_P);
+	keybinds.cameraToggle = getConfigInt(KEYBIND_SECTION, "ViewToggle", SDL_SCANCODE_KP_DIVIDE);
+	
+	keybinds.ollie = getConfigInt(KEYBIND_SECTION, "Ollie", SDL_SCANCODE_KP_2);
+	keybinds.kick = getConfigInt(KEYBIND_SECTION, "Flip", SDL_SCANCODE_KP_4);
+	keybinds.grab = getConfigInt(KEYBIND_SECTION, "Grab", SDL_SCANCODE_KP_6);
+	keybinds.grind = getConfigInt(KEYBIND_SECTION, "Grind", SDL_SCANCODE_KP_8);
+	
+	keybinds.leftSpin = getConfigInt(KEYBIND_SECTION, "SpinLeft", SDL_SCANCODE_KP_7);
+	keybinds.rightSpin = getConfigInt(KEYBIND_SECTION, "SpinRight", SDL_SCANCODE_KP_9);
+	keybinds.nollie = getConfigInt(KEYBIND_SECTION, "Nollie", SDL_SCANCODE_KP_1);
+	keybinds.switchRevert = getConfigInt(KEYBIND_SECTION, "Switch", SDL_SCANCODE_KP_3);
+	
+	keybinds.left = getConfigInt(KEYBIND_SECTION, "Left", SDL_SCANCODE_LEFT);
+	keybinds.right = getConfigInt(KEYBIND_SECTION, "Right", SDL_SCANCODE_RIGHT);
+	keybinds.up = getConfigInt(KEYBIND_SECTION, "Up", SDL_SCANCODE_UP);
+	keybinds.down = getConfigInt(KEYBIND_SECTION, "Down", SDL_SCANCODE_DOWN);
 
-	padbinds.leftSpin = CONTROLLER_BUTTON_LEFTSHOULDER;
-	padbinds.rightSpin = CONTROLLER_BUTTON_RIGHTSHOULDER;
-	padbinds.nollie = CONTROLLER_BUTTON_LEFTTRIGGER;
-	padbinds.switchRevert = CONTROLLER_BUTTON_RIGHTTRIGGER;
+	// Gamepad
+	padbinds.menu = getConfigInt(GAMEPAD_SECTION, "Pause", CONTROLLER_BUTTON_START);
+	padbinds.cameraToggle = getConfigInt(GAMEPAD_SECTION, "ViewToggle", CONTROLLER_BUTTON_BACK);
 
-	padbinds.left = CONTROLLER_BUTTON_DPAD_LEFT;
-	padbinds.right = CONTROLLER_BUTTON_DPAD_RIGHT;
-	padbinds.up = CONTROLLER_BUTTON_DPAD_UP;
-	padbinds.down = CONTROLLER_BUTTON_DPAD_DOWN;
+	padbinds.ollie = getConfigInt(GAMEPAD_SECTION, "Ollie", CONTROLLER_BUTTON_A);
+	padbinds.kick = getConfigInt(GAMEPAD_SECTION, "Flip", CONTROLLER_BUTTON_X);
+	padbinds.grab = getConfigInt(GAMEPAD_SECTION, "Grab", CONTROLLER_BUTTON_B);
+	padbinds.grind = getConfigInt(GAMEPAD_SECTION, "Grind", CONTROLLER_BUTTON_Y);
+
+	padbinds.leftSpin = getConfigInt(GAMEPAD_SECTION, "SpinLeft", CONTROLLER_BUTTON_LEFTSHOULDER);
+	padbinds.rightSpin = getConfigInt(GAMEPAD_SECTION, "SpinRight", CONTROLLER_BUTTON_RIGHTSHOULDER);
+	padbinds.nollie = getConfigInt(GAMEPAD_SECTION, "Nollie", CONTROLLER_BUTTON_LEFTTRIGGER);
+	padbinds.switchRevert = getConfigInt(GAMEPAD_SECTION, "Switch", CONTROLLER_BUTTON_RIGHTTRIGGER);
+
+	padbinds.left = getConfigInt(GAMEPAD_SECTION, "Left", CONTROLLER_BUTTON_DPAD_LEFT);
+	padbinds.right = getConfigInt(GAMEPAD_SECTION, "Right", CONTROLLER_BUTTON_DPAD_RIGHT);
+	padbinds.up = getConfigInt(GAMEPAD_SECTION, "Up", CONTROLLER_BUTTON_DPAD_UP);
+	padbinds.down = getConfigInt(GAMEPAD_SECTION, "Down", CONTROLLER_BUTTON_DPAD_DOWN);
+
+	padbinds.movement = getConfigInt(GAMEPAD_SECTION, "MovementStick", CONTROLLER_STICK_LEFT);
 }
 
 void InitDirectInput(void *hwnd, void *hinstance) {
@@ -551,7 +582,7 @@ void InitDirectInput(void *hwnd, void *hinstance) {
 	}
 
 	initSDLControllers();
-	configureController();
+	configureControls();
 
 	registerEventHandler(processInputEvent);
 }
@@ -568,7 +599,6 @@ void PCINPUT_ActuatorOn(uint32_t controllerIdx, uint32_t duration, uint32_t moto
 	// pc release only responds with half-strength on both motors.  i think that's the preferred behavior here
 	//str = (uint16_t)(((float)str / 255.0f) * 65535.0f);
 	duration *= 66;
-
 
 	for (int i = 0; i < controllerCount; i++) {
 		if (motor == 0) {

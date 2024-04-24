@@ -2,6 +2,7 @@
 
 #include <patch.h>
 #include <event.h>
+#include <config.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
@@ -15,65 +16,78 @@ void handleWindowEvents(SDL_Event *e) {
 	}
 }
 
-/*void enforceMaxResolution() {
-	DEVMODE deviceMode;
-	int i = 0;
+void enforceMaxResolution(int *resX, int *resY) {
 	uint8_t isValidX = 0;
 	uint8_t isValidY = 0;
 
-	while (EnumDisplaySettings(NULL, i, &deviceMode)) {
-		if (deviceMode.dmPelsWidth >= *resX) {
+	int numDisplayModes = SDL_GetNumDisplayModes(0);
+
+	for (int i = 0; i < numDisplayModes; i++) {
+		SDL_DisplayMode displayMode;
+		SDL_GetDisplayMode(0, i, &displayMode);
+
+		if (displayMode.w >= *resX) {
 			isValidX = 1;
 		}
-		if (deviceMode.dmPelsHeight >= *resY) {
+		if (displayMode.h >= *resY) {
 			isValidY = 1;
 		}
-
-		i++;
 	}
 
 	if (!isValidX || !isValidY) {
 		*resX = 0;
 		*resY = 0;
 	}
-}*/
+}
 
 SDL_Window *window;
+int windowResX;
+int windowResY;
+int isWindowed;
+int borderless;
+
+#define WINDOW_SECTION "Window"
+
+void configWindow() {
+	windowResX = getConfigInt(WINDOW_SECTION, "ResolutionX", 640);
+	windowResY = getConfigInt(WINDOW_SECTION, "ResolutionY", 480);
+	isWindowed = getConfigBool(WINDOW_SECTION, "Windowed", 1);
+	borderless = getConfigBool(WINDOW_SECTION, "Borderless", 0);
+}
 
 HWND initWindow() {
 	printf("Creating window\n");
 
+	configWindow();
+
 	SDL_Init(SDL_INIT_VIDEO);
 
-	printf("test sdl???\n");
+	SDL_WindowFlags flags = isWindowed ? SDL_WINDOW_SHOWN : SDL_WINDOW_FULLSCREEN;
 
-	//SDL_WindowFlags flags = *isWindowed ? SDL_WINDOW_SHOWN : SDL_WINDOW_FULLSCREEN;
-
-	/*if (borderless && *isWindowed) {
+	if (borderless && isWindowed) {
 		flags |= SDL_WINDOW_BORDERLESS;
-	}*/
+	}
 
-	//enforceMaxResolution();
+	enforceMaxResolution(&windowResX, &windowResY);
 
-	/*if (*resX == 0 || *resY == 0) {
+	if (windowResX == 0 || windowResY == 0) {
 		SDL_DisplayMode displayMode;
 		SDL_GetDesktopDisplayMode(0, &displayMode);
-		*resX = displayMode.w;
-		*resY = displayMode.h;
-	}*/
-		
-	/*if (*resX < 640) {
-		*resX = 640;
+		windowResX = displayMode.w;
+		windowResY = displayMode.h;
 	}
-	if (*resY < 480) {
-		*resY = 480;
-	}*/
+		
+	if (windowResX < 640) {
+		windowResX = 640;
+	}
+	if (windowResY < 480) {
+		windowResY = 480;
+	}
 
 	SDL_DisplayMode displayMode;
 	SDL_GetDesktopDisplayMode(0, &displayMode);
 
-	window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);   // TODO: fullscreen
-	//window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, displayMode.w, displayMode.h, SDL_WINDOW_SHOWN | SDL_WINDOW_BORDERLESS);   // TODO: fullscreen
+	window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowResX, windowResY, SDL_WINDOW_SHOWN | flags);
 
 	if (!window) {
 		printf("Failed to create window! Error: %s\n", SDL_GetError());
