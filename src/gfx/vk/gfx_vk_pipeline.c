@@ -281,7 +281,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	VkDynamicState dynamicState[] = { 
 		VK_DYNAMIC_STATE_VIEWPORT, 
 		VK_DYNAMIC_STATE_SCISSOR, 
-		VK_DYNAMIC_STATE_DEPTH_BIAS, 
+		//VK_DYNAMIC_STATE_DEPTH_BIAS, 
 		VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE,
 		VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE,
 		VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY,
@@ -293,7 +293,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateInfo.pNext = NULL;
 	dynamicStateInfo.flags = 0;
-	dynamicStateInfo.dynamicStateCount = 5;
+	dynamicStateInfo.dynamicStateCount = 4;
 	dynamicStateInfo.pDynamicStates = &dynamicState;
 
 	// pipeline layout

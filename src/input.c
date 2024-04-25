@@ -91,6 +91,7 @@ struct controllerbinds {
 int controllerCount;
 int controllerListSize;
 SDL_GameController **controllerList;    // does this need to be threadsafe?
+int activeController = -1;
 struct keybinds keybinds;
 struct controllerbinds padbinds;
 
@@ -101,6 +102,10 @@ uint8_t anyButtonPressed = 0;
 
 void setUsingKeyboard(uint8_t usingKeyboard) {
 	isUsingKeyboard = usingKeyboard;
+
+	if (usingKeyboard) {
+		activeController = -1;
+	}
 
 	if (isUsingKeyboard && isCursorActive) {
 		SDL_ShowCursor(SDL_ENABLE);
@@ -147,6 +152,7 @@ void addController(int idx) {
 		}
 
 		controllerList[controllerCount] = controller;
+		//activeController = controllerCount;
 		controllerCount++;
 	}
 }
@@ -167,8 +173,24 @@ void removeController(SDL_GameController *controller) {
 			controllerList[i] = controllerList[i + 1];
 		}
 		controllerCount--;
+
+		if (activeController == i) {
+			activeController = -1;
+		}
 	} else {
 		printf("Did not find disconnected controller in list\n");
+	}
+}
+
+void setActiveController(SDL_GameController *controller) {
+	int i = 0;
+
+	while (i < controllerCount && controllerList[i] != controller) {
+		i++;
+	}
+
+	if (controllerList[i] == controller) {
+		activeController = i;
 	}
 }
 
@@ -295,6 +317,10 @@ uint16_t pollController(SDL_GameController *controller) {
 		} else if (moveY < -16383) {
 			result |= 0x01 << 12;	// down
 		}
+
+		if (result) {
+			anyButtonPressed |= 1;
+		}
 	}
 
 	return result;
@@ -302,9 +328,18 @@ uint16_t pollController(SDL_GameController *controller) {
 
 uint16_t pollKeyboard() {
 	int *gShellMode = 0x006a35b4;
-	uint8_t *keyboardState = SDL_GetKeyboardState(NULL);
 
-	printf("gShellMode: %d\n", *gShellMode);
+	uint32_t numKeys = 0;
+	uint8_t *keyboardState = SDL_GetKeyboardState(&numKeys);
+
+	// check keyboard state 
+	for (int i = 0; i < numKeys; i++) {
+		if (keyboardState[i]) {
+			anyButtonPressed |= 1;
+		}
+	}
+
+	//printf("gShellMode: %d\n", *gShellMode);
 
 	uint16_t result = 0;
 
@@ -393,6 +428,7 @@ int isKeyboardTyping() {
 void __cdecl processController() {
 	int *gShellMode = 0x006a35b4;
 
+	anyButtonPressed &= 2;
 	uint16_t controlData = 0;
 
 	if (!isKeyboardTyping()) {
@@ -493,8 +529,11 @@ void processInputEvent(SDL_Event *e) {
 			setUsingKeyboard(0);
 			return;
 		case SDL_CONTROLLERBUTTONDOWN:
-			anyButtonPressed = 1;
+			setActiveController(SDL_GameControllerFromInstanceID(e->cbutton.which));
+			setUsingKeyboard(0);
+			return;
 		case SDL_CONTROLLERAXISMOTION:
+			setActiveController(SDL_GameControllerFromInstanceID(e->caxis.which));
 			setUsingKeyboard(0);
 			return;
 		case SDL_MOUSEBUTTONDOWN:
@@ -504,10 +543,6 @@ void processInputEvent(SDL_Event *e) {
 			return;
 		}
 		case SDL_KEYDOWN: 
-			if (!e->key.repeat) {
-				//printf("KEY DOWN!!\n");
-				anyButtonPressed = 1;
-			}
 			setUsingKeyboard(1);
 			return;
 		default:
@@ -588,7 +623,6 @@ void InitDirectInput(void *hwnd, void *hinstance) {
 }
 
 void ReadDirectInput() {
-	anyButtonPressed = 0;
 	handleEvents();
 	processController();
 	processMouse();
@@ -598,13 +632,13 @@ void PCINPUT_ActuatorOn(uint32_t controllerIdx, uint32_t duration, uint32_t moto
 	// turns out most of the parameters don't matter.  the ps1 release only seems to respond to grinds, with full strength high frequency vibration
 	// pc release only responds with half-strength on both motors.  i think that's the preferred behavior here
 	//str = (uint16_t)(((float)str / 255.0f) * 65535.0f);
-	duration *= 66;
+	if (activeController >= 0) {
+		duration *= 66;
 
-	for (int i = 0; i < controllerCount; i++) {
 		if (motor == 0) {
-			SDL_GameControllerRumble(controllerList[i], 32767, 32767, duration);
+			SDL_GameControllerRumble(controllerList[activeController], 32767, 32767, duration);
 		} else {
-			SDL_GameControllerRumble(controllerList[i], 32767, 32767, duration);
+			SDL_GameControllerRumble(controllerList[activeController], 32767, 32767, duration);
 		}
 	}
 }
@@ -629,10 +663,13 @@ int __cdecl getSomethingIdk(int a) {
 }
 
 int getSkipInput() {
-	if (anyButtonPressed) {
-		anyButtonPressed = 0;
+	if (anyButtonPressed == 1) {
+		anyButtonPressed |= 2;
 		return -1;
 	} else {
+		if (!(anyButtonPressed & 1)) {
+			anyButtonPressed = 0;
+		}
 		return 0;
 	}
 }

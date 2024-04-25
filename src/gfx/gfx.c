@@ -88,6 +88,22 @@ uint32_t fixDXColor(uint32_t color) {
 }
 
 void D3DPOLY_StartScene(int a, int b) {
+	uint16_t *SP_OTPushback = 0x005606c4;
+	uint16_t *SP_OTPushback2 = 0x005606dc;
+	uint16_t *SP_OTPushback3 = 0x005606e8;
+	
+	uint16_t *M3d_OTPushback = 0x00560fc8;
+	uint16_t *M3d_OTPushback2 = 0x00560fca;
+	uint16_t *M3d_OTPushback3 = 0x00560fcc;
+
+	uint32_t *modelPushback = 0x0056b498;
+	uint32_t *SP_ZPushback = 0x0055ed08;
+	uint32_t *LTIM3D_Pushback = 0x00560798;
+
+	printf("SP_PUSHBACK: %d %d %d\n", *SP_OTPushback, *SP_OTPushback2, *SP_OTPushback3);
+	printf("M3D_PUSHBACK: %d %d %d\n", *M3d_OTPushback, *M3d_OTPushback2, *M3d_OTPushback3);
+	printf("MODEL PUSHBACK: %d %d %d\n", *modelPushback, *SP_ZPushback, *LTIM3D_Pushback);
+
 	void (__cdecl *setupFog)(int) = 0x004d1160;
 	uint32_t *viewportClass = 0x00560698;
 	uint16_t *DpqMin = 0x005606a4;
@@ -96,12 +112,15 @@ void D3DPOLY_StartScene(int a, int b) {
 	float *fogThreshold = 0x00546b3c;
 	float *FogYonScale = 0x00546b38;
 	float *VideoFogYonScale = 0x00545334;
-	uint32_t gShellMode = 0x006a35b4;
+	uint32_t *gShellMode = 0x006a35b4;
+	uint8_t *startscene = 0x0069d114;
 
 	//printf("STUB: D3DPOLY_StartScene: 0x%08x 0x%08x\n", a, b);
 
 	//float *fog = 0x00546b38;
 	//*fog = 10000.0f;
+
+	*startscene = 1;
 
 	updateMovieTexture();	// a bit of a hack: update the movie texture here in the main thread, as the music thread also updates it.  not exactly safe, but it avoids invalid vulkan use
 
@@ -1937,10 +1956,12 @@ void installGfxPatches() {
 	patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
 
 	//patchByte(0x004ced21, 0xEB);
+	patchNop(0x004ced21, 2);	// don't brighten sky dome in nyc
 	patchByte(0x004ced26, 0xEB);	// don't brighten sky in philadelphia
+	patchNop(0x004cde20, 2);	// fix philadelphia clear color
 
 	//patchNop(0x004cde18, 3);
-	patchNop(0x004cf4c2, 5);
+	//patchNop(0x004cf4c2, 5);	// enabling this makes THPS sign in philadelpha opaque
 
 	// disable palette conversion
 	patchNop(0x004d7887, 1);
