@@ -55,6 +55,7 @@ void setScissor(partyRenderer *renderer, float x, float y, float width, float he
 void setDepthState(partyRenderer *renderer, uint8_t test, uint8_t write);
 void setBlendState(partyRenderer *renderer, uint32_t blendState);
 void setRenderResolution(partyRenderer *renderer, uint32_t width, uint32_t height, float aspectRatio);
+void setTextureFilter(partyRenderer *renderer, uint8_t filter);
 uint32_t createTextureEntry(partyRenderer *renderer, uint32_t width, uint32_t height);
 void updateTextureEntry(partyRenderer *renderer, uint32_t idx, uint32_t width, uint32_t height, void *data);
 void destroyTextureEntry(partyRenderer *renderer, uint32_t idx);

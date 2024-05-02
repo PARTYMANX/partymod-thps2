@@ -63,8 +63,8 @@ target_include_directories(vk_mem_alloc PUBLIC ${Vulkan_INCLUDE_DIRS})
 list(APPEND VKLIBS vk_mem_alloc)
 list(APPEND VKINCLUDES "${PROJECT_SOURCE_DIR}/thirdparty/VulkanMemoryAllocator")
 
-set(SOURCE_FILES
-	${SOURCE_FILES}
+set(HEADER_FILES
+	${HEADER_FILES}
 	"${SRC}/gfx/vk/vk.h"
 	"${SRC}/gfx/vk/gfx_vk.h"
 )
@@ -82,6 +82,7 @@ set(SOURCE_FILES
 	"${SRC}/gfx/vk/gfx_vk_texture.c"
 	"${SRC}/gfx/vk/gfx_vk_win32.c"
 	"${SRC}/gfx/vk/gfx_vk.c"
+	"${SRC}/gfx/vk/gfx_vk_shader_data.c"
 )
 
 add_library(partymod SHARED)
@@ -99,6 +100,7 @@ target_link_libraries(partymod PUBLIC
 target_include_directories(partymod PUBLIC
 	"${PROJECT_SOURCE_DIR}/src"
 	${VKINCLUDES}
+	"${THIRDPARTY}/incbin"
 )
 
 add_executable(partyconfig)
@@ -130,5 +132,5 @@ target_sources(partypatcher PUBLIC
 
 target_include_directories(partypatcher PUBLIC
 	"${CMAKE_SOURCE_DIR}/src"
-	${THIRDPARTY}
+	"${THIRDPARTY}/incbin"
 )

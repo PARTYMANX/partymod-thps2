@@ -5,6 +5,13 @@
 
 #include <gfx/vk/vk.h>
 
+#include <incbin.h>
+
+INCBIN(shader_base_vert, "shader-built/base-texture.vert.spv");
+INCBIN(shader_base_frag, "shader-built/base-texture.frag.spv");
+INCBIN(shader_framebuffer_vert, "shader-built/framebuffer.vert.spv");
+INCBIN(shader_framebuffer_frag, "shader-built/framebuffer-sharp.frag.spv");
+
 // TODO: strip out all of the old handle stuff; we have the same problems on metal so we can probably surface it safely
 // TODO: figure out what that meant
 
@@ -354,7 +361,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	renderingInfo.colorAttachmentCount = 1;
 	renderingInfo.pColorAttachmentFormats = &renderer->swapchain->imageFormat;
 	renderingInfo.depthAttachmentFormat = renderer->depthImage.pixelFormat;
-	renderingInfo.stencilAttachmentFormat = renderer->depthImage.pixelFormat;
+	renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
 	// finally, the pipeline
 
@@ -407,7 +414,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	uint8_t shaderResult = 0;
 
-	shaderResult = createShaderFromFile(renderer, "shaders/base-texture.vert.spv", &(shaderStageInfo[0].module));
+	/*shaderResult = createShaderFromFile(renderer, "shaders/base-texture.vert.spv", &(shaderStageInfo[0].module));
 	if (!shaderResult) {
 		printf("failed to create vertex shader!\n");
 	}
@@ -415,14 +422,24 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	shaderResult = createShaderFromFile(renderer, "shaders/base-texture.frag.spv", &(shaderStageInfo[1].module));
 	if (!shaderResult) {
 		printf("failed to create fragment shader!\n");
+	}*/
+
+	shaderResult = createShader(renderer, gshader_base_vertData, gshader_base_vertSize, &(shaderStageInfo[0].module));
+	if (!shaderResult) {
+		printf("failed to create vertex shader!\n");
+	}
+
+		shaderResult = createShader(renderer, gshader_base_fragData, gshader_base_fragSize, &(shaderStageInfo[1].module));
+	if (!shaderResult) {
+		printf("failed to create vertex shader!\n");
 	}
 
 	// to avoid having to use a dynamic state extension (even though probably everyone has it), make one pipeline per blend mode
 
 	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 10, pipelineInfo, NULL, renderer->renderPipelines);
 
-	free(vertexAttributeDesc);
-	free(vertexBindingDesc);
+	//free(vertexAttributeDesc);
+	//free(vertexBindingDesc);
 	//free(attachmentBlend);
 
 	return result;
@@ -685,8 +702,8 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 	renderingInfo.viewMask = 0;
 	renderingInfo.colorAttachmentCount = 1;
 	renderingInfo.pColorAttachmentFormats = &renderer->swapchain->imageFormat;
-	renderingInfo.depthAttachmentFormat = renderer->depthImage.pixelFormat;
-	renderingInfo.stencilAttachmentFormat = renderer->depthImage.pixelFormat;
+	renderingInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+	renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
 	// finally, the pipeline
 
@@ -712,7 +729,7 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 
 	uint8_t shaderResult = 0;
 
-	shaderResult = createShaderFromFile(renderer, "shaders/framebuffer.vert.spv", &(shaderStageInfo[0].module));
+	/*shaderResult = createShaderFromFile(renderer, "shaders/framebuffer.vert.spv", &(shaderStageInfo[0].module));
 	if (!shaderResult) {
 		printf("failed to create vertex shader!\n");
 	}
@@ -720,13 +737,23 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 	shaderResult = createShaderFromFile(renderer, "shaders/framebuffer-sharp.frag.spv", &(shaderStageInfo[1].module));
 	if (!shaderResult) {
 		printf("failed to create fragment shader!\n");
+	}*/
+
+	shaderResult = createShader(renderer, gshader_framebuffer_vertData, gshader_framebuffer_vertSize, &(shaderStageInfo[0].module));
+	if (!shaderResult) {
+		printf("failed to create vertex shader!\n");
+	}
+
+	shaderResult = createShader(renderer, gshader_framebuffer_fragData, gshader_framebuffer_fragSize, &(shaderStageInfo[1].module));
+	if (!shaderResult) {
+		printf("failed to create vertex shader!\n");
 	}
 
 	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &renderer->scalerPipeline);
 	renderer->scalerPipelineLayout = layout;
 
-	free(vertexAttributeDesc);
-	free(vertexBindingDesc);
+	//free(vertexAttributeDesc);
+	//free(vertexBindingDesc);
 	//free(attachmentBlend);
 
 	return result;

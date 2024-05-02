@@ -19,7 +19,7 @@ const char *deviceExtNames[] = {
 	//VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME,
 };
 
-const VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamic_rendering_feature = {
+const VkPhysicalDeviceDynamicRenderingFeatures dynamic_rendering_feature = {
     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
 	.pNext = NULL,
     .dynamicRendering = VK_TRUE,

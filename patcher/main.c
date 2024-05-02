@@ -3,16 +3,44 @@
 #include <errno.h>
 #include <conio.h>
 
-#include <incbin/incbin.h>
+#include <incbin.h>
 
-INCBIN(patch, "executable.bps");
+INCBIN(patch, "patcher/executable.bps");
+INCBIN(patchsmaller, "patcher/executable-smaller.bps");
+
+uint8_t *patchData = NULL;
+uint32_t patchSize = 0;
+
+size_t validinput_sz = 3;
+uint32_t validinput_data[] = {
+	0xd8e631f0,
+	0xac02cccb,
+	0xeaca26ff,
+};
+
+size_t validoutput_sz = 3;
+uint32_t validoutput_data[] = {
+	0x87c66f76,
+	0xa9af8e09,
+	0xef67643d,
+};
 
 uint32_t crc32(const void *buf, size_t size);
 int applyPatch(uint8_t *patch, size_t patchLen, uint8_t *input, size_t inputLen, uint8_t **output, size_t *outputLen);
 
+uint8_t contains_crc(uint32_t *list, size_t sz, uint32_t val) {
+	for (int i = 0; i < sz; i++) {
+		if (list[i] == val) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 int main(int argc, char **argv) {
-	// open skate3.exe and dump contents
-	FILE *f = fopen("Skate3.exe", "rb");
+	// open THawk2.exe and dump contents
+	FILE *f = fopen("THawk2.exe", "rb");
 
 	if (f) {
 		// get file length
@@ -20,43 +48,54 @@ int main(int argc, char **argv) {
 		size_t filesize = ftell(f);
 		fseek(f, 0, SEEK_SET);
 
+		if (filesize == 2193512) {
+			patchData = gpatchData;
+			patchSize = gpatchSize;
+		} else if (filesize == 1460224) {
+			patchData = gpatchsmallerData;
+			patchSize = gpatchsmallerSize;
+		} else {
+			printf("This executable is unsupported! (size = %d)\n", filesize);
+			printf("Make sure THPS2 original release in installed\n");
+			goto end;
+		}
+
 		uint8_t *buffer = malloc(filesize);
 
 		if (buffer) {
-			printf("Patching Skate3.exe\n");
+			printf("Patching THawk2.exe\n");
 			fread(buffer, 1, filesize, f);
 
 			// check input crc (not using the one in the bps due to multiple valid executables)
 			uint32_t inputcrc = crc32(buffer, filesize);
-			if (inputcrc != 0xdda4822f && inputcrc != 0x045925e8) {
+			if (!contains_crc(validinput_data, validinput_sz, inputcrc)) {
 				printf("INPUT CRC DOES NOT MATCH EXPECTED: %08x\n", inputcrc);
-				printf("Make sure THPS3 Patch 1.01 is installed\n");
-				printf("Patch Failed!\n");
+				printf("Patch may not work!\n");
 			}
 
 			// patch
 			uint8_t *patchedBuffer = NULL;
 			size_t patchedLen = 0;
-			int result = applyPatch(gpatchData, gpatchSize, buffer, filesize, &patchedBuffer, &patchedLen);
+
+			int result = applyPatch(patchData, patchSize, buffer, filesize, &patchedBuffer, &patchedLen);
 			if (result) {
 				printf("Patching Failed!\n");
+				printf("Make sure THPS2 original release is installed\n");
 
 				goto end;
 			}
 
 			// check crc (again, not using the one in the bps due to multiple valid executables)
 			uint32_t outputcrc = crc32(patchedBuffer, patchedLen);
-			if (outputcrc != 0xbb5e5c48 && outputcrc != 0x69133ccb) {
-				printf("OUTPUT CRC DOES NOT MATCH EXPECTED: %08x\n", inputcrc);
-				printf("Make sure THPS3 Patch 1.01 is installed\n");
-				printf("Patch Failed!\n");
-
-				goto end;
+			if (!contains_crc(validoutput_data, validoutput_sz, outputcrc)) {
+				printf("OUTPUT CRC DOES NOT MATCH EXPECTED: %08x\n", outputcrc);
+				printf("Make sure THPS2 original release is installed\n");
+				printf("Patch may not work!\n");
 			}
 
 			// write to THPS3.exe
-			printf("Creating THPS3.exe\n");
-			FILE *fout = fopen("THPS3.exe", "wb");
+			printf("Creating THPS2.exe\n");
+			FILE *fout = fopen("THPS2.exe", "wb");
 			if (fout) {
 				fwrite(patchedBuffer, 1, patchedLen, fout);
 				fclose(fout);
@@ -66,7 +105,7 @@ int main(int argc, char **argv) {
 			printf("Failed to allocate file buffer!\n");
 		}
 	} else {
-		printf("FAILED TO OPEN EXECUTABLE %s: %s\n", "Skate3.exe", strerror(errno));
+		printf("FAILED TO OPEN EXECUTABLE %s: %s\n", "THawk2.exe", strerror(errno));
 	}
 
 end:

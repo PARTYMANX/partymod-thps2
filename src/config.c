@@ -10,7 +10,6 @@
 char configFile[1024];
 
 void initConfig() {
-	char configFile[1024];
 	sprintf(configFile, "%s%s", executableDirectory, CONFIG_FILE_NAME);
 }
 
@@ -24,5 +23,5 @@ int getConfigBool(char *section, char *key, int def) {
 }
 
 int getConfigInt(char *section, char *key, int def) {
-	 return GetPrivateProfileInt(section, key, def, configFile);
+	return GetPrivateProfileInt(section, key, def, configFile);
 }

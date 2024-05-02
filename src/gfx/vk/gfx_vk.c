@@ -258,7 +258,8 @@ void createTextureManager(partyRenderer *renderer) {
 
 	result.capacity = 2048;
 	result.count = 0;
-	result.sampler = createSampler(renderer);
+	result.samplers[0] = createSampler(renderer, VK_FILTER_NEAREST);
+	result.samplers[1] = createSampler(renderer, VK_FILTER_LINEAR);
 	result.images = malloc(sizeof(rbVkImage) * result.capacity);
 	result.occupied = calloc(result.capacity, sizeof(uint8_t));
 
@@ -336,7 +337,7 @@ void writeTextureDescriptors(partyRenderer *renderer) {
 	int count = 0;
 	while(count < renderer->textureManager.count) {
 		if (renderer->textureManager.occupied[i]) {
-			write_descriptor_image_array(renderer->descriptorAllocator, 0, i, renderer->textureManager.sampler, renderer->textureManager.images[i].imageView, VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+			write_descriptor_image_array(renderer->descriptorAllocator, 0, i, renderer->textureManager.samplers[renderer->textureFilter], renderer->textureManager.images[i].imageView, VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 			count++;
 		}
 
@@ -471,10 +472,11 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 	result->descriptorAllocator = init_descriptors(result, 1000, descriptor_ratios, 4);
 
 	// create default render targets at 640x480, 4:3
-	createRenderTargets(result, 640, 480, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D24_UNORM_S8_UINT);
+	createRenderTargets(result, 640, 480, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D16_UNORM);
 	result->aspectRatio = 4.0f / 3.0f;
 	result->renderWidth = 640;
 	result->renderHeight = 480;
+	result->textureFilter = 0;
 
 	r = createRenderPipelines(result);
 	if (r) {
@@ -656,7 +658,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	if (renderer->renderWidth != renderer->renderImage.width || renderer->renderHeight != renderer->renderImage.height) {
 		printf("Adjusting internal render resolution from %dx%d to %dx%d\n", renderer->renderImage.width, renderer->renderImage.height, renderer->renderWidth, renderer->renderHeight);
 		destroyRenderTargets(renderer);
-		createRenderTargets(renderer, renderer->renderWidth, renderer->renderHeight, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D24_UNORM_S8_UINT);
+		createRenderTargets(renderer, renderer->renderWidth, renderer->renderHeight, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D16_UNORM);
 
 		imageInfo info = { renderer->renderImage.width, renderer->renderImage.height };
 		imageInfo *buffer = mapBuffer(renderer, &renderer->renderImageInfoBuffer);
@@ -974,6 +976,10 @@ void setDepthState(partyRenderer *renderer, uint8_t test, uint8_t write) {
 		renderer->currentDepthWriteState = write;
 		vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, (write) ? VK_TRUE : VK_FALSE);
 	}
+}
+
+void setTextureFilter(partyRenderer *renderer, uint8_t filter) {
+	renderer->textureFilter = filter;
 }
 
 void drawRenderTexture(partyRenderer *renderer) {

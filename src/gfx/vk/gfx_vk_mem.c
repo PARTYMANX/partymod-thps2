@@ -360,12 +360,11 @@ VkResult rbVkInitMemoryManager(partyRenderer *renderer, struct rbVkMemoryManager
 	info.preferredLargeHeapBlockSize = 0;
 	info.pAllocationCallbacks = NULL;
 	info.pDeviceMemoryCallbacks = NULL;
-	info.frameInUseCount = 0;
 	info.pHeapSizeLimit = NULL;
 	info.pVulkanFunctions = NULL;
-	info.pRecordSettings = NULL;
 	info.instance = instance;
 	info.vulkanApiVersion = VK_API_VERSION_1_3;
+	info.pTypeExternalMemoryHandleTypes = NULL;
 
 	VkResult r = vmaCreateAllocator(&info, &(result->allocator));
 

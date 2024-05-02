@@ -90,7 +90,7 @@ struct controllerbinds {
 
 int controllerCount;
 int controllerListSize;
-SDL_GameController **controllerList;    // does this need to be threadsafe?
+SDL_GameController **controllerList;
 int activeController = -1;
 struct keybinds keybinds;
 struct controllerbinds padbinds;
@@ -99,6 +99,7 @@ uint8_t isCursorActive = 1;
 uint8_t isUsingKeyboard = 1;
 uint8_t isUsingHardCodeControls = 1;
 uint8_t anyButtonPressed = 0;
+uint8_t isVibrationActive = 1;
 
 void setUsingKeyboard(uint8_t usingKeyboard) {
 	isUsingKeyboard = usingKeyboard;
@@ -326,8 +327,11 @@ uint16_t pollController(SDL_GameController *controller) {
 	return result;
 }
 
+uint32_t escState = 0;
+
 uint16_t pollKeyboard() {
 	int *gShellMode = 0x006a35b4;
+	uint8_t *isMenuOpen = 0x0069e050;
 
 	uint32_t numKeys = 0;
 	uint8_t *keyboardState = SDL_GetKeyboardState(&numKeys);
@@ -339,83 +343,67 @@ uint16_t pollKeyboard() {
 		}
 	}
 
-	//printf("gShellMode: %d\n", *gShellMode);
+	//printf("gShellMode: %d\n", *isMenuOpen);
 
 	uint16_t result = 0;
 
-	if (*gShellMode == 0) {
-		// buttons
-		if (keyboardState[keybinds.menu] || keyboardState[SDL_SCANCODE_ESCAPE]) {	// is esc is bound to menu, it will only interfere with hardcoded keybinds.  similar effect on enter but i can't detect the things needed to work there
-			result |= 0x01 << 11;
-		}
-		if (keyboardState[keybinds.cameraToggle]) {
-			result |= 0x01 << 8;
-		}
-
-		if (keyboardState[keybinds.grind]) {
-			result |= 0x01 << 4;
-		}
-		if (keyboardState[keybinds.grab]) {
-			result |= 0x01 << 5;
-		}
-		if (keyboardState[keybinds.ollie]) {
-			result |= 0x01 << 6;
-		}
-		if (keyboardState[keybinds.kick]) {
-			result |= 0x01 << 7;
-		}
-
-		// shoulders
-		if (keyboardState[keybinds.leftSpin]) {
-			result |= 0x01 << 2;
-		}
-		if (keyboardState[keybinds.rightSpin]) {
-			result |= 0x01 << 3;
-		}
-		if (keyboardState[keybinds.nollie]) {
-			result |= 0x01 << 0;
-		}
-		if (keyboardState[keybinds.switchRevert]) {
-			result |= 0x01 << 1;
-		}
-		
-		// d-pad
-		if (keyboardState[keybinds.up]) {
-			result |= 0x01 << 12;
-		}
-		if (keyboardState[keybinds.right]) {
-			result |= 0x01 << 13;
-		}
-		if (keyboardState[keybinds.down]) {
-			result |= 0x01 << 14;
-		}
-		if (keyboardState[keybinds.left]) {
-			result |= 0x01 << 15;
-		}
-	} else if (*gShellMode == 1) {
-		// buttons
-		if (keyboardState[SDL_SCANCODE_ESCAPE]) {
-			result |= 0x01 << 4;
-		}
-		if (keyboardState[SDL_SCANCODE_RETURN] || keyboardState[SDL_SCANCODE_SPACE]) {
-			result |= 0x01 << 6;
-		}
-
-		// d-pad
-		if (keyboardState[keybinds.up] || keyboardState[SDL_SCANCODE_UP]) {
-			result |= 0x01 << 12;
-		}
-		if (keyboardState[keybinds.right] || keyboardState[SDL_SCANCODE_RIGHT]) {
-			result |= 0x01 << 13;
-		}
-		if (keyboardState[keybinds.down] || keyboardState[SDL_SCANCODE_DOWN]) {
-			result |= 0x01 << 14;
-		}
-		if (keyboardState[keybinds.left] || keyboardState[SDL_SCANCODE_LEFT]) {
-			result |= 0x01 << 15;
-		}
+	// slight deviation from original behavior: esc goes back in pause/end run menu
+	// to prevent esc double-pressing on menu transitions, process its state here.  
+	// escState = 1 means esc was pressed in menu, 2 means pressed out of menu, 0 is unpressed
+	if (keyboardState[SDL_SCANCODE_ESCAPE] && !escState) {
+		escState = (*isMenuOpen) ? 1 : 2;
+	} else if (!keyboardState[SDL_SCANCODE_ESCAPE]) {
+		escState = 0;
 	}
-	
+
+	// buttons
+	if (keyboardState[keybinds.menu] || escState == 2) {	// is esc is bound to menu, it will only interfere with hardcoded keybinds.  similar effect on enter but i can't detect the things needed to work there
+		result |= 0x01 << 11;
+	}
+	if (keyboardState[keybinds.cameraToggle]) {
+		result |= 0x01 << 8;
+	}
+
+	if (keyboardState[keybinds.grind] || escState == 1) {
+		result |= 0x01 << 4;
+	}
+	if (keyboardState[keybinds.grab]) {
+		result |= 0x01 << 5;
+	}
+	if (keyboardState[keybinds.ollie] || keyboardState[SDL_SCANCODE_RETURN] || keyboardState[SDL_SCANCODE_SPACE]) {
+		result |= 0x01 << 6;
+	}
+	if (keyboardState[keybinds.kick]) {
+		result |= 0x01 << 7;
+	}
+
+	// shoulders
+	if (keyboardState[keybinds.leftSpin]) {
+		result |= 0x01 << 2;
+	}
+	if (keyboardState[keybinds.rightSpin]) {
+		result |= 0x01 << 3;
+	}
+	if (keyboardState[keybinds.nollie]) {
+		result |= 0x01 << 0;
+	}
+	if (keyboardState[keybinds.switchRevert]) {
+		result |= 0x01 << 1;
+	}
+		
+	// d-pad
+	if (keyboardState[keybinds.up] || keyboardState[SDL_SCANCODE_UP]) {
+		result |= 0x01 << 12;
+	}
+	if (keyboardState[keybinds.right] || keyboardState[SDL_SCANCODE_RIGHT]) {
+		result |= 0x01 << 13;
+	}
+	if (keyboardState[keybinds.down] || keyboardState[SDL_SCANCODE_DOWN]) {
+		result |= 0x01 << 14;
+	}
+	if (keyboardState[keybinds.left] || keyboardState[SDL_SCANCODE_LEFT]) {
+		result |= 0x01 << 15;
+	}
 
 	return result;
 }
@@ -456,17 +444,25 @@ void __cdecl processController() {
 
 	uint16_t *pControlData = 0x006a0b6c;
 
-	pControlData[0] = controlData;
-
 	if (*gShellMode == 0) {
-		
+		int32_t *netPlayer = 0x006a0978;
+
+		pControlData[*netPlayer] = controlData;
 	} else {
-		//int32_t *unk = 0x001981c8;
-		//printf("unknown: 0x%08x\n", *unk);
+		int32_t *gActivePlayer = 0x005674e8;
+
+		pControlData[*gActivePlayer] = controlData;
 	}
 }
 
 void processMouse() {
+	uint8_t *shouldCursorBeShown = 0x0069e050;
+	if (*shouldCursorBeShown && !isCursorActive) {
+		setCursorActive();
+	} else if (!(*shouldCursorBeShown) && isCursorActive) {
+		setCursorInactive();
+	}
+
 	uint32_t mouseX, mouseY, resX, resY;
 	uint32_t mouseButtons = SDL_GetMouseState(&mouseX, &mouseY);
 	mouseButtons &= 0x01;
@@ -479,8 +475,6 @@ void processMouse() {
 	getGameResolution(&resX, &resY);
 	mouseX /= resX;
 	mouseY /= resY;
-
-	// TODO: translate mouse position to game screen space
 
 	uint32_t *gameMouseX = 0x0069e040;
 	uint32_t *gameMouseY = 0x0069e044;
@@ -554,9 +548,11 @@ void processInputEvent(SDL_Event *e) {
 #define GAMEPAD_SECTION "Gamepad"
 
 void configureControls() {
+	isVibrationActive = getConfigBool(GAMEPAD_SECTION, "EnableVibration", 1);
+
 	// Keyboard
 	keybinds.menu = getConfigInt(KEYBIND_SECTION, "Pause", SDL_SCANCODE_P);
-	keybinds.cameraToggle = getConfigInt(KEYBIND_SECTION, "ViewToggle", SDL_SCANCODE_KP_DIVIDE);
+	keybinds.cameraToggle = getConfigInt(KEYBIND_SECTION, "ViewToggle", SDL_SCANCODE_O);
 	
 	keybinds.ollie = getConfigInt(KEYBIND_SECTION, "Ollie", SDL_SCANCODE_KP_2);
 	keybinds.kick = getConfigInt(KEYBIND_SECTION, "Flip", SDL_SCANCODE_KP_4);
@@ -568,10 +564,10 @@ void configureControls() {
 	keybinds.nollie = getConfigInt(KEYBIND_SECTION, "Nollie", SDL_SCANCODE_KP_1);
 	keybinds.switchRevert = getConfigInt(KEYBIND_SECTION, "Switch", SDL_SCANCODE_KP_3);
 	
-	keybinds.left = getConfigInt(KEYBIND_SECTION, "Left", SDL_SCANCODE_LEFT);
-	keybinds.right = getConfigInt(KEYBIND_SECTION, "Right", SDL_SCANCODE_RIGHT);
-	keybinds.up = getConfigInt(KEYBIND_SECTION, "Up", SDL_SCANCODE_UP);
-	keybinds.down = getConfigInt(KEYBIND_SECTION, "Down", SDL_SCANCODE_DOWN);
+	keybinds.left = getConfigInt(KEYBIND_SECTION, "Left", SDL_SCANCODE_A);
+	keybinds.right = getConfigInt(KEYBIND_SECTION, "Right", SDL_SCANCODE_D);
+	keybinds.up = getConfigInt(KEYBIND_SECTION, "Up", SDL_SCANCODE_W);
+	keybinds.down = getConfigInt(KEYBIND_SECTION, "Down", SDL_SCANCODE_S);
 
 	// Gamepad
 	padbinds.menu = getConfigInt(GAMEPAD_SECTION, "Pause", CONTROLLER_BUTTON_START);
@@ -632,7 +628,7 @@ void PCINPUT_ActuatorOn(uint32_t controllerIdx, uint32_t duration, uint32_t moto
 	// turns out most of the parameters don't matter.  the ps1 release only seems to respond to grinds, with full strength high frequency vibration
 	// pc release only responds with half-strength on both motors.  i think that's the preferred behavior here
 	//str = (uint16_t)(((float)str / 255.0f) * 65535.0f);
-	if (activeController >= 0) {
+	if (isVibrationActive && activeController >= 0) {
 		duration *= 66;
 
 		if (motor == 0) {

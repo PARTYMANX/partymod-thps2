@@ -9,13 +9,18 @@
 #include <event.h>
 #include <patch.h>
 #include <global.h>
+#include <config.h>
 #include <gfx/gfx_movie.h>
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/gfx_global.h>
 
+int internal_resolution_x = 512;
+int internal_resolution_y = 240;
 int resolution_x = 512;
 int resolution_y = 240;
 float aspectRatio = 4.0f / 3.0f;
+uint8_t textureFilter = 0;
+//float aspectRatio = 16.0f / 9.0f;
 
 int isMinimized = 0;
 
@@ -55,15 +60,8 @@ void initD3D() {
 		printf("vulkan initialized!!\n");
 	}
 
-	setRenderResolution(renderer, resolution_x, resolution_y, aspectRatio);
-
-	uint32_t *is_software_renderer = 0x029d6ff0;
-	uint32_t *unk_related_to_sw_renderer = 0x00546cc4;
-
-	*is_software_renderer = 0;
-	*unk_related_to_sw_renderer = 1;
-
-	// TODO: fog settings
+	setRenderResolution(renderer, internal_resolution_x, internal_resolution_y, aspectRatio);
+	setTextureFilter(renderer, textureFilter);
 
 	registerEventHandler(handleGfxEvent);
 }
@@ -81,6 +79,12 @@ void D3DPOLY_Init() {
 	D3DMODEL_Startup();
 	SOFTREND_Startup();
 	Init_PolyBuf();
+
+	uint16_t *modelPushbacks = 0x0057d4fc;
+	for (int i = 0; i < 30000; i++) {
+		//((uint32_t *)modelPushbacks)[i] = 0x7fff7fff;
+		//modelPushbacks[i] *= 0.1f;
+	}
 }
 
 uint32_t fixDXColor(uint32_t color) {
@@ -100,9 +104,9 @@ void D3DPOLY_StartScene(int a, int b) {
 	uint32_t *SP_ZPushback = 0x0055ed08;
 	uint32_t *LTIM3D_Pushback = 0x00560798;
 
-	printf("SP_PUSHBACK: %d %d %d\n", *SP_OTPushback, *SP_OTPushback2, *SP_OTPushback3);
-	printf("M3D_PUSHBACK: %d %d %d\n", *M3d_OTPushback, *M3d_OTPushback2, *M3d_OTPushback3);
-	printf("MODEL PUSHBACK: %d %d %d\n", *modelPushback, *SP_ZPushback, *LTIM3D_Pushback);
+	//printf("SP_PUSHBACK: %d %d %d\n", *SP_OTPushback, *SP_OTPushback2, *SP_OTPushback3);
+	//printf("M3D_PUSHBACK: %d %d %d\n", *M3d_OTPushback, *M3d_OTPushback2, *M3d_OTPushback3);
+	//printf("MODEL PUSHBACK: %d %d %d\n", *modelPushback, *SP_ZPushback, *LTIM3D_Pushback);
 
 	void (__cdecl *setupFog)(int) = 0x004d1160;
 	uint32_t *viewportClass = 0x00560698;
@@ -209,8 +213,10 @@ void transformDXCoords(renderVertex *vertices, int count) {
 
 	float xmult = (1.0f / (float)*screen_width) * 2.0f;
 	float ymult = (1.0f / (float)*screen_height) * 2.0f;
-	float xdisp = 1.0f - (xmult * 0.5);
-	float ydisp = 1.0f - (ymult * 0.5);
+	//float xdisp = 1.0f - (xmult);
+	//float ydisp = 1.0f - (ymult);
+	float xdisp = 1.0f - (xmult * 0.125f);
+	float ydisp = 1.0f - (ymult * 0.125f);
 
 	for (int i = 0; i < count; i++) {
 		vertices[i].x = (vertices[i].x * xmult) - xdisp;
@@ -241,17 +247,23 @@ void renderDXPolyWireframe(int *tag) {
 		for (int i = 0; i < numVerts - 2 + 1; i++) {
 			buf[outputVert].x = vertices[i].x;
 			buf[outputVert].y = vertices[i].y;
-			buf[outputVert].z = 1.0 - vertices[i].z;
+			buf[outputVert].z = vertices[i].z;
+			buf[outputVert].w = vertices[i].w;
 			buf[outputVert].u = 0.0f;
 			buf[outputVert].v = 0.0f;
 			buf[outputVert].color = fixDXColor(vertices[i].color);
+			buf[outputVert].texture = 0;
+			buf[outputVert].flags = 0;
 
 			buf[outputVert + 1].x = vertices[i + 1].x;
 			buf[outputVert + 1].y = vertices[i + 1].y;
-			buf[outputVert + 1].z = 1.0 - vertices[i + 1].z;
+			buf[outputVert + 1].z = vertices[i + 1].z;
+			buf[outputVert + 1].w = vertices[i + 1].w;
 			buf[outputVert + 1].u = 0.0f;
 			buf[outputVert + 1].v = 0.0f;
 			buf[outputVert + 1].color = fixDXColor(vertices[i + 1].color);
+			buf[outputVert + 1].texture = 0;
+			buf[outputVert + 1].flags = 0;
 
 			outputVert += 2;
 		} 
@@ -279,17 +291,23 @@ void renderDXPolyWireframe(int *tag) {
 		for (int i = 0; i < numVerts - 2 + 1; i++) {
 			buf[outputVert].x = vertices[i].x;
 			buf[outputVert].y = vertices[i].y;
-			buf[outputVert].z = 1.0 - vertices[i].z;
+			buf[outputVert].z = vertices[i].z;
+			buf[outputVert].w = vertices[i].w;
 			buf[outputVert].u = 0.0f;
 			buf[outputVert].v = 0.0f;
 			buf[outputVert].color = fixDXColor(vertices[i].color);
+			buf[outputVert].texture = 0;
+			buf[outputVert].flags = 0;
 
 			buf[outputVert + 1].x = vertices[i + 1].x;
 			buf[outputVert + 1].y = vertices[i + 1].y;
-			buf[outputVert + 1].z = 1.0 - vertices[i + 1].z;
+			buf[outputVert + 1].z = vertices[i + 1].z;
+			buf[outputVert + 1].w = vertices[i + 1].w;
 			buf[outputVert + 1].u = 0.0f;
 			buf[outputVert + 1].v = 0.0f;
 			buf[outputVert + 1].color = fixDXColor(vertices[i + 1].color);
+			buf[outputVert + 1].texture = 0;
+			buf[outputVert + 1].flags = 0;
 
 			outputVert += 2;
 		} 
@@ -1180,10 +1198,10 @@ void changeViewport(int *tag) {
 		width = 0;	// incredibly stupid hack to fix the stats menu.  my theory is that gray matter clamped to 1 to prevent directx from yelling at them for making a 0 width viewport.  needs revisit
 	}
 
-	x = (x / 512.0f) * (float)*screen_width;
-	y = (y / 240.0f) * (float)*screen_height;
-	width = (width / 512.0f) * (float)*screen_width;
-	height = (height / 240.0f) * (float)*screen_height;
+	x = (x / 512.0f) * (float)internal_resolution_x;
+	y = (y / 240.0f) * (float)internal_resolution_y;
+	width = (width / 512.0f) * (float)internal_resolution_x;
+	height = (height / 240.0f) * (float)internal_resolution_y;
 
 	// we want scissor here, as viewport will restrict draw coords
 	setScissor(renderer, x, y, width, height);
@@ -1585,6 +1603,16 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 	updateTextureEntry(renderer, a->idx, a->buf_width, a->buf_height, buf);
 
 	free(buf);
+
+	if (a->flags & 0xc) {
+		uint32_t tmp = a->unk_width;
+		a->unk_width = a->width;
+		a->width = tmp;
+
+		tmp = a->unk_height;
+		a->unk_height = a->height;
+		a->height = tmp;
+	}
 }
 
 void __stdcall freeD3DTexture(int idx) {
@@ -1826,7 +1854,8 @@ void WINMAIN_SwitchResolution() {
 	*width = resolution_x;
 	*height = resolution_y;
 
-	setRenderResolution(renderer, *width, *height, aspectRatio);
+	setRenderResolution(renderer, internal_resolution_x, internal_resolution_y, aspectRatio);
+	setTextureFilter(renderer, textureFilter);
 
 	/*int *fog = 0x0054546c;
 	float *fog2 = 0x00545334;
@@ -1849,12 +1878,21 @@ void m3dinit_setresolution() {
 	*ResX = *width;
 	*ResY = *height;
 
-	*PixelAspectX = 0x1000;
-	*PixelAspectY = ((*ResX * 0x3000) / (*ResY * 4));
-	//PixelAspectYFov = (float)*PixelAspectY / ((float)*ResY / (float)*ResX) / (3.0f / 4.0f);
-	//PixelAspectYFov = ((640 * 0x3000) / (480 * 4));
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = ((*ResX * 0x3000) / (*ResY * 4));
 
-	PixelAspectYFov = 4096.0f * (((float)*ResY / (float)*ResX) / (1.0f / aspectRatio));
+	*PixelAspectX = ((*ResY * 0x4000) / (*ResX * 3));
+	*PixelAspectY = 0x1000;
+
+	/*if (*ResY << 2 < *ResX * 3) {
+		*PixelAspectX = 0x1000;
+		*PixelAspectY = (*ResX * 0x3000) / (*ResY << 2);
+	} else {
+		*PixelAspectX = (*ResY << 0xe) / (*ResY << 2);
+		*PixelAspectY = 0x1000;
+	}*/
+
+	//PixelAspectYFov = 4096.0f * (((float)*ResY / (float)*ResX) / (1.0f / aspectRatio));
 }
 
 void openExternalTexture(void *a, struct texture *b) {
@@ -1863,11 +1901,70 @@ void openExternalTexture(void *a, struct texture *b) {
 	return -1;
 }
 
+#define GRAPHICS_SECTION "Graphics"
+
 void WINMAIN_Configure() {
 	printf("STUB: WINMAIN_Configure\n");
 
+	//getConfigBool(GRAPHICS_SECTION, "UsePSXTextures", 1);
+
 	float *VideoFogYonScale = 0x00545334;
-	*VideoFogYonScale = 1.5f;
+	*VideoFogYonScale = (float)getConfigInt(GRAPHICS_SECTION, "FogDistance", 150) / 100.0f;
+
+	if (*VideoFogYonScale < 0.1f) {
+		*VideoFogYonScale = 0.1f;
+	} else if (*VideoFogYonScale > 5.0f) {
+		*VideoFogYonScale = 5.0f;
+	}
+
+	textureFilter = getConfigInt(GRAPHICS_SECTION, "TextureFilter", 0);
+	//setTextureFilter(renderer, textureFilter);
+	
+	int resolution_setting = getConfigInt(GRAPHICS_SECTION, "InternalResolution", 0);
+
+	switch(resolution_setting) {
+	case 0:
+		resolution_x = 512;
+		internal_resolution_x = 512;
+		resolution_y = 240;
+		internal_resolution_y = 240;
+		break;
+	case 1:
+		resolution_x = 640;
+		internal_resolution_x = 640;
+		resolution_y = 480;
+		internal_resolution_y = 480;
+		break;
+	case 2:
+		getWindowSize(&internal_resolution_x, &internal_resolution_y);
+		internal_resolution_x = (float)internal_resolution_y * aspectRatio;
+
+		// prevent artifacts from rendering at too high a resolution
+		if (internal_resolution_x <= 1024 && internal_resolution_y <= 1024) {
+			resolution_x = internal_resolution_x;
+			resolution_y = internal_resolution_y;
+		} else if (resolution_y > resolution_x) {
+			resolution_y = 1024;
+			resolution_x = (float)resolution_y * aspectRatio;
+		} else {
+			resolution_x = 1024;
+			resolution_y = (float)resolution_x * (1.0f / aspectRatio);
+		}
+
+		break;
+	default:
+		resolution_x = 512;
+		internal_resolution_x = 512;
+		resolution_y = 240;
+		internal_resolution_y = 240;
+		break;
+	}
+
+	uint32_t *is_software_renderer = 0x029d6ff0;
+	uint32_t *unk_related_to_sw_renderer = 0x00546cc4;
+
+	*is_software_renderer = 0;
+	*unk_related_to_sw_renderer = 1;
 }
 
 void SaveVidConfig() {
@@ -1908,6 +2005,15 @@ void getGameResolution(int *w, int *h) {
 
 void MENUPC_DrawMouseCursor() {
 
+}
+
+void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int d) {
+	void (__fastcall *Font_SetRGB)(void *, void *, uint8_t, uint8_t, uint8_t) = 0x0044ab10;
+	void (__fastcall *Font_Draw)(void *, void *, int, int, int, int) = 0x0044a010;
+	
+	Font_SetRGB(font, NULL, 0x60, 0x60, 0x60);
+
+	Font_Draw(font, NULL, a, b, c, d);
 }
 
 void installGfxPatches() {
@@ -1953,12 +2059,16 @@ void installGfxPatches() {
 	patchJmp(0x004cc510, SaveVidConfig);
 
 	patchJmp(0x00464620, m3dinit_setresolution);
-	patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
+	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
+	//patchNop(0x0045ef62, 6);
+	//patchDWord(0x0045ef62 + 2, &testthing);
 
 	//patchByte(0x004ced21, 0xEB);
 	patchNop(0x004ced21, 2);	// don't brighten sky dome in nyc
 	patchByte(0x004ced26, 0xEB);	// don't brighten sky in philadelphia
 	patchNop(0x004cde20, 2);	// fix philadelphia clear color
+
+	//patchByte(0x0045f808, 0xEB);	// unknown thing with hangar - i think this is water-related stuff meant for warehouse
 
 	//patchNop(0x004cde18, 3);
 	//patchNop(0x004cf4c2, 5);	// enabling this makes THPS sign in philadelpha opaque
@@ -1969,6 +2079,18 @@ void installGfxPatches() {
 
 	// don't show in-game cursor
 	patchJmp(0x004d9060, MENUPC_DrawMouseCursor);
+
+	//patchCall(0x0045df47, fixLoadScreen);
+	patchCall(0x0045dfee, fixChecklistFont);
+	patchCall(0x00415ed5, fixChecklistFont);
+
+	// pushback stuff
+	
+	//patchDWord(0x004cfaa7 + 2, &pushbackmult);
+	//patchDWord(0x004cfaba + 2, &pushbackmult);
+	//patchDWord(0x004cfa5a + 2, &fzero);
+	//patchByte(0x004cfb28 + 1, 0xc1);	// FMUL -> FADD
+	
 
 	// pal_loadpalette - don't mess with alpha
 

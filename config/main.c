@@ -866,15 +866,14 @@ struct settings {
 	int windowed;
 	int borderless;
 
-	int shadows;
-	int particles;
-	int animating_textures;
-	int distance_fog;
-	int low_detail_models;
+	int use_psx_textures;
+	int fog_distance;
+	int texture_filter;
+	int internal_resolution;
 
-	int play_intro;
-	int il_mode;
-	int disable_trick_limit;
+	int autokick;
+
+	int enable_vibration;
 };
 
 struct keybinds {
@@ -893,12 +892,7 @@ struct keybinds {
 	SDL_Scancode left;
 	SDL_Scancode right;
 
-	SDL_Scancode camUp;
-	SDL_Scancode camDown;
-	SDL_Scancode camLeft;
-	SDL_Scancode camRight;
 	SDL_Scancode viewToggle;
-	SDL_Scancode swivelLock;
 };
 
 // a recreation of the SDL_GameControllerButton enum, but with the addition of right/left trigger
@@ -938,7 +932,6 @@ typedef enum {
 struct controllerbinds {
 	controllerButton menu;
 	controllerButton cameraToggle;
-	controllerButton cameraSwivelLock;
 
 	controllerButton grind;
 	controllerButton grab;
@@ -956,7 +949,6 @@ struct controllerbinds {
 	controllerButton down;
 
 	controllerStick movement;
-	controllerStick camera;
 };
 
 struct settings settings;
@@ -1023,15 +1015,14 @@ void defaultSettings() {
 	settings.windowed = 0;
 	settings.borderless = 0;
 
-	settings.shadows = 1;
-	settings.particles = 1;
-	settings.animating_textures = 1;
-	settings.distance_fog = 0;
-	settings.low_detail_models = 0;
+	settings.use_psx_textures = 1;
+	settings.fog_distance = 150;
+	settings.texture_filter = 0;
+	settings.internal_resolution = 0;
 	
-	settings.play_intro = 1;
-	settings.il_mode = 0;
-	settings.disable_trick_limit = 0;
+	settings.autokick = 1;
+
+	settings.enable_vibration = 1;
 
 	keybinds.ollie = SDL_SCANCODE_KP_2;
 	keybinds.grab = SDL_SCANCODE_KP_6;
@@ -1041,23 +1032,17 @@ void defaultSettings() {
 	keybinds.spinRight = SDL_SCANCODE_KP_3;
 	keybinds.nollie = SDL_SCANCODE_KP_7;
 	keybinds.switchRevert = SDL_SCANCODE_KP_9;
-	keybinds.pause = 0;	// unbound
 
 	keybinds.forward = SDL_SCANCODE_W;
 	keybinds.backward = SDL_SCANCODE_S;
 	keybinds.left = SDL_SCANCODE_A;
 	keybinds.right = SDL_SCANCODE_D;
 
-	keybinds.camUp = SDL_SCANCODE_I;
-	keybinds.camDown = SDL_SCANCODE_K;
-	keybinds.camLeft = SDL_SCANCODE_J;
-	keybinds.camRight = SDL_SCANCODE_L;
-	keybinds.viewToggle = SDL_SCANCODE_GRAVE;
-	keybinds.swivelLock = 0;	// unbound
+	keybinds.pause = SDL_SCANCODE_P;
+	keybinds.viewToggle = SDL_SCANCODE_O;
 
 	padbinds.menu = CONTROLLER_BUTTON_START;
 	padbinds.cameraToggle = CONTROLLER_BUTTON_BACK;
-	padbinds.cameraSwivelLock = CONTROLLER_BUTTON_RIGHTSTICK;
 
 	padbinds.grind = CONTROLLER_BUTTON_Y;
 	padbinds.grab = CONTROLLER_BUTTON_B;
@@ -1075,7 +1060,6 @@ void defaultSettings() {
 	padbinds.down = CONTROLLER_BUTTON_DPAD_DOWN;
 
 	padbinds.movement = CONTROLLER_STICK_LEFT;
-	padbinds.camera = CONTROLLER_STICK_RIGHT;
 }
 
 char configFile[1024];
@@ -1099,20 +1083,19 @@ char *getConfigFile() {
 void loadSettings() {
 	char *configFile = getConfigFile();
 
-	settings.resX = GetPrivateProfileInt("Graphics", "ResolutionX", 0, configFile);
-	settings.resY = GetPrivateProfileInt("Graphics", "ResolutionY", 0, configFile);
-	settings.windowed = getIniBool("Graphics", "Windowed", 0, configFile);
-	settings.borderless = getIniBool("Graphics", "Borderless", 0, configFile);
+	settings.resX = GetPrivateProfileInt("Window", "ResolutionX", 0, configFile);
+	settings.resY = GetPrivateProfileInt("Window", "ResolutionY", 0, configFile);
+	settings.windowed = getIniBool("Window", "Windowed", 0, configFile);
+	settings.borderless = getIniBool("Window", "Borderless", 0, configFile);
 
-	settings.shadows = getIniBool("Graphics", "Shadows", 1, configFile);
-	settings.particles = getIniBool("Graphics", "Particles", 1, configFile);
-	settings.animating_textures = getIniBool("Graphics", "AnimatedTextures", 1, configFile);
-	settings.distance_fog = getIniBool("Graphics", "DistanceFog", 0, configFile);
-	settings.low_detail_models = getIniBool("Graphics", "LowDetailModels", 0, configFile);
+	settings.use_psx_textures = getIniBool("Graphics", "UsePSXTextures", 1, configFile);
+	settings.fog_distance = GetPrivateProfileInt("Graphics", "FogDistance", 1, configFile);
+	settings.texture_filter = GetPrivateProfileInt("Graphics", "TextureFilter", 0, configFile);
+	settings.internal_resolution = GetPrivateProfileInt("Graphics", "InternalResolution", 0, configFile);
 
-	settings.play_intro = getIniBool("Miscellaneous", "PlayIntro", 1, configFile);
-	settings.il_mode = getIniBool("Miscellaneous", "ILMode", 0, configFile);
-	settings.disable_trick_limit = getIniBool("Miscellaneous", "NoTrickLimit", 0, configFile);
+	settings.autokick = getIniBool("Miscellaneous", "Autokick", 1, configFile);
+
+	settings.enable_vibration = getIniBool("Gamepad", "EnableVibration", 1, configFile);
 
 	keybinds.ollie = GetPrivateProfileInt("Keybinds", "Ollie", SDL_SCANCODE_KP_2, configFile);
 	keybinds.grab = GetPrivateProfileInt("Keybinds", "Grab", SDL_SCANCODE_KP_6, configFile);
@@ -1122,23 +1105,17 @@ void loadSettings() {
 	keybinds.spinRight = GetPrivateProfileInt("Keybinds", "SpinRight", SDL_SCANCODE_KP_3, configFile);
 	keybinds.nollie = GetPrivateProfileInt("Keybinds", "Nollie", SDL_SCANCODE_KP_7, configFile);
 	keybinds.switchRevert = GetPrivateProfileInt("Keybinds", "Switch", SDL_SCANCODE_KP_9, configFile);
-	keybinds.pause = GetPrivateProfileInt("Keybinds", "Pause", 0, configFile);
 
-	keybinds.forward = GetPrivateProfileInt("Keybinds", "Forward", SDL_SCANCODE_W, configFile);
-	keybinds.backward = GetPrivateProfileInt("Keybinds", "Backward", SDL_SCANCODE_S, configFile);
+	keybinds.forward = GetPrivateProfileInt("Keybinds", "Up", SDL_SCANCODE_W, configFile);
+	keybinds.backward = GetPrivateProfileInt("Keybinds", "Down", SDL_SCANCODE_S, configFile);
 	keybinds.left = GetPrivateProfileInt("Keybinds", "Left", SDL_SCANCODE_A, configFile);
 	keybinds.right = GetPrivateProfileInt("Keybinds", "Right", SDL_SCANCODE_D, configFile);
 
-	keybinds.camUp = GetPrivateProfileInt("Keybinds", "CameraUp", SDL_SCANCODE_I, configFile);
-	keybinds.camDown = GetPrivateProfileInt("Keybinds", "CameraDown", SDL_SCANCODE_K, configFile);
-	keybinds.camLeft = GetPrivateProfileInt("Keybinds", "CameraLeft", SDL_SCANCODE_J, configFile);
-	keybinds.camRight = GetPrivateProfileInt("Keybinds", "CameraRight", SDL_SCANCODE_L, configFile);
-	keybinds.viewToggle = GetPrivateProfileInt("Keybinds", "ViewToggle", SDL_SCANCODE_GRAVE, configFile);
-	keybinds.swivelLock = GetPrivateProfileInt("Keybinds", "SwivelLock", 0, configFile);
+	keybinds.viewToggle = GetPrivateProfileInt("Keybinds", "ViewToggle", SDL_SCANCODE_O, configFile);
+	keybinds.pause = GetPrivateProfileInt("Keybinds", "Pause", SDL_SCANCODE_P, configFile);
 
 	padbinds.menu = GetPrivateProfileInt("Gamepad", "Pause", CONTROLLER_BUTTON_START, configFile);
 	padbinds.cameraToggle = GetPrivateProfileInt("Gamepad", "ViewToggle", CONTROLLER_BUTTON_BACK, configFile);
-	padbinds.cameraSwivelLock = GetPrivateProfileInt("Gamepad", "SwivelLock", CONTROLLER_BUTTON_RIGHTSTICK, configFile);
 
 	padbinds.grind = GetPrivateProfileInt("Gamepad", "Grind", CONTROLLER_BUTTON_Y, configFile);
 	padbinds.grab = GetPrivateProfileInt("Gamepad", "Grab", CONTROLLER_BUTTON_B, configFile);
@@ -1152,11 +1129,10 @@ void loadSettings() {
 
 	padbinds.right = GetPrivateProfileInt("Gamepad", "Right", CONTROLLER_BUTTON_DPAD_RIGHT, configFile);
 	padbinds.left = GetPrivateProfileInt("Gamepad", "Left", CONTROLLER_BUTTON_DPAD_LEFT, configFile);
-	padbinds.up = GetPrivateProfileInt("Gamepad", "Forward", CONTROLLER_BUTTON_DPAD_UP, configFile);
-	padbinds.down = GetPrivateProfileInt("Gamepad", "Backward", CONTROLLER_BUTTON_DPAD_DOWN, configFile);
+	padbinds.up = GetPrivateProfileInt("Gamepad", "Up", CONTROLLER_BUTTON_DPAD_UP, configFile);
+	padbinds.down = GetPrivateProfileInt("Gamepad", "Down", CONTROLLER_BUTTON_DPAD_DOWN, configFile);
 
 	padbinds.movement = GetPrivateProfileInt("Gamepad", "MovementStick", CONTROLLER_STICK_LEFT, configFile);
-	padbinds.camera = GetPrivateProfileInt("Gamepad", "CameraStick", CONTROLLER_STICK_RIGHT, configFile);
 }
 
 void saveSettings() {
@@ -1169,20 +1145,17 @@ void saveSettings() {
 		settings.resY = 480;
 	}
 
-	writeIniInt("Graphics", "ResolutionX", settings.resX, configFile);
-	writeIniInt("Graphics", "ResolutionY", settings.resY, configFile);
-	writeIniBool("Graphics", "Windowed", settings.windowed, configFile);
-	writeIniBool("Graphics", "Borderless", settings.borderless, configFile);
+	writeIniInt("Window", "ResolutionX", settings.resX, configFile);
+	writeIniInt("Window", "ResolutionY", settings.resY, configFile);
+	writeIniBool("Window", "Windowed", settings.windowed, configFile);
+	writeIniBool("Window", "Borderless", settings.borderless, configFile);
 
-	writeIniBool("Graphics", "Shadows", settings.shadows, configFile);
-	writeIniBool("Graphics", "Particles", settings.particles, configFile);
-	writeIniBool("Graphics", "AnimatedTextures", settings.animating_textures, configFile);
-	writeIniBool("Graphics", "DistanceFog", settings.distance_fog, configFile);
-	writeIniBool("Graphics", "LowDetailModels", settings.low_detail_models, configFile);
+	writeIniBool("Graphics", "UsePSXTextures", settings.use_psx_textures, configFile);
+	writeIniInt("Graphics", "FogDistance", settings.fog_distance, configFile);
+	writeIniInt("Graphics", "TextureFilter", settings.texture_filter, configFile);
+	writeIniInt("Graphics", "InternalResolution", settings.internal_resolution, configFile);
 
-	writeIniBool("Miscellaneous", "PlayIntro", settings.play_intro, configFile);
-	writeIniBool("Miscellaneous", "ILMode", settings.il_mode, configFile);
-	writeIniBool("Miscellaneous", "NoTrickLimit", settings.disable_trick_limit, configFile);
+	writeIniBool("Miscellaneous", "Autokick", settings.autokick, configFile);
 
 	writeIniInt("Keybinds", "Ollie", keybinds.ollie, configFile);
 	writeIniInt("Keybinds", "Grab", keybinds.grab, configFile);
@@ -1192,23 +1165,17 @@ void saveSettings() {
 	writeIniInt("Keybinds", "SpinRight", keybinds.spinRight, configFile);
 	writeIniInt("Keybinds", "Nollie", keybinds.nollie, configFile);
 	writeIniInt("Keybinds", "Switch", keybinds.switchRevert, configFile);
-	writeIniInt("Keybinds", "Pause", keybinds.pause, configFile);
-
-	writeIniInt("Keybinds", "Forward", keybinds.forward, configFile);
-	writeIniInt("Keybinds", "Backward", keybinds.backward, configFile);
+	
+	writeIniInt("Keybinds", "Up", keybinds.forward, configFile);
+	writeIniInt("Keybinds", "Down", keybinds.backward, configFile);
 	writeIniInt("Keybinds", "Left", keybinds.left, configFile);
 	writeIniInt("Keybinds", "Right", keybinds.right, configFile);
 
-	writeIniInt("Keybinds", "CameraUp", keybinds.camUp, configFile);
-	writeIniInt("Keybinds", "CameraDown", keybinds.camDown, configFile);
-	writeIniInt("Keybinds", "CameraLeft", keybinds.camLeft, configFile);
-	writeIniInt("Keybinds", "CameraRight", keybinds.camRight, configFile);
+	writeIniInt("Keybinds", "Pause", keybinds.pause, configFile);
 	writeIniInt("Keybinds", "ViewToggle", keybinds.viewToggle, configFile);
-	writeIniInt("Keybinds", "SwivelLock", keybinds.swivelLock, configFile);
 
 	writeIniInt("Gamepad", "Pause", padbinds.menu, configFile);
 	writeIniInt("Gamepad", "ViewToggle", padbinds.cameraToggle, configFile);
-	writeIniInt("Gamepad", "SwivelLock", padbinds.cameraSwivelLock, configFile);
 
 	writeIniInt("Gamepad", "Grind", padbinds.grind, configFile);
 	writeIniInt("Gamepad", "Grab", padbinds.grab, configFile);
@@ -1222,11 +1189,12 @@ void saveSettings() {
 
 	writeIniInt("Gamepad", "Right", padbinds.right, configFile);
 	writeIniInt("Gamepad", "Left", padbinds.left, configFile);
-	writeIniInt("Gamepad", "Forward", padbinds.up, configFile);
-	writeIniInt("Gamepad", "Backward", padbinds.down, configFile);
+	writeIniInt("Gamepad", "Up", padbinds.up, configFile);
+	writeIniInt("Gamepad", "Down", padbinds.down, configFile);
 
 	writeIniInt("Gamepad", "MovementStick", padbinds.movement, configFile);
-	writeIniInt("Gamepad", "CameraStick", padbinds.camera, configFile);
+
+	writeIniBool("Gamepad", "EnableVibration", settings.enable_vibration, configFile);
 }
 
 // SDL stuff - for keybinds
@@ -1364,9 +1332,8 @@ struct gamepad_page {
 	pgui_control *right;
 	pgui_control *movement_stick;
 
-	pgui_control *camera_stick;
 	pgui_control *view_toggle;
-	pgui_control *swivel_lock;
+	pgui_control *enable_vibration;
 };
 
 struct gamepad_page gamepad_page;
@@ -1487,13 +1454,21 @@ pgui_control *build_stick_combobox(int x, int y, int w, int h, pgui_control *par
 	return result;
 }
 
+void do_setting_checkbox(pgui_control *control, int value, int *target) {
+	*target = value;
+}
+
+void do_setting_combobox(pgui_control *control, int value, int *target) {
+	*target = value;
+}
+
 void build_gamepad_page(pgui_control *parent) {
 	pgui_control *actions_groupbox = pgui_groupbox_create(8, 8, (parent->w / 2) - 8 - 4, parent->h - 8 - 8, "Actions", parent);
 	pgui_control *skater_groupbox = pgui_groupbox_create((parent->w / 2) + 4, 8, (parent->w / 2) - 8 - 4, (parent->h / 2) - 8 - 4 + 32, "Skater Controls", parent);
-	pgui_control *camera_groupbox = pgui_groupbox_create((parent->w / 2) + 4, (parent->h / 2) + 4 + 32, (parent->w / 2) - 8 - 4, (parent->h / 2) - 8 - 4 - 32, "Camera Controls", parent);
+	pgui_control *camera_groupbox = pgui_groupbox_create((parent->w / 2) + 4, (parent->h / 2) + 4 + 32, (parent->w / 2) - 8 - 4, (parent->h / 2) - 8 - 4 - 32, "Other", parent);
 
 	int label_offset = 4;
-	int graphics_v_spacing = 39;
+	int graphics_v_spacing = 41;
 	int skater_v_spacing = 39;
 	int camera_v_spacing = 39;
 	int box_width = 80;
@@ -1524,9 +1499,6 @@ void build_gamepad_page(pgui_control *parent) {
 	pgui_label_create(8, 16 + label_offset + (graphics_v_spacing * 7), 96, 16, "Switch:", PGUI_LABEL_JUSTIFY_LEFT, actions_groupbox);
 	gamepad_page.switch_revert = build_button_combobox(actions_groupbox->w - 8 - box_width, 16 + (graphics_v_spacing * 7), box_width, 20, actions_groupbox, &(padbinds.switchRevert));
 
-	pgui_label_create(8, 16 + label_offset + (graphics_v_spacing * 8), 96, 16, "Pause:", PGUI_LABEL_JUSTIFY_LEFT, actions_groupbox);
-	gamepad_page.pause = build_button_combobox(actions_groupbox->w - 8 - box_width, 16 + (graphics_v_spacing * 8), box_width, 20, actions_groupbox, &(padbinds.menu));
-
 	// skater controls
 	pgui_label_create(8, 16 + label_offset, 96, 16, "Forward:", PGUI_LABEL_JUSTIFY_LEFT, skater_groupbox);
 	gamepad_page.forward = build_button_combobox(skater_groupbox->w - 8 - box_width, 16, box_width, 20, skater_groupbox, &(padbinds.up));
@@ -1544,14 +1516,14 @@ void build_gamepad_page(pgui_control *parent) {
 	gamepad_page.movement_stick = build_stick_combobox(skater_groupbox->w - 8 - box_width, 16 + (skater_v_spacing * 4), box_width, 20, skater_groupbox, &(padbinds.movement));
 
 	// camera controls
-	pgui_label_create(8, 16 + label_offset, 96, 16, "Camera Stick:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
-	gamepad_page.camera_stick = build_stick_combobox(skater_groupbox->w - 8 - box_width, 16, box_width, 20, camera_groupbox, &(padbinds.camera));
+	pgui_label_create(8, 16 + label_offset, 96, 16, "Pause:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
+	gamepad_page.pause = build_button_combobox(camera_groupbox->w - 8 - box_width, 16, box_width, 20, camera_groupbox, &(padbinds.menu));
 
 	pgui_label_create(8, 16 + label_offset + (camera_v_spacing), 96, 16, "View Toggle:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
 	gamepad_page.view_toggle = build_button_combobox(skater_groupbox->w - 8 - box_width, 16 + (camera_v_spacing), box_width, 20, camera_groupbox, &(padbinds.cameraToggle));
 
-	pgui_label_create(8, 16 + label_offset + (camera_v_spacing * 2), 96, 16, "Swivel Lock:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
-	gamepad_page.swivel_lock = build_button_combobox(skater_groupbox->w - 8 - box_width, 16 + (camera_v_spacing * 2), box_width, 20, camera_groupbox, &(padbinds.cameraSwivelLock));
+	gamepad_page.enable_vibration = pgui_checkbox_create(8, 16 + label_offset + (camera_v_spacing * 2), 96, 16, "Enable Vibration", camera_groupbox);
+	pgui_checkbox_set_on_toggle(gamepad_page.enable_vibration, do_setting_checkbox, &(settings.enable_vibration));
 }
 
 void setAllPadBindText() {
@@ -1571,9 +1543,8 @@ void setAllPadBindText() {
 	setButtonBindBox(gamepad_page.right, padbinds.right);
 	setStickBindBox(gamepad_page.movement_stick, padbinds.movement);
 
-	setStickBindBox(gamepad_page.camera_stick, padbinds.camera);
 	setButtonBindBox(gamepad_page.view_toggle, padbinds.cameraToggle);
-	setButtonBindBox(gamepad_page.swivel_lock, padbinds.cameraSwivelLock);
+	pgui_checkbox_set_checked(gamepad_page.enable_vibration, settings.enable_vibration);
 }
 
 struct keyboard_page {
@@ -1624,14 +1595,14 @@ pgui_control *build_keybind_textbox(int x, int y, int w, int h, pgui_control *pa
 }
 
 void build_keyboard_page(pgui_control *parent) {
-	pgui_control *actions_groupbox = pgui_groupbox_create(8, 8, (parent->w / 2) - 8 - 4, (parent->h) - 8 - 8, "Actions", parent);
-	pgui_control *skater_groupbox = pgui_groupbox_create((parent->w / 2) + 4, 8, (parent->w / 2) - 8 - 4, (parent->h / 2) - 8 - 4 - 32, "Skater Controls", parent);
-	pgui_control *camera_groupbox = pgui_groupbox_create((parent->w / 2) + 4, (parent->h / 2) + 4 - 32, (parent->w / 2) - 8 - 4, (parent->h / 2) - 8 - 4 + 32, "Camera Controls", parent);
+	pgui_control *actions_groupbox = pgui_groupbox_create(8, 8, (parent->w / 2) - 8 - 4, parent->h - 8 - 8, "Actions", parent);
+	pgui_control *skater_groupbox = pgui_groupbox_create((parent->w / 2) + 4, 8, (parent->w / 2) - 8 - 4, (parent->h / 2) - 8 - 4 + 32, "Skater Controls", parent);
+	pgui_control *camera_groupbox = pgui_groupbox_create((parent->w / 2) + 4, (parent->h / 2) + 4 + 32, (parent->w / 2) - 8 - 4, (parent->h / 2) - 8 - 4 - 32, "Other", parent);
 
 	int label_offset = 4;
-	int actions_v_spacing = 39;
-	int skater_v_spacing = 32;
-	int camera_v_spacing = 32;
+	int actions_v_spacing = 41;
+	int skater_v_spacing = 48;
+	int camera_v_spacing = 43;
 
 	// actions
 
@@ -1659,9 +1630,6 @@ void build_keyboard_page(pgui_control *parent) {
 	pgui_label_create(8, 16 + label_offset + (actions_v_spacing * 7), 96, 16, "Switch:", PGUI_LABEL_JUSTIFY_LEFT, actions_groupbox);
 	keyboard_page.switch_revert = build_keybind_textbox(actions_groupbox->w - 8 - 64, 16 + (actions_v_spacing * 7), 64, 20, actions_groupbox, "Switch", &(keybinds.switchRevert));
 
-	pgui_label_create(8, 16 + label_offset + (actions_v_spacing * 8), 96, 16, "Pause:", PGUI_LABEL_JUSTIFY_LEFT, actions_groupbox);
-	keyboard_page.pause = build_keybind_textbox(actions_groupbox->w - 8 - 64, 16 + (actions_v_spacing * 8), 64, 20, actions_groupbox, "Pause", &(keybinds.pause));
-
 	// skater controls
 	pgui_label_create(8, 16 + label_offset, 96, 16, "Forward:", PGUI_LABEL_JUSTIFY_LEFT, skater_groupbox);
 	keyboard_page.forward = build_keybind_textbox(skater_groupbox->w - 8 - 64, 16, 64, 20, skater_groupbox, "Forward", &(keybinds.forward));
@@ -1676,23 +1644,11 @@ void build_keyboard_page(pgui_control *parent) {
 	keyboard_page.right = build_keybind_textbox(skater_groupbox->w - 8 - 64, 16 + (skater_v_spacing * 3), 64, 20, skater_groupbox, "Right", &(keybinds.right));
 
 	// camera controls
-	pgui_label_create(8, 16 + label_offset, 96, 16, "Camera Up:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
-	keyboard_page.camera_up = build_keybind_textbox(skater_groupbox->w - 8 - 64, 16, 64, 20, camera_groupbox, "Camera Up", &(keybinds.camUp));
+	pgui_label_create(8, 16 + label_offset, 96, 16, "View Toggle:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
+	keyboard_page.view_toggle = build_keybind_textbox(skater_groupbox->w - 8 - 64, 16, 64, 20, camera_groupbox, "View Toggle", &(keybinds.viewToggle));
 
-	pgui_label_create(8, 16 + label_offset + (camera_v_spacing), 96, 16, "Camera Down:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
-	keyboard_page.camera_down = build_keybind_textbox(skater_groupbox->w - 8 - 64, 16 + (camera_v_spacing), 64, 20, camera_groupbox, "Camera Down", &(keybinds.camDown));
-
-	pgui_label_create(8, 16 + label_offset + (camera_v_spacing * 2), 96, 16, "Camera Left:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
-	keyboard_page.camera_left = build_keybind_textbox(skater_groupbox->w - 8 - 64, 16 + (camera_v_spacing * 2), 64, 20, camera_groupbox, "Camera Left", &(keybinds.camLeft));
-
-	pgui_label_create(8, 16 + label_offset + (camera_v_spacing * 3), 96, 16, "Camera Right:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
-	keyboard_page.camera_right = build_keybind_textbox(skater_groupbox->w - 8 - 64, 16 + (camera_v_spacing * 3), 64, 20, camera_groupbox, "Camera Right", &(keybinds.camRight));
-
-	pgui_label_create(8, 16 + label_offset + (camera_v_spacing * 4), 96, 16, "View Toggle:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
-	keyboard_page.view_toggle = build_keybind_textbox(skater_groupbox->w - 8 - 64, 16 + (camera_v_spacing * 4), 64, 20, camera_groupbox, "View Toggle", &(keybinds.viewToggle));
-
-	pgui_label_create(8, 16 + label_offset + (camera_v_spacing * 5), 96, 16, "Swivel Lock:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
-	keyboard_page.swivel_lock = build_keybind_textbox(skater_groupbox->w - 8 - 64, 16 + (camera_v_spacing * 5), 64, 20, camera_groupbox, "Swivel Lock", &(keybinds.swivelLock));
+	pgui_label_create(8, 16 + label_offset + (camera_v_spacing), 96, 16, "Pause:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
+	keyboard_page.pause = build_keybind_textbox(camera_groupbox->w - 8 - 64, 16 + (camera_v_spacing), 64, 20, camera_groupbox, "Pause", &(keybinds.pause));
 }
 
 void setAllBindText() {
@@ -1711,12 +1667,7 @@ void setAllBindText() {
 	setBindText(keyboard_page.left, keybinds.left);
 	setBindText(keyboard_page.right, keybinds.right);
 
-	setBindText(keyboard_page.camera_up, keybinds.camUp);
-	setBindText(keyboard_page.camera_down, keybinds.camDown);
-	setBindText(keyboard_page.camera_left, keybinds.camLeft);
-	setBindText(keyboard_page.camera_right, keybinds.camRight);
 	setBindText(keyboard_page.view_toggle, keybinds.viewToggle);
-	setBindText(keyboard_page.swivel_lock, keybinds.swivelLock);
 }
 
 struct general_page {
@@ -1730,15 +1681,15 @@ struct general_page {
 	pgui_control *windowed;
 	pgui_control *borderless;
 
-	pgui_control *shadows;
-	pgui_control *particles;
-	pgui_control *animating_textures;
-	pgui_control *distance_fog;
-	pgui_control *low_detail_models;
+	pgui_control *use_psx_textures;
+	pgui_control *fog_distance_label;
+	pgui_control *fog_distance;
+	pgui_control *texture_filtering_label;
+	pgui_control *texture_filtering;
+	pgui_control *internal_resolution_label;
+	pgui_control *internal_resolution;
 
-	pgui_control *play_intro;
-	pgui_control *il_mode;
-	pgui_control *disable_trick_limit;
+	pgui_control *autokick;
 };
 
 struct general_page general_page;
@@ -1785,15 +1736,45 @@ void set_display_mode(pgui_control *control, int value, void *data) {
 	}
 }
 
+void set_fog_distance(pgui_control *control, int value, void *data) {
+	switch(value) {
+	case 0:
+		settings.fog_distance = 100;
+		return;
+	case 1:
+		settings.fog_distance = 150;
+		return;
+	case 2:
+		settings.fog_distance = 500;
+		return;
+	default:
+		settings.fog_distance = 150;
+		return;
+	}
+}
+
 void do_custom_resolution_textbox(pgui_control *control, int *target) {
 	char buf[16];
 	pgui_textbox_get_text(control, buf, 16);
 	*target = atoi(buf);
 }
 
-void do_setting_checkbox(pgui_control *control, int value, int *target) {
-	*target = value;
-}
+char *fog_options[3] = {
+	"PSX (100)",
+	"PC (150)",
+	"Max (500)",
+};
+
+char *internal_resolution_options[3] = {
+	"PSX (512x240)",
+	"PC (640x480)",
+	"Match Window",
+};
+
+char *texture_filter_options[3] = {
+	"Sharp",
+	"Smooth",
+};
 
 void build_general_page(pgui_control *parent) {
 	initResolutionList();
@@ -1815,31 +1796,26 @@ void build_general_page(pgui_control *parent) {
 	general_page.borderless = pgui_checkbox_create(8, 16 + (24 * 4), 128, 24, "Borderless", resolution_groupbox);
 
 	// graphics options
-	general_page.shadows = pgui_checkbox_create(8, 16, 128, 24, "Shadows", graphics_groupbox);
-	general_page.particles = pgui_checkbox_create(8, 16 + 24, 128, 24, "Particles", graphics_groupbox);
-	general_page.animating_textures = pgui_checkbox_create(8, 16 + (24 * 2), 128, 24, "Animating Textures", graphics_groupbox);
-	general_page.distance_fog = pgui_checkbox_create(8, 16 + (24 * 3), 160, 24, "Distance Fog", graphics_groupbox);
-	general_page.low_detail_models = pgui_checkbox_create(8, 16 + (24 * 4), 160, 24, "Low Detail Models", graphics_groupbox);
+	general_page.use_psx_textures = pgui_checkbox_create(8, 16, 128, 24, "Use PSX Textures", graphics_groupbox);
+	general_page.fog_distance_label = pgui_label_create(8, 16 + 24, 128, 24, "Fog Distance:", PGUI_LABEL_JUSTIFY_LEFT, graphics_groupbox);
+	general_page.fog_distance = pgui_combobox_create(8, 16 + 24 + 16, 128, 24, fog_options, 3, graphics_groupbox);
+	general_page.texture_filtering_label = pgui_label_create(8, 16 + 24 + 40, 128, 24, "Texture Filtering:", PGUI_LABEL_JUSTIFY_LEFT, graphics_groupbox);
+	general_page.texture_filtering = pgui_combobox_create(8, 16 + 24 + 40 + 16, 128, 24, texture_filter_options, 3, graphics_groupbox);
+	general_page.internal_resolution_label = pgui_label_create(8, 16 + 24 + (40 * 2), 128, 24, "Internal Resolution:", PGUI_LABEL_JUSTIFY_LEFT, graphics_groupbox);
+	general_page.internal_resolution = pgui_combobox_create(8, 16 + 24 + (40 * 2) + 16, 128, 24, internal_resolution_options, 3, graphics_groupbox);
 
 	// miscellaneous options
-	general_page.play_intro = pgui_checkbox_create(8, 16, 128, 24, "Always Play Intro", misc_groupbox);
-	general_page.il_mode = pgui_checkbox_create(8, 16 + 24, 128, 24, "IL Mode*", misc_groupbox);
-	general_page.disable_trick_limit = pgui_checkbox_create(8, 16 + (24 * 2), 128, 24, "Disable Trick Limit**", misc_groupbox);
-	pgui_label_create(8, misc_groupbox->h - 8 - 80, 160, 48, "*For speedrun practice.  Resets goals when a level is retried to practice a single level", PGUI_LABEL_JUSTIFY_LEFT, misc_groupbox);
-	pgui_label_create(8, misc_groupbox->h - 8 - 32, 160, 32, "**For scoring. Removes the cap at 251x combo.", PGUI_LABEL_JUSTIFY_LEFT, misc_groupbox);
+	general_page.autokick = pgui_checkbox_create(8, 16, 128, 24, "Autokick", misc_groupbox);
 
 	pgui_checkbox_set_on_toggle(general_page.windowed, do_setting_checkbox, &(settings.windowed));
 	pgui_checkbox_set_on_toggle(general_page.borderless, do_setting_checkbox, &(settings.borderless));
 
-	pgui_checkbox_set_on_toggle(general_page.shadows, do_setting_checkbox, &(settings.shadows));
-	pgui_checkbox_set_on_toggle(general_page.particles, do_setting_checkbox, &(settings.particles));
-	pgui_checkbox_set_on_toggle(general_page.animating_textures, do_setting_checkbox, &(settings.animating_textures));
-	pgui_checkbox_set_on_toggle(general_page.distance_fog, do_setting_checkbox, &(settings.distance_fog));
-	pgui_checkbox_set_on_toggle(general_page.low_detail_models, do_setting_checkbox, &(settings.low_detail_models));
+	pgui_checkbox_set_on_toggle(general_page.use_psx_textures, do_setting_checkbox, &(settings.use_psx_textures));
+	pgui_combobox_set_on_select(general_page.fog_distance, set_fog_distance, NULL);
+	pgui_combobox_set_on_select(general_page.texture_filtering, do_setting_combobox, &(settings.texture_filter));
+	pgui_combobox_set_on_select(general_page.internal_resolution, do_setting_combobox, &(settings.internal_resolution));
 
-	pgui_checkbox_set_on_toggle(general_page.play_intro, do_setting_checkbox, &(settings.play_intro));
-	pgui_checkbox_set_on_toggle(general_page.il_mode, do_setting_checkbox, &(settings.il_mode));
-	pgui_checkbox_set_on_toggle(general_page.disable_trick_limit, do_setting_checkbox, &(settings.disable_trick_limit));
+	pgui_checkbox_set_on_toggle(general_page.autokick, do_setting_checkbox, &(settings.autokick));
 
 	pgui_combobox_set_on_select(general_page.resolution_combobox, set_display_mode, NULL);
 	pgui_checkbox_set_on_toggle(general_page.custom_resolution, check_custom_resolution, NULL);
@@ -1897,15 +1873,20 @@ void update_general_page() {
 	pgui_checkbox_set_checked(general_page.windowed, settings.windowed);
 	pgui_checkbox_set_checked(general_page.borderless, settings.borderless);
 
-	pgui_checkbox_set_checked(general_page.shadows, settings.shadows);
-	pgui_checkbox_set_checked(general_page.particles, settings.particles);
-	pgui_checkbox_set_checked(general_page.animating_textures, settings.animating_textures);
-	pgui_checkbox_set_checked(general_page.distance_fog, settings.distance_fog);
-	pgui_checkbox_set_checked(general_page.low_detail_models, settings.low_detail_models);
+	pgui_checkbox_set_checked(general_page.use_psx_textures, settings.use_psx_textures);
 
-	pgui_checkbox_set_checked(general_page.play_intro, settings.play_intro);
-	pgui_checkbox_set_checked(general_page.il_mode, settings.il_mode);
-	pgui_checkbox_set_checked(general_page.disable_trick_limit, settings.disable_trick_limit);
+	if (settings.fog_distance <= 100) {
+		pgui_combobox_set_selection(general_page.fog_distance, 0);
+	} else if (settings.fog_distance <= 150) {
+		pgui_combobox_set_selection(general_page.fog_distance, 1);
+	} else {
+		pgui_combobox_set_selection(general_page.fog_distance, 2);
+	}
+	
+	pgui_combobox_set_selection(general_page.texture_filtering, settings.texture_filter);
+	pgui_combobox_set_selection(general_page.internal_resolution, settings.internal_resolution);
+
+	pgui_checkbox_set_checked(general_page.autokick, settings.autokick);
 }
 
 void callback_ok(pgui_control *control, void *data) {

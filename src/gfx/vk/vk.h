@@ -117,7 +117,7 @@ typedef struct {
 typedef struct {
 	size_t capacity;
 	size_t count;
-	VkSampler sampler;
+	VkSampler samplers[2];
 	uint8_t *occupied;
 	rbVkImage *images;
 } textureManager;
@@ -208,6 +208,8 @@ typedef struct partyRenderer {
 	uint32_t lastDraw;
 	uint32_t processedVerts;
 
+	uint8_t textureFilter;
+
 	VkCommandBuffer renderCommandBuffer;
 	VkDescriptorSetLayout renderDescriptorLayout;
 	VkPipelineLayout renderPipelineLayout;
@@ -275,7 +277,7 @@ void destroyRenderPipelines(partyRenderer *renderer);
 VkResult createScalerPipeline(partyRenderer *renderer);
 
 uint8_t createShaderFromFile(partyRenderer *renderer, char *filename, VkShaderModule *dst);
-VkShaderModule *createShader(partyRenderer *renderer, uint32_t codeSz, uint8_t *code);
+uint8_t createShader(partyRenderer *renderer, uint8_t *code, uint32_t codeSz, VkShaderModule *dst);
 void vid2_destroyShader(partyRenderer *renderer, VkShaderModule *shader);
 
 VkResult rbVkInitMemoryManager(rbVKRenderer *renderer, struct rbVkMemoryManager **memManager);

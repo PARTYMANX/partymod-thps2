@@ -51,8 +51,8 @@ uint8_t createShaderFromFile(partyRenderer *renderer, char *filename, VkShaderMo
 	SHADERS
 */
 
-VkShaderModule *createShader(partyRenderer *renderer, uint32_t codeSz, uint8_t *code) {
-	VkShaderModule result;
+uint8_t createShader(partyRenderer *renderer, uint8_t *code, uint32_t codeSz, VkShaderModule *dst) {
+	uint8_t result = 0;
 
 	VkShaderModuleCreateInfo shaderInfo;
 	shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -61,9 +61,10 @@ VkShaderModule *createShader(partyRenderer *renderer, uint32_t codeSz, uint8_t *
 	shaderInfo.codeSize = codeSz;
 	shaderInfo.pCode = code;
 
-	if (vkCreateShaderModule(renderer->device->device, &shaderInfo, NULL, &result) != VK_SUCCESS) {
+	if (vkCreateShaderModule(renderer->device->device, &shaderInfo, NULL, dst) != VK_SUCCESS) {
 		printf("Failed to create shader!\n");
-		exit(1);
+	} else {
+		result = 1;
 	}
 
 	return result;

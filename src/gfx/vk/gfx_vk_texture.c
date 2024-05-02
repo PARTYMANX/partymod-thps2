@@ -298,7 +298,7 @@ void destroyTexture(partyRenderer *renderer, rbVkImage img) {
 	//free(img);
 }
 
-VkSampler createSampler(partyRenderer *renderer) {
+VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter) {
 	VkSampler result;
 
 	VkSamplerCreateInfo samplerInfo;
@@ -306,11 +306,8 @@ VkSampler createSampler(partyRenderer *renderer) {
 	samplerInfo.pNext = NULL;
 	samplerInfo.flags = 0;
 
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.magFilter = VK_FILTER_LINEAR;
-
-	samplerInfo.minFilter = VK_FILTER_NEAREST;
-	samplerInfo.magFilter = VK_FILTER_NEAREST;
+	samplerInfo.minFilter = minMagFilter;
+	samplerInfo.magFilter = minMagFilter;
 
 	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
