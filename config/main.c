@@ -1745,6 +1745,9 @@ void set_fog_distance(pgui_control *control, int value, void *data) {
 		settings.fog_distance = 150;
 		return;
 	case 2:
+		settings.fog_distance = 275;
+		return;
+	case 3:
 		settings.fog_distance = 500;
 		return;
 	default:
@@ -1759,9 +1762,10 @@ void do_custom_resolution_textbox(pgui_control *control, int *target) {
 	*target = atoi(buf);
 }
 
-char *fog_options[3] = {
+char *fog_options[4] = {
 	"PSX (100)",
 	"PC (150)",
+	"Dreamcast (275)",
 	"Max (500)",
 };
 
@@ -1798,7 +1802,7 @@ void build_general_page(pgui_control *parent) {
 	// graphics options
 	general_page.use_psx_textures = pgui_checkbox_create(8, 16, 128, 24, "Use PSX Textures", graphics_groupbox);
 	general_page.fog_distance_label = pgui_label_create(8, 16 + 24, 128, 24, "Fog Distance:", PGUI_LABEL_JUSTIFY_LEFT, graphics_groupbox);
-	general_page.fog_distance = pgui_combobox_create(8, 16 + 24 + 16, 128, 24, fog_options, 3, graphics_groupbox);
+	general_page.fog_distance = pgui_combobox_create(8, 16 + 24 + 16, 128, 24, fog_options, 4, graphics_groupbox);
 	general_page.texture_filtering_label = pgui_label_create(8, 16 + 24 + 40, 128, 24, "Texture Filtering:", PGUI_LABEL_JUSTIFY_LEFT, graphics_groupbox);
 	general_page.texture_filtering = pgui_combobox_create(8, 16 + 24 + 40 + 16, 128, 24, texture_filter_options, 3, graphics_groupbox);
 	general_page.internal_resolution_label = pgui_label_create(8, 16 + 24 + (40 * 2), 128, 24, "Internal Resolution:", PGUI_LABEL_JUSTIFY_LEFT, graphics_groupbox);
@@ -1879,8 +1883,10 @@ void update_general_page() {
 		pgui_combobox_set_selection(general_page.fog_distance, 0);
 	} else if (settings.fog_distance <= 150) {
 		pgui_combobox_set_selection(general_page.fog_distance, 1);
-	} else {
+	} else if (settings.fog_distance <= 275) {
 		pgui_combobox_set_selection(general_page.fog_distance, 2);
+	} else {
+		pgui_combobox_set_selection(general_page.fog_distance, 3);
 	}
 	
 	pgui_combobox_set_selection(general_page.texture_filtering, settings.texture_filter);

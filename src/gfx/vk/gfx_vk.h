@@ -8,6 +8,8 @@
 
 #include <vulkan/vulkan.h>
 
+//#define FLUSH_ALL
+
 /*
 	STRUCT
 */

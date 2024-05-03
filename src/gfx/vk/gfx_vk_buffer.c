@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -21,8 +22,11 @@ void createBuffer(partyRenderer *renderer, VkDeviceSize size, VkBufferUsageFlags
 	info.pQueueFamilyIndices = NULL;
 	info.usage = usageFlags;
 
-	if (vkCreateBuffer(renderer->device->device, &info, NULL, &(result.buffer)) != VK_SUCCESS) {
-		printf("PISS!\n");
+	//printf("TEST! %lld 0x%08x\n", size, info.usage);
+
+	VkResult r = vkCreateBuffer(renderer->device->device, &info, NULL, &(result.buffer));
+	if (r != VK_SUCCESS) {
+		printf("Failed allocation of size %lld: 0x%08x!\n", size, r);
 		exit(1);
 	}
 

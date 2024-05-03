@@ -20,6 +20,35 @@
 #define VERSION_NUMBER_MINOR 1
 #define VERSION_NUMBER_PATCH 0
 
+// load file patch
+int openfilewrapper(char *name, char *b) {
+	int (__cdecl *orig_open)(char *, char *) = 0x004fe1e9;
+	
+	printf("OPENING %s, %s\n", name, b);
+
+	return orig_open(name, b);
+}
+
+void patchSaveOpen() {
+	//patchCall(0x004e4a25, openfilewrapper);
+	patchByte(0x004e6249 + 1, 0);
+}
+
+// bad autokick patch - not very graceful but it works until we can integrate it back into the menus
+uint32_t autokickSetting = 1;
+
+void handleAutokickOverride() {
+	uint32_t *autokickstate = 0x00567038;
+	uint32_t *autokickstate2 = 0x0055c88c;
+
+	*autokickstate = autokickSetting;
+	*autokickstate2 = autokickSetting;
+}
+
+void loadAutokickSetting() {
+	autokickSetting = getConfigBool("Miscellaneous", "Autokick", 1);
+}
+
 void initPatch() {
 	GetModuleFileName(NULL, &executableDirectory, filePathBufLen);
 
@@ -56,6 +85,8 @@ void initPatch() {
 
 	initEvents();
 
+	loadAutokickSetting();
+
 	printf("Patch Initialized\n");
 }
 
@@ -77,6 +108,9 @@ void quitGame() {
 
 int WinYield() {
 	int result = 0x75;
+
+	// this gets called every frame, so hack in autokick override here (dumb but it works)
+	handleAutokickOverride();
 
 	handleEvents();
 
@@ -116,6 +150,8 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			installInputPatches();
 			installGfxPatches();
 			installMemPatches();
+
+			patchSaveOpen();
 
 			//installAltMemManager();
 

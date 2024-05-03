@@ -20,9 +20,26 @@ int resolution_x = 512;
 int resolution_y = 240;
 float aspectRatio = 4.0f / 3.0f;
 uint8_t textureFilter = 0;
-//float aspectRatio = 16.0f / 9.0f;
+uint8_t useHiResTextures = 0;
 
 int isMinimized = 0;
+
+// hack: don't brighten any of these textures
+uint32_t badHDTextureCount = 10;
+uint32_t badHDTextures[] = {
+	// school 2 sky
+	0x6c5d8a1e,
+	0x689ab1b4,
+	0x7205a968,
+	0x20371acc,
+	0xac8fb0bd,
+	0xb2474975,
+	// venice sky
+	0x21e183c7,
+	0xa10be2fd,
+	0xa67ba636,
+	0xaa5b8d26,
+};
 
 void handleGfxEvent(SDL_Event *e) {
 	switch (e->type) {
@@ -213,10 +230,10 @@ void transformDXCoords(renderVertex *vertices, int count) {
 
 	float xmult = (1.0f / (float)*screen_width) * 2.0f;
 	float ymult = (1.0f / (float)*screen_height) * 2.0f;
-	//float xdisp = 1.0f - (xmult);
-	//float ydisp = 1.0f - (ymult);
-	float xdisp = 1.0f - (xmult * 0.125f);
-	float ydisp = 1.0f - (ymult * 0.125f);
+	float xdisp = 1.0f;
+	float ydisp = 1.0f;
+	//float xdisp = 1.0f - (xmult * 0.125f);
+	//float ydisp = 1.0f - (ymult * 0.125f);
 
 	for (int i = 0; i < count; i++) {
 		vertices[i].x = (vertices[i].x * xmult) - xdisp;
@@ -400,15 +417,7 @@ void renderDXPoly(int *tag) {
 			vertices[i].color = newcolor;
 		}
 
-		//printf("RenderDXPoly with %d vertices!!! 0x%08x\n", numVerts, vertices);
-
-		//printf("1: %f %f %f 0x%08x\n", vertices[0].x, vertices[0].y, vertices[0].z, vertices[0].color);
-		//printf("2: %f %f %f 0x%08x\n", vertices[1].x, vertices[1].y, vertices[1].z, vertices[1].color);
-		//printf("1: %f\n", ((vertices[0].x / 640.0f) * 2.0f) - 1.0f);
-
 		renderVertex buf[18];
-
-		//numVerts = 3;
 
 		int outputVert = 0;
 		for (int i = 1; i < numVerts - 2 + 1; i++) {
@@ -453,18 +462,10 @@ void renderDXPoly(int *tag) {
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 0x10) + 0x14);
 
 		if (!tex) {
-			printf("TEXTURE WAS NULL!!!\n");
 			return;
 		}
 
-		if (tex->flags & 0x01000000) {
-			renderFlags |= 1;
-		}
-
-		//printf("TEST!! 0x%08x %d %d %d\n", tex, tex->idx, tex->width, tex->height);
-
 		if (!(tex->flags & 0x10)) {
-			//printf("TEST???\n");
 			setDepthState(renderer, 1, 0);
 		}
 
@@ -486,19 +487,29 @@ void renderDXPoly(int *tag) {
 			vertices[i].color = newcolor;
 		}
 
-		//printf("RenderDXPoly with %d vertices!!! 0x%08x\n", numVerts, vertices);
+		if (tex->flags & 0x01000000) {
+			// workaround for d3dsprite, overrides both fog and darkens poly to account for texture color multiplication
 
-		//printf("1: %f %f %f 0x%08x\n", vertices[0].x, vertices[0].y, vertices[0].z, vertices[0].color);
-		//printf("2: %f %f %f 0x%08x\n", vertices[1].x, vertices[1].y, vertices[1].z, vertices[1].color);
-		//printf("1: %f\n", ((vertices[0].x / 640.0f) * 2.0f) - 1.0f);
-
-		//struct texture *tex = (*(uint32_t **)*((uint8_t *)tag + 0x10) + 0x14);
-		
-		//printf("using texture %d\n", tex->idx);
+			for (int i = 0; i < numVerts; i++) {
+				vertices[i].color = 0xff808080;
+			}
+		}
 
 		renderVertex buf[18];
 
-		//numVerts = 3;
+		if (tex->flags & 0xc && !(tex->flags & 0x01000000)) {
+			for (int i = 0; i < numVerts; i++) {
+				vertices[i].u = (vertices[i].u / tex->unk_width) * tex->width;
+				vertices[i].v = (vertices[i].v / tex->unk_height) * tex->height;
+			}
+
+			for (int i = 0; i < badHDTextureCount; i++) {
+				if (tex->tex_checksum == badHDTextures[i]) {
+					renderFlags |= 1;
+					break;
+				}
+			}
+		}
 
 		int outputVert = 0;
 		for (int i = 1; i < numVerts - 2 + 1; i++) {
@@ -579,8 +590,8 @@ void transformCoords(renderVertex *vertices, int count) {
 	}
 
 	for (int i = 0; i < count; i++) {
-		if (vertices[i].y > 4368.0f - (float)*screen_height && on_screen) {
-			vertices[i].y -= 4368.0f;
+		if (vertices[i].y > 4369.0f - (float)*screen_height && on_screen) {
+			vertices[i].y -= 4369.0f;
 		}
 	}
 
@@ -632,7 +643,17 @@ float fixZ(float z) {
 	return z;
 }
 
-void fixUVs(renderVertex *vertices, int count, int width, int height) {
+void fixUVs(renderVertex *vertices, int count, struct texture *tex) {
+	if (tex->flags & 0xc) {
+		for (int i = 0; i < count; i++) {
+			vertices[i].u = (vertices[i].u / tex->unk_width) * tex->width;
+			vertices[i].v = (vertices[i].v / tex->unk_height) * tex->height;
+		}
+	}
+
+	int width = tex->buf_width;
+	int height = tex->buf_height;
+
 	float wrecip = 1.0f / width;
 	float hrecip = 1.0f / height;
 
@@ -880,7 +901,7 @@ void renderPolyFT3(int *tag) {
 			return;
 		}
 
-		fixUVs(vertices, 3, tex->buf_width, tex->buf_height);
+		fixUVs(vertices, 3, tex);
 		transformCoords(vertices, 3);
 
 		drawVertices(renderer, vertices, 3);
@@ -933,7 +954,7 @@ void renderPolyFT4(int *tag) {
 			return;
 		}
 
-		fixUVs(vertices, 6, tex->buf_width, tex->buf_height);
+		fixUVs(vertices, 6, tex);
 		transformCoords(vertices, 6);
 
 		drawVertices(renderer, vertices, 6);
@@ -1050,7 +1071,7 @@ void renderPolyGT3(int *tag) {
 			return;
 		}
 
-		fixUVs(vertices, 3, tex->buf_width, tex->buf_height);
+		fixUVs(vertices, 3, tex);
 		transformCoords(vertices, 3);
 
 		drawVertices(renderer, vertices, 3);
@@ -1105,7 +1126,7 @@ void renderPolyGT4(int *tag) {
 			return;
 		}
 
-		fixUVs(vertices, 6, tex->buf_width, tex->buf_height);
+		fixUVs(vertices, 6, tex);
 		transformCoords(vertices, 6);
 
 		drawVertices(renderer, vertices, 6);
@@ -1355,8 +1376,6 @@ void *(*createGameTexture)() = 0x4d6a70;
 
 
 void D3DTEX_Init() {
-	printf("STUB: D3DTEX_Init\n");
-
 	//setup 16 bit format:
 	uint32_t *r_bits = 0x0069d148;
 	uint32_t *g_bits = 0x0069d14c;
@@ -1375,30 +1394,6 @@ void D3DTEX_Init() {
 	*g_offset = 5;
 	*b_offset = 10;
 	*a_offset = 15;
-}
-
-int D3DTEX_AddToTextureList(int a, int b, int c, char d) {
-	printf("STUB: D3DTEX_AddToTextureList\n");
-
-	return 0;
-}
-
-int D3DTEX_AddToTextureList2(int a, int b, int c, char d, int e, int f) {
-	printf("STUB: D3DTEX_AddToTextureList2: %d, %d, %d, %d, %d, %d\n", a, b, c, d, e, f);
-
-	uint32_t *result = createGameTexture();
-	*(uint32_t *)((uint8_t *)result + 8) = a;
-	*(uint16_t *)((uint8_t *)result + 20) = b;
-	*(uint16_t *)((uint8_t *)result + 22) = c;
-	*(uint32_t *)((uint8_t *)result + 16) = *(uint32_t *)((uint8_t *)result + 16) | 0x12;
-
-	return result;
-}
-
-int D3DTEX_AddToTextureList3(int a, int b, int c, int d) {
-	printf("STUB: D3DTEX_AddToTextureList3\n");
-
-	return 0;
 }
 
 void D3DTEX_ConvertTexturePalette(uint16_t *palette, int size) {
@@ -1448,8 +1443,32 @@ uint32_t colorHSB(uint32_t hue, float saturation, float brightness, float opacit
 	return result;
 }
 
+struct bitmapheader {
+	uint32_t headersize;
+	uint32_t width;
+	uint32_t height;
+	uint16_t planes;
+	uint16_t bpp;
+	uint32_t compression;
+	uint32_t imgsize;
+	uint32_t horizontalres;
+	uint32_t verticalres;
+	uint32_t palettesize;
+	uint32_t importantcolors;
+};
+
+void *openExternalTextureWrapper(char *a, char *b) {
+	// wrapper to cancel any high res loads if they're not enabled
+	void *(__cdecl *openExternalTexture)(char *, char *) = 0x004d5fe0;
+	
+	if (useHiResTextures) {
+		return openExternalTexture(a, b);
+	} else {
+		return -1;
+	}
+}
+
 void makeTextureListEntry(struct texture *a, int b, int c, int d) {
-	//printf("STUB: makeTextureListEntry: 0x%08x, 0x%08x, %d, %d\n", a, b, c, d);
 	int **palFront = 0x0069d174;
 
 	if (a->palette == NULL) {
@@ -1473,17 +1492,6 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 		
 		if (a->palette && (uint16_t*)(a->palette[3]) && *(uint16_t*)(a->palette[3]) == 0) {
 			a->flags = a->flags | 0x100;
-		}
-	}
-
-	//printf("texture 0x%08x (0x%08x): width: %hu height: %hu\n", a->tex_checksum, a->img_data, a->width, a->height);
-
-	if (!(a->flags & 8)) {
-		//printf("Load 1 - local data only\n");
-	} else {
-		printf("Load 2 - load higher res\n");
-		if (a->img_data && (a->flags & 0x40)) {
-			printf("image name: %s\n", a->img_data);
 		}
 	}
 
@@ -1520,6 +1528,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 	}
 
 	if (!(a->flags & 8)) {
+		// load paletted image
 		uint16_t *colors = *(uint16_t **)((uint8_t *)a->palette + 8);
 		a->flags |= 0x10;
 			
@@ -1593,48 +1602,64 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 				}
 			}
 		} else {
-			printf("TEST!\n");
+			
 		}
 			
 	} else {
-		printf("TEXTURE NOT PALETTED\n");
+		int (__cdecl *PCread)(void *, void *, uint32_t) = 0x004e4ca0;
+		int (__cdecl *PCclose)(void *) = 0x004e4d90;
+			
+		// replace with bitmap
+		void *bmpfile = NULL;
+		if (!(a->flags & 0x40)) {
+			bmpfile = openExternalTextureWrapper(a->tex_checksum, NULL);
+		} else {
+			bmpfile = openExternalTextureWrapper(NULL, a->img_data);
+		}
+
+		uint8_t preheader[15];
+		struct bitmapheader header;
+
+		PCread(bmpfile, preheader, 14);
+		PCread(bmpfile, &header, 40);
+
+		uint32_t bytes_per_pixel = header.bpp >> 3;
+		uint32_t line_width = header.width * bytes_per_pixel;
+		if (line_width % 4) {
+			line_width += 4 - (line_width % 4);
+		}
+
+		uint8_t *linebuffer = malloc(line_width);
+
+		for (int y = 0; y < header.height; y++) {
+			PCread(bmpfile, linebuffer, line_width);
+
+			for (int x = 0; x < header.width; x++) {
+				uint32_t color = 0xFF000000;
+				color |= (uint32_t)linebuffer[(x * bytes_per_pixel) + 0] << 16;
+				color |= (uint32_t)linebuffer[(x * bytes_per_pixel) + 1] << 8;
+				color |= (uint32_t)linebuffer[(x * bytes_per_pixel) + 2] << 0;
+
+				if (color == 0xFFFF00FF) {
+					color = 0;
+				}
+
+				buf[((header.height - y - 1) * a->buf_width) + x] = color;
+			}
+		}
+
+		free(linebuffer);
+
+		PCclose(bmpfile);
 	}
 
 	updateTextureEntry(renderer, a->idx, a->buf_width, a->buf_height, buf);
 
 	free(buf);
-
-	if (a->flags & 0xc) {
-		uint32_t tmp = a->unk_width;
-		a->unk_width = a->width;
-		a->width = tmp;
-
-		tmp = a->unk_height;
-		a->unk_height = a->height;
-		a->height = tmp;
-	}
 }
 
 void __stdcall freeD3DTexture(int idx) {
 	destroyTextureEntry(renderer, idx);
-}
-
-void *D3DTEX_GetTexturePalette(void *a) {
-	printf("STUB: D3DTEX_GetTexturePalette\n");
-
-	return 0;
-}
-
-int dummypalette[128];
-
-void *D3DTEX_GetPalette(void *a) {
-	printf("STUB: D3DTEX_GetPalette\n");
-
-	return dummypalette;
-}
-
-void D3DTEX_SetPalette(void *a, void *b) {
-	printf("STUB: D3DTEX_SetPalette\n");
 }
 
 int D3DTEX_TextureCountColors(struct texture *a) {
@@ -1642,7 +1667,7 @@ int D3DTEX_TextureCountColors(struct texture *a) {
 	memset(counted, 0, 256);
 	int count = 0;
 
-	if (!(a->flags & 8)) {
+	if (!(a->flags & 8) && a->palette) {
 		uint16_t *colors = *(uint16_t **)((uint8_t *)a->palette + 8);
 		a->flags |= 0x10;
 			
@@ -1856,12 +1881,6 @@ void WINMAIN_SwitchResolution() {
 
 	setRenderResolution(renderer, internal_resolution_x, internal_resolution_y, aspectRatio);
 	setTextureFilter(renderer, textureFilter);
-
-	/*int *fog = 0x0054546c;
-	float *fog2 = 0x00545334;
-
-	*fog = 10000;
-	*fog2 = 10000.0f;*/
 }
 
 uint16_t PixelAspectYFov = 0x1000;
@@ -1895,19 +1914,9 @@ void m3dinit_setresolution() {
 	//PixelAspectYFov = 4096.0f * (((float)*ResY / (float)*ResX) / (1.0f / aspectRatio));
 }
 
-void openExternalTexture(void *a, struct texture *b) {
-	// dummy version of this function to cancel any high res loads
-
-	return -1;
-}
-
 #define GRAPHICS_SECTION "Graphics"
 
 void WINMAIN_Configure() {
-	printf("STUB: WINMAIN_Configure\n");
-
-	//getConfigBool(GRAPHICS_SECTION, "UsePSXTextures", 1);
-
 	float *VideoFogYonScale = 0x00545334;
 	*VideoFogYonScale = (float)getConfigInt(GRAPHICS_SECTION, "FogDistance", 150) / 100.0f;
 
@@ -1960,6 +1969,8 @@ void WINMAIN_Configure() {
 		break;
 	}
 
+	useHiResTextures = !getConfigBool(GRAPHICS_SECTION, "UsePSXTextures", 1);
+
 	uint32_t *is_software_renderer = 0x029d6ff0;
 	uint32_t *unk_related_to_sw_renderer = 0x00546cc4;
 
@@ -1968,7 +1979,7 @@ void WINMAIN_Configure() {
 }
 
 void SaveVidConfig() {
-	printf("STUB: SaveVidConfig\n");
+	//printf("STUB: SaveVidConfig\n");
 }
 
 void toGameScreenCoord(int x, int y, int *xOut, int *yOut) {
@@ -2039,7 +2050,11 @@ void installGfxPatches() {
 	patchJmp(0x004d7940, D3DTEX_ConvertTexturePalette);
 	patchJmp(0x004d6100, makeTextureListEntry);
 	//patchJmp(0x004d5d40, freeD3DTexture);
-	patchJmp(0x004d5fe0, openExternalTexture);
+	//patchCall(0x004d5fe0, openExternalTexture);
+	patchCall(0x004d5f10, openExternalTextureWrapper);
+	patchCall(0x004d65da, openExternalTextureWrapper);
+	patchCall(0x004d65f0, openExternalTextureWrapper);
+	patchCall(0x004d6c19, openExternalTextureWrapper);
 
 	// patch freeD3DTexture to call our code
 	patchNop(0x004d5d4c, 69);
@@ -2047,7 +2062,10 @@ void installGfxPatches() {
 	patchCall(0x004d5d4c + 1, freeD3DTexture);
 
 	// remove DX usage in AddToTextureList3
-	patchByte(0x004d6d1a, 0xEB);
+	patchNop(0x004d6d12, 28);
+	patchNop(0x004d6d0f, 2);
+	patchCall(0x004d6d12, freeD3DTexture);
+	//patchByte(0x004d6d1a, 0xEB);
 	patchByte(0x004d6d32, 0xEB);
 
 	patchJmp(0x004d46b0, D3DSprite_D3DSprite);

@@ -918,7 +918,9 @@ void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vert
 
 	appendPolyBuffer(renderer, vertices, vertex_count);
 
+#ifdef FLUSH_ALL
 	flushVerts(renderer);
+#endif
 }
 
 void drawLines(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
@@ -931,7 +933,9 @@ void drawLines(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_
 
 	appendPolyBuffer(renderer, vertices, vertex_count);
 
+#ifdef FLUSH_ALL
 	flushVerts(renderer);
+#endif
 }
 
 void setViewport(partyRenderer *renderer, float x, float y, float width, float height) {
