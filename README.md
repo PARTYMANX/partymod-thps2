@@ -37,3 +37,5 @@ cmake .. -A win32 -DCMAKE_TOOLCHAIN_FILE=C:/[vcpkg directory]/scripts/buildsyste
 
 Maybe set the optimization optimization for the partymod dll to O0 (disable optimization) because MSVC occasionally seems to break certain functions when optimization is enabled.
 Additionally, set the SubSystem to "Windows (/SUBSYSTEM:WINDOWS)" in the partyconfig project.
+
+Shaders can be built with [GLSLang](https://github.com/KhronosGroup/glslang). the download is somewhere in there. seems odd that the download to the actual command line utility is so hidden. oh well!
