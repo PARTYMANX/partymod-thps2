@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <global.h>
 
 #include <patch.h>
 #include <util/hash.h>
@@ -133,10 +134,7 @@ void __cdecl mem_shrink_wrapper(int p, int newsize) {
 }
 
 void __cdecl bang_wrapper() {
-	printf("OUT OF MEMORY!!!!\n");
-	while(1) {
-	
-	}
+	fatalError("Out of memory!");
 }
 
 void installMemPatches() {

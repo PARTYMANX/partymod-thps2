@@ -1,31 +1,30 @@
-PARTYMOD 1.1.0
+PARTYMOD for THPS2 1.0
 
-This is a patch for THPS3 1.01 to improve its input handling as well as smooth out a few other parts of the PC port.
+This is a patch for THPS2 (original release) to improve its input handling as well as smooth out a few other parts of the PC port.
 The patch is designed to keep the game as original as possible, and leave its files unmodified.
 
-Features and Fixes:
+Features and Fixes
+- Replaced renderer with new bindless Vulkan renderer
 - Replaced input system entirely with new, modern system using the SDL2 library
-- Movement stick now controls menus
-- Improved cursor handling, no longer moving the cursor and only showing it when relevant
 - Improved window handling allowing for custom resolutions and configurable windowing
-- Fixed aspect ratio to be based on window dimensions (previously it was based on the PS2 framebuffer at 10:7/640x448)
-- The game no longer opens the game's launcher when run directly
+- Game resolution is now independent from window resolution, allowing the game to run at original 240p or 480p, in addition to window size
+- Replaced the gamma correction that resulted in the game looking washed out, instead using PSX-style texture color blending
+- Fixed a number of rendering bugs
+- Movement stick now controls menus
+- Improved cursor handling, only showing it when relevant and using the system cursor to prevent latency
 - Replaced configuration files with new INI-based system (see partymod.ini)
 - Custom configurator program to handle new configuration files
-- Fixed ledge warp bugs where the skater is teleported down farther than intended
-- Fixed visually missing geometry in various areas (notably, the airport entrance and destructable wall in Skater Island)
-- Fixes music randomization having the same sequence between sessions
-- Fixes the skater's shadow not appearing transparent
-- Connects to alternative online services (defaults to OpenSpy)
-- Optionally adds a single level practice mode for speedrunning
-- Optionally removes the trick cap for combo multipliers
+- Fixed memory manager to prevent memory corruption and crashes related to it
+- Added setting for autokick, allowing it to be turned off easily
+- Fixed loading saves
 
-INSTALLATION:
-1. Make sure THPS3 (English) is installed and the 1.01 patch is applied, remove the widescreen mod if it is installed (delete dinput8.dll)
-2. Extract this zip folder into your THPS3 installation directory
-3. Run partypatcher.exe to create the new, patched THPS3.exe game executable (this will be used to launch the game from now on) (this only needs to be done once)
-4. Optionally (highly recommended), configure the game with partyconfig.exe
-5. Launch the game from THPS3.exe
+Installation
+1. Download PARTYMOD from the releases tab
+2. Make sure THPS2 (Original, not Activision Value or Korean release) is installed
+3. Extract this zip file into your THPS2 installation directory
+4. Run partypatcher.exe to create the new, patched THPS2.exe game executable (this will be used to launch the game from now on) (this only needs to be done once)
+5. Optionally (highly recommended), configure the game with partyconfig.exe
+6. Launch the game from THPS2.exe
 
 NOTE: if the game is installed into the "Program Files" directory, you may need to run each program as administrator. 
 Also, if the game is installed into the "Program Files" directory, save files will be saved in the C:\Users\<name>\AppData\Local\VirtualStore directory.  

@@ -103,7 +103,6 @@ void __cdecl drawBinkSurface() {
 }
 
 void __cdecl setupBinkRender() {
-	printf("STUB: setupBinkRender\n");
 }
 
 void updateMovieTexture() {

@@ -16,22 +16,36 @@
 #include <event.h>
 #include <window.h>
 
-#define VERSION_NUMBER_MAJOR 0
-#define VERSION_NUMBER_MINOR 1
+#define VERSION_NUMBER_MAJOR 1
+#define VERSION_NUMBER_MINOR 0
 #define VERSION_NUMBER_PATCH 0
 
-// load file patch
-int openfilewrapper(char *name, char *b) {
-	int (__cdecl *orig_open)(char *, char *) = 0x004fe1e9;
-	
-	printf("OPENING %s, %s\n", name, b);
+// disable the options menu entries for control and display options as they're no longer relevant
+void __fastcall OptionsMenuConstructorWrapper(uint8_t **optionsMenu) {
+	//void (__fastcall *OptionsMenuConstructor)(uint8_t **) = 0x0048185d;
+	void (__fastcall *OptionsMenuConstructor)(uint8_t **) = 0x0047eb00;
 
-	return orig_open(name, b);
+	OptionsMenuConstructor(optionsMenu);
+
+	//optionsMenu[0xd9][0xc] = 0;
+	//optionsMenu[0xda][0xc] = 0;
 }
 
+void patchOptionsMenu() {
+
+	patchCall(0x0048185d, OptionsMenuConstructorWrapper);
+	// get rid of player controls menu
+	patchNop(0x0047f1f0, 5);
+	patchByte(0x0047f203, 0xeb);
+
+	// get rid of display controls menu
+	patchNop(0x0047f22d, 5);
+	patchByte(0x0047f240, 0xeb);
+}
+
+// load file patch
 void patchSaveOpen() {
-	//patchCall(0x004e4a25, openfilewrapper);
-	patchByte(0x004e6249 + 1, 0);
+	patchByte(0x004e6249 + 1, 0);	// change file open for loading saves/replays to read instead of read and write
 }
 
 // bad autokick patch - not very graceful but it works until we can integrate it back into the menus
@@ -64,8 +78,6 @@ void initPatch() {
 	initConfig();
 
 	int isDebug = getConfigBool("Miscellaneous", "Debug", 0);
-	isDebug = 1;
-	//int isDebug = 1;
 
 	if (isDebug) {
 		AllocConsole();
@@ -90,6 +102,11 @@ void initPatch() {
 	printf("Patch Initialized\n");
 }
 
+void fatalError(const char *msg) {
+	createErrorMessageBox(msg);
+	exit(1);
+}
+
 void quitGame() {
 	void (*gameShutdown)() = 0x004e46c0;
 	void (*WINMAIN_ShutDown)() = 0x004f5750;
@@ -103,7 +120,7 @@ void quitGame() {
 		*PCMemBuffer = NULL;
 	}
 
-	exit(1);
+	exit(0);
 }
 
 int WinYield() {
@@ -117,10 +134,6 @@ int WinYield() {
 	return result;
 }
 
-void drawSync() {
-	//SDL_Delay(16);
-};
-
 void patchWindowAndInit() {
 	patchNop(0x004f4ff1, 47);
 	patchCall(0x004f4ff1, initPatch);
@@ -128,13 +141,6 @@ void patchWindowAndInit() {
 	patchJmp(0x004f4d70, WinYield);
 
 	patchNop(0x004f502b, 39);	// patch out window setup stuff that we no longer need
-
-	//patchJmp(0x004e5910, drawSync);
-
-	//patchByte(0x004f544d + 1, 0x8); // windowed mode
-	//patchByte(0x004f552e + 7, 0x1); // windowed mode
-	//patchByte(0x004f5539 + 7, 0); // windowed mode
-	//patchByte(0x004f5539 + 8, 0x2); // windowed mode
 }
 
 __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
@@ -150,8 +156,8 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			installInputPatches();
 			installGfxPatches();
 			installMemPatches();
-
 			patchSaveOpen();
+			patchOptionsMenu();
 
 			//installAltMemManager();
 

@@ -33,26 +33,26 @@ const char * const validationLayerNames[];
 const uint32_t validationExtCount;
 const char * const validationExtNames[];
 
-typedef struct rbVkRenderer rbVKRenderer;
+typedef struct pmVkRenderer pmVkRenderer;
 
 // os-specific
-struct rbVkWindow;
+struct pmVkWindow;
 
-struct rbVkPhysicalDevice {
+struct pmVkPhysicalDevice {
 	VkPhysicalDevice device;
 	uint32_t queueFamilyIdxs[RB_VK_QUEUE_FAMILY_COUNT];
 };
 
 // stores info relating to a GPU
-struct rbVkDevice {
-	struct rbVkPhysicalDevice physicalDevice;
+struct pmVkDevice {
+	struct pmVkPhysicalDevice physicalDevice;
 	VkDevice device;
 
-	struct rbVkWindow *window;
+	struct pmVkWindow *window;
 };
 
 // stores info relating to a swapchain: a set of images that are drawn to by the gpu
-struct rbVkSwapchain {
+struct pmVkSwapchain {
 	VkSwapchainKHR swapchain;
 	uint32_t imageCount;
 	VkImage *images;	// TODO: make new texture struct
@@ -61,34 +61,34 @@ struct rbVkSwapchain {
 	VkExtent2D extent;
 
 	uint32_t imageIdx;
-	VkSemaphore imageReadySemaphore;	// one per image?
-	VkSemaphore imageFinishedSemaphore;	// one per image?
+	VkSemaphore imageReadySemaphore;
+	VkSemaphore imageFinishedSemaphore;
 
 	VkFence fence;	// should we have one per image?
 	uint8_t fenceUsed;
 
-	struct rbVkDevice *device;
+	struct pmVkDevice *device;
 };
 
 // stores info relating to the queue of commands being run by the gpu
-struct rbVkCommandQueue {
+struct pmVkCommandQueue {
 	VkQueue presentQueue;
 	VkQueue queue;
 	VkCommandPool commandPool;
 	//VkCommandBuffer *commandBuffers;
 
-	struct rbVkDevice *device;
+	struct pmVkDevice *device;
 };
 
 typedef struct {
 	VkPipeline pipeline;
 	VkPipelineLayout layout;
-} rbVkPipeline;
+} pmVkPipeline;
 
 typedef struct {
 	VkBuffer buffer;
 	VmaAllocation allocation;
-} rbVkBuffer;
+} pmVkBuffer;
 
 typedef struct {
 	VkImage image;
@@ -105,13 +105,13 @@ typedef struct {
 	uint32_t mipmapCount;
 	uint32_t arrayLength;
 	uint32_t sampleCount;
-} rbVkImage;
+} pmVkImage;
 
 typedef struct {
 	size_t vertexCapacity;
 	size_t currentVertex;
 	renderVertex *vertices;
-	rbVkBuffer buffer;
+	pmVkBuffer buffer;
 } polyBuffer;
 
 typedef struct {
@@ -119,47 +119,11 @@ typedef struct {
 	size_t count;
 	VkSampler samplers[2];
 	uint8_t *occupied;
-	rbVkImage *images;
+	pmVkImage *images;
 } textureManager;
 
-/*
-	CACHES
-*/
-
-/*typedef struct {
-	rbVKRenderer* renderer;
-
-	map_t* cache;
-} rbVkFramebufferCache;*/
-
-/*typedef struct {
-	struct rbVkDevice *device;
-
-	map_t *cache;
-	map_t *pipelineCache;
-} renderPassCache_t;
-
-typedef struct {
-	vid2_renderer_t *renderer;
-
-	map_t *cache;
-} framebufferCache_t;
-
-// needs better name, not really a cache
-typedef struct {
-	vid2_renderer_t *renderer;
-
-	rbHandleList *pipelines;
-} pipelineCache_t;
-
-typedef struct {
-	vid2_renderer_t *renderer;
-
-	map_t *layoutCache;	// NOTE: actual descriptor set caches are contained within layouts
-} descriptorSetCache_t;*/
-
-struct rbVkMemoryManager {
-	rbVKRenderer *renderer;
+struct pmVkMemoryManager {
+	pmVkRenderer *renderer;
 
 	VmaAllocator allocator;
 };
@@ -180,22 +144,22 @@ typedef struct {
 
 typedef struct {
 	VkCommandBuffer cmdbuf;
-	rbVkBuffer transferbuf;
+	pmVkBuffer transferbuf;
 } pendingImageWrite;
 
 typedef struct {
-	rbVkImage img;
+	pmVkImage img;
 	uint8_t remainingFrames;
 } pendingImageDelete;
 
 typedef struct partyRenderer {
 	//rbRenderer parent;
 
-	struct rbVkWindow *window;
-	struct rbVkDevice *device;
-	struct rbVkSwapchain *swapchain;
-	struct rbVkCommandQueue *queue;
-	struct rbVkCommandQueue *memQueue;
+	struct pmVkWindow *window;
+	struct pmVkDevice *device;
+	struct pmVkSwapchain *swapchain;
+	struct pmVkCommandQueue *queue;
+	struct pmVkCommandQueue *memQueue;
 	pmVkDescriptorAllocator *descriptorAllocator;
 
 	VkViewport currentViewport;
@@ -218,54 +182,37 @@ typedef struct partyRenderer {
 	VkPipelineLayout scalerPipelineLayout;
 	VkPipeline scalerPipeline;
 
-	rbVkImage renderImage;
+	pmVkImage renderImage;
 	VkSampler renderSampler;
-	rbVkImage depthImage;
-	rbVkBuffer renderImageInfoBuffer;
+	pmVkImage depthImage;
+	pmVkBuffer renderImageInfoBuffer;
 	float aspectRatio;
 	uint32_t renderWidth;
 	uint32_t renderHeight;
 
 	polyBuffer polyBuffer;
 	textureManager textureManager;
-	rbVkBuffer scalerBuffer;
+	pmVkBuffer scalerBuffer;
 
 	struct stretchyBuffer *pendingImageWrites;
 	struct stretchyBuffer *pendingImageDeletes;
 
-	struct rbVkMemoryManager *memoryManager;
-
-	//rbVkFramebufferCache* framebufferCache;
-
-	//rbHandleList *textureList;
-
-	/*
-	renderPassCache_t *renderPassCache;
-	framebufferCache_t *framebufferCache;
-
-	pipelineCache_t *pipelineCache;	// what's a better name for this struct?
-	descriptorSetCache_t *descriptorSetCache;
-	*/
-
-	// TODO: dirty bit for when the buffer needs to be re-recorded
-	//rbHandleList *commandBuffers;
-	//handleList_t *shaders;
-	//handleList_t *images;
+	struct pmVkMemoryManager *memoryManager;
 } partyRenderer;
 
-VkResult rbVkCreateWindow(void *windowHandle, struct rbVkWindow **window);
-void rbVkDestroyWindow(struct rbVkWindow *window);
-void rbVkGetDrawableSize(struct rbVkWindow *window, int *pWidth, int *pHeight);
-VkSurfaceKHR getWindowSurface(struct rbVkWindow *window);
+VkResult pmVkCreateWindow(void *windowHandle, struct pmVkWindow **window);
+void pmVkDestroyWindow(struct pmVkWindow *window);
+void pmVkGetDrawableSize(struct pmVkWindow *window, int *pWidth, int *pHeight);
+VkSurfaceKHR getWindowSurface(struct pmVkWindow *window);
 
-VkResult createVulkanDevice(struct rbVkWindow *window, struct rbVkDevice **device);
-void rbVkDestroyDevice(struct rbVkDevice *device);
+VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **device);
+void pmVkDestroyDevice(struct pmVkDevice *device);
 
-VkResult rbVkCreateSwapchain(struct rbVkDevice *device, struct rbVkSwapchain **swapchain);
-void rbVkDestroySwapchain(struct rbVkSwapchain *swapchain);
+VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **swapchain);
+void pmVkDestroySwapchain(struct pmVkSwapchain *swapchain);
 
-VkResult rbVkCreateCommandQueue(struct rbVkDevice *device, VkCommandPoolCreateFlags flags, struct rbVkCommandQueue **queue);
-void rbVkDestroyCommandQueue(struct rbVkCommandQueue *queue);
+VkResult pmVkCreateCommandQueue(struct pmVkDevice *device, VkCommandPoolCreateFlags flags, struct pmVkCommandQueue **queue);
+void pmVkDestroyCommandQueue(struct pmVkCommandQueue *queue);
 VkResult createRenderCommandBuffer(partyRenderer *renderer);
 void destroyRenderCommandBuffer(partyRenderer *renderer);
 VkCommandBuffer startStagingCommandBuffer(partyRenderer *renderer);
@@ -278,15 +225,15 @@ VkResult createScalerPipeline(partyRenderer *renderer);
 
 uint8_t createShaderFromFile(partyRenderer *renderer, char *filename, VkShaderModule *dst);
 uint8_t createShader(partyRenderer *renderer, uint8_t *code, uint32_t codeSz, VkShaderModule *dst);
-void vid2_destroyShader(partyRenderer *renderer, VkShaderModule *shader);
+void destroyShader(partyRenderer *renderer, VkShaderModule *shader);
 
-VkResult rbVkInitMemoryManager(rbVKRenderer *renderer, struct rbVkMemoryManager **memManager);
-void rbVkDestroyMemoryManager(struct rbVkMemoryManager *memoryManager);
+VkResult pmVkInitMemoryManager(pmVkRenderer *renderer, struct pmVkMemoryManager **memManager);
+void pmVkDestroyMemoryManager(struct pmVkMemoryManager *memoryManager);
 
-void createBuffer(partyRenderer *renderer, VkDeviceSize size, VkBufferUsageFlags usageFlags, VmaMemoryUsage usage, rbVkBuffer *dst);
-void destroyBuffer(partyRenderer *renderer, rbVkBuffer *buffer);
-void *mapBuffer(partyRenderer *renderer, rbVkBuffer *buffer);
-void unmapBuffer(partyRenderer *renderer, rbVkBuffer *buffer);
+void createBuffer(partyRenderer *renderer, VkDeviceSize size, VkBufferUsageFlags usageFlags, VmaMemoryUsage usage, pmVkBuffer *dst);
+void destroyBuffer(partyRenderer *renderer, pmVkBuffer *buffer);
+void *mapBuffer(partyRenderer *renderer, pmVkBuffer *buffer);
+void unmapBuffer(partyRenderer *renderer, pmVkBuffer *buffer);
 
 void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t height, VkFormat colorFmt, VkFormat depthFmt);
 void destroyRenderTargets(partyRenderer *renderer);
@@ -301,9 +248,9 @@ void write_descriptor_image_array(pmVkDescriptorAllocator *allocator, int bindin
 void update_set(partyRenderer *renderer, pmVkDescriptorAllocator *allocator, VkDescriptorSet set);
 void clear_writes(pmVkDescriptorAllocator *allocator);
 
-VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height, rbVkImage *result);
-void destroyTexture(partyRenderer *renderer, rbVkImage img);
-void updateTexture(partyRenderer *renderer, rbVkImage *img, uint32_t width, uint32_t height, void *data);
+VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height, pmVkImage *result);
+void destroyTexture(partyRenderer *renderer, pmVkImage img);
+void updateTexture(partyRenderer *renderer, pmVkImage *img, uint32_t width, uint32_t height, void *data);
 VkSampler createSampler(partyRenderer *renderer);
 
 #endif

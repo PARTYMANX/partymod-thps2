@@ -14,7 +14,7 @@
 	SWAPCHAIN
 */
 
-VkResult getSwapchainFormat(struct rbVkDevice *device, VkSurfaceFormatKHR *fmt) {
+VkResult getSwapchainFormat(struct pmVkDevice *device, VkSurfaceFormatKHR *fmt) {
 	VkSurfaceKHR surface = getWindowSurface(device->window);
 
 	VkResult r;
@@ -65,7 +65,7 @@ VkResult getSwapchainFormat(struct rbVkDevice *device, VkSurfaceFormatKHR *fmt) 
 	return VK_SUCCESS;
 }
 
-VkResult getSwapchainPresentMode(struct rbVkDevice *device, VkPresentModeKHR *mode) {
+VkResult getSwapchainPresentMode(struct pmVkDevice *device, VkPresentModeKHR *mode) {
 	// TODO: think of some way for the user to select their preferred mode (for example, keep a ranked lut of present modes)
 	VkSurfaceKHR surface = getWindowSurface(device->window);
 	VkResult r;
@@ -99,12 +99,12 @@ VkResult getSwapchainPresentMode(struct rbVkDevice *device, VkPresentModeKHR *mo
 	return VK_SUCCESS;
 }
 
-VkResult rbVkCreateSwapchain(struct rbVkDevice *device, struct rbVkSwapchain **swapchain) {
+VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **swapchain) {
 	*swapchain = NULL;
 
 	VkSurfaceKHR surface = getWindowSurface(device->window);
 
-	struct rbVkSwapchain *result = malloc(sizeof(struct rbVkSwapchain));
+	struct pmVkSwapchain *result = malloc(sizeof(struct pmVkSwapchain));
 	result->device = device;
 
 	VkResult r;
@@ -122,7 +122,7 @@ VkResult rbVkCreateSwapchain(struct rbVkDevice *device, struct rbVkSwapchain **s
 	if (capabilities.currentExtent.width != UINT32_MAX)
 		extent = capabilities.currentExtent;
 	else {
-		rbVkGetDrawableSize(device->window, &(extent.width), &(extent.height));
+		pmVkGetDrawableSize(device->window, &(extent.width), &(extent.height));
 
 		if (extent.width < capabilities.minImageExtent.width)
 			extent.width = capabilities.minImageExtent.width;
@@ -292,7 +292,7 @@ VkResult rbVkCreateSwapchain(struct rbVkDevice *device, struct rbVkSwapchain **s
 	return VK_SUCCESS;
 }
 
-void rbVkDestroySwapchain(struct rbVkSwapchain *swapchain) {
+void pmVkDestroySwapchain(struct pmVkSwapchain *swapchain) {
 	vkDestroyFence(swapchain->device->device, swapchain->fence, NULL);
 	vkDestroySemaphore(swapchain->device->device, swapchain->imageFinishedSemaphore, NULL);
 	vkDestroySemaphore(swapchain->device->device, swapchain->imageReadySemaphore, NULL);

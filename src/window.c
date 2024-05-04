@@ -48,6 +48,10 @@ int borderless;
 
 #define WINDOW_SECTION "Window"
 
+void createErrorMessageBox(const char *msg) {
+	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Fatal Error", msg, window);
+}
+
 void configWindow() {
 	windowResX = getConfigInt(WINDOW_SECTION, "ResolutionX", 640);
 	windowResY = getConfigInt(WINDOW_SECTION, "ResolutionY", 480);

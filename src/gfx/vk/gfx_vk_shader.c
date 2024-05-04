@@ -36,7 +36,7 @@ uint8_t createShaderFromFile(partyRenderer *renderer, char *filename, VkShaderMo
 
 			free(buffer);
 		} else {
-			printf("to allocate buffer for file!\n");
+			printf("Failed to allocate buffer for file!\n");
 		}
 
 		fclose(f);
@@ -70,6 +70,6 @@ uint8_t createShader(partyRenderer *renderer, uint8_t *code, uint32_t codeSz, Vk
 	return result;
 }
 
-void vid2_destroyShader(partyRenderer *renderer, VkShaderModule *shader) {
+void destroyShader(partyRenderer *renderer, VkShaderModule *shader) {
 	vkDestroyShaderModule(renderer->device->device, shader, NULL);
 }

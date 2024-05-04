@@ -3,5 +3,6 @@
 
 void installWindowPatches();
 void getWindowSize(int *w, int *h);
+void createErrorMessageBox(const char *msg);
 
 #endif

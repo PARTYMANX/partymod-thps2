@@ -433,12 +433,10 @@ void __cdecl processController() {
 
 	if (*gLockForcedButtons > 0) {
 		*gLockForcedButtons = *gLockForcedButtons - 1;
-		printf("Forced Buttons Lock: %d\n", *gLockForcedButtons);
 	}
 
 	if (*gForcedButtons) {
 		controlData |= *gForcedButtons;
-		printf("Forced Buttons: 0x%08x\n", *gForcedButtons);
 		*gForcedButtons = 0;
 	}
 
@@ -640,15 +638,15 @@ void PCINPUT_ActuatorOn(uint32_t controllerIdx, uint32_t duration, uint32_t moto
 }
 
 void PCINPUT_ShutDown() {
-	printf("STUB: PCINPUT_ShutDown()\n");
+	//printf("STUB: PCINPUT_ShutDown()\n");
 }
 
 void PCINPUT_Load() {
-	printf("STUB: PCINPUT_Load()\n");
+	//printf("STUB: PCINPUT_Load()\n");
 }
 
 void PCINPUT_Save() {
-	printf("STUB: PCINPUT_Save()\n");
+	//printf("STUB: PCINPUT_Save()\n");
 }
 
 int __cdecl getSomethingIdk(int a) {

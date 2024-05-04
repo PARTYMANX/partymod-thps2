@@ -4,5 +4,6 @@
 #define filePathBufLen 1024
 char *executableDirectory[filePathBufLen];
 void quitGame();
+void fatalError(const char *msg);
 
 #endif

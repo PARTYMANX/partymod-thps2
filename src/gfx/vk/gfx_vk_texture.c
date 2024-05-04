@@ -6,17 +6,6 @@
 
 #include <gfx/vk/vk.h>
 
-typedef struct textureRenderer_s {
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMem;
-} textureCache_t;
-
-textureCache_t *initTextures(partyRenderer *renderer) {
-	textureCache_t *result = malloc(sizeof(textureCache_t));
-
-	// is this used?  TODO: remove me
-}
-
 uint8_t isDepthFormat(VkFormat format) {
 	return (format == VK_FORMAT_D16_UNORM || 
 		format == VK_FORMAT_D16_UNORM_S8_UINT || 
@@ -25,23 +14,7 @@ uint8_t isDepthFormat(VkFormat format) {
 		format == VK_FORMAT_D32_SFLOAT_S8_UINT);
 }
 
-/*VkImageUsageFlags decodeUsage(vid2_textureUsage_t usage, uint8_t isDepth) {
-	VkImageUsageFlags result = 0;
-
-	if (usage & VID2_TEXTURE_USAGE_SHADER_READ)
-		result |= VK_IMAGE_USAGE_SAMPLED_BIT;
-	if (usage & VID2_TEXTURE_USAGE_SHADER_WRITE)
-		result |= VK_IMAGE_USAGE_STORAGE_BIT;
-	if (usage & VID2_TEXTURE_USAGE_RENDER_TARGET) {
-		result |= (isDepth) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	}
-
-	return result;
-}*/
-
 void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t height, VkFormat colorFmt, VkFormat depthFmt) {
-	printf("CREATING RENDER TARGETS\n");
-
 	renderer->depthImage.type = VK_IMAGE_TYPE_2D;
 	renderer->depthImage.pixelFormat = depthFmt;
 
@@ -203,7 +176,7 @@ void destroyRenderTargets(partyRenderer *renderer) {
 	vmaFreeMemory(renderer->memoryManager->allocator, renderer->renderImage.allocation);
 }
 
-VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height, rbVkImage *result) {
+VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height, pmVkImage *result) {
 	result->type = VK_IMAGE_TYPE_2D;
 	result->pixelFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
@@ -291,7 +264,7 @@ VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height,
 	return r;
 }
 
-void destroyTexture(partyRenderer *renderer, rbVkImage img) {
+void destroyTexture(partyRenderer *renderer, pmVkImage img) {
 	vkDestroyImageView(renderer->device->device, img.imageView, NULL);
 	vkDestroyImage(renderer->device->device, img.image, NULL);
 	vmaFreeMemory(renderer->memoryManager->allocator, img.allocation);
@@ -336,18 +309,10 @@ VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter) {
 	return result;
 }
 
-/*void vid2_destroySampler(vid2_sampler_t *sampler) {
-	vkDestroySampler(sampler->renderer->device->device, sampler->sampler, NULL);
-}*/
-
-/*void transitionImageLayout(VkCommandBuffer cmdbuf, vid2_texture_t *img, vid2_textureCopyInfo *info) {
-	
-}*/
-
-void updateTexture(partyRenderer *renderer, rbVkImage *img, uint32_t width, uint32_t height, void *data) {
+void updateTexture(partyRenderer *renderer, pmVkImage *img, uint32_t width, uint32_t height, void *data) {
 	VkDeviceSize sz = width * height * 4;	// assuming rgba8
 
-	rbVkBuffer transferBuffer;
+	pmVkBuffer transferBuffer;
 	createBuffer(renderer, sz, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &transferBuffer);
 
 	void *buf = mapBuffer(renderer, &transferBuffer);
@@ -431,104 +396,3 @@ void updateTexture(partyRenderer *renderer, rbVkImage *img, uint32_t width, uint
 inline int32_t i32max(int32_t a, int32_t b) {
 	return (a > b) ? a : b;
 }
-
-/*void vid2_generateMipmaps(vid2_texture_t *tex) {
-	//vid2_buffer_t *buffer = createStagingBuffer(tex->renderer, sz);
-
-	VkCommandBuffer cmdbuf = startStagingCommandBuffer(tex->renderer);
-
-	VkImageMemoryBarrier imgMemBarrier;
-	imgMemBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	imgMemBarrier.pNext = NULL;
-	imgMemBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	imgMemBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	imgMemBarrier.image = tex->image;
-	imgMemBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	imgMemBarrier.subresourceRange.baseArrayLayer = 0;
-	imgMemBarrier.subresourceRange.layerCount = 1;
-
-	imgMemBarrier.subresourceRange.baseMipLevel = 0;
-	imgMemBarrier.subresourceRange.levelCount = tex->mipmapCount;
-
-	imgMemBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imgMemBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	imgMemBarrier.srcAccessMask = 0;
-	imgMemBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-	vkCmdPipelineBarrier(cmdbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &imgMemBarrier);
-	
-	for (int i = 1; i < tex->mipmapCount; i++) {
-		// start layout change
-
-		imgMemBarrier.subresourceRange.baseMipLevel = i - 1;
-		imgMemBarrier.subresourceRange.levelCount = 1;
-
-		imgMemBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		imgMemBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		imgMemBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		imgMemBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-		vkCmdPipelineBarrier(cmdbuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &imgMemBarrier);
-
-		// end layout change
-
-		// start blit
-
-		int32_t srcWidth = i32max(tex->width >> (i - 1), 1);
-		int32_t srcHeight = i32max(tex->height >> (i - 1), 1);
-
-		int32_t dstWidth = i32max(tex->width >> i, 1);
-		int32_t dstHeight = i32max(tex->height >> i, 1);
-
-		VkImageBlit blit;
-		blit.srcOffsets[0] = (VkOffset3D){ 0, 0, 0 };
-		blit.srcOffsets[1] = (VkOffset3D){ srcWidth, srcHeight, 1 };
-		blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		blit.srcSubresource.mipLevel = i - 1;
-		blit.srcSubresource.baseArrayLayer = 0;
-		blit.srcSubresource.layerCount = 1;
-		blit.dstOffsets[0] = (VkOffset3D){ 0, 0, 0 };
-		blit.dstOffsets[1] = (VkOffset3D){ dstWidth, dstHeight, 1 };
-		blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		blit.dstSubresource.mipLevel = i;
-		blit.dstSubresource.baseArrayLayer = 0;
-		blit.dstSubresource.layerCount = 1;
-
-		vkCmdBlitImage(cmdbuf, tex->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tex->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
-
-		// end blit
-
-		// start layout change
-
-		imgMemBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		imgMemBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imgMemBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		imgMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		vkCmdPipelineBarrier(cmdbuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &imgMemBarrier);
-
-		// end layout change
-	}
-
-	imgMemBarrier.subresourceRange.baseMipLevel = tex->mipmapCount - 1;
-	imgMemBarrier.subresourceRange.levelCount = 1;
-
-	imgMemBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	imgMemBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imgMemBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	imgMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-	vkCmdPipelineBarrier(cmdbuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &imgMemBarrier);
-
-	endStagingCommandBuffer(tex->renderer, cmdbuf);
-
-	//vid2_destroyBuffer(buffer);
-}*/
-
-/*uint32_t vid2_getTextureWidth(vid2_texture_t *tex) {
-	return tex->width;
-}
-
-uint32_t vid2_getTextureHeight(vid2_texture_t *tex) {
-	return tex->height;
-}*/

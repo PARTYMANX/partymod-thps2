@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <global.h>
 
 #include <vulkan/vulkan.h>
 
@@ -260,14 +261,14 @@ void createTextureManager(partyRenderer *renderer) {
 	result.count = 0;
 	result.samplers[0] = createSampler(renderer, VK_FILTER_NEAREST);
 	result.samplers[1] = createSampler(renderer, VK_FILTER_LINEAR);
-	result.images = malloc(sizeof(rbVkImage) * result.capacity);
+	result.images = malloc(sizeof(pmVkImage) * result.capacity);
 	result.occupied = calloc(result.capacity, sizeof(uint8_t));
 
 	renderer->textureManager = result;
 }
 
 uint32_t createTextureEntry(partyRenderer *renderer, uint32_t width, uint32_t height) {
-	rbVkImage result;
+	pmVkImage result;
 	createTexture(renderer, width, height, &result);
 
 	int i = 0;
@@ -365,7 +366,7 @@ void flushTextureDeletes(partyRenderer *renderer) {
 */
 
 VkResult createScalerVertexBuffer(partyRenderer *renderer) {
-	rbVkBuffer result;
+	pmVkBuffer result;
 
 	createBuffer(renderer, sizeof(scalerVertex) * 6, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &result);
 
@@ -389,7 +390,7 @@ VkResult createScalerVertexBuffer(partyRenderer *renderer) {
 }
 
 VkResult createScalerImageInfoBuffer(partyRenderer *renderer) {
-	rbVkBuffer result;
+	pmVkBuffer result;
 
 	createBuffer(renderer, sizeof(imageInfo), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &result);
 
@@ -422,38 +423,37 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 		goto error;
 	}
 
-	//result->parent.driver = &rbVkDriver;
+	//result->parent.driver = &pmVkDriver;
 
-	r = rbVkCreateWindow(windowHandle, &(result->window));
+	r = pmVkCreateWindow(windowHandle, &(result->window));
 	if (r) {
+		fatalError("Failed to create Vulkan surface!");
 		goto error_free;
 	}
 
 	r = createVulkanDevice(result->window, &(result->device));
 	if (r) {
+		fatalError("Failed to create Vulkan 1.3 device!  Make sure that you have the latest graphics drivers installed.");
 		goto error_free;
 	}
 
-	printf("CREATING SWAPCHAIN\n");
+	r = pmVkCreateSwapchain(result->device, &(result->swapchain));
+	if (r) {
+		fatalError("Failed to create Vulkan swapchain!");
+		goto error_free;
+	}
 
-	r = rbVkCreateSwapchain(result->device, &(result->swapchain));
+	r = pmVkCreateCommandQueue(result->device, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, &(result->queue));
 	if (r) {
 		goto error_free;
 	}
 
-	printf("DONE\n");
-
-	r = rbVkCreateCommandQueue(result->device, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, &(result->queue));
+	r = pmVkCreateCommandQueue(result->device, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, &(result->memQueue));
 	if (r) {
 		goto error_free;
 	}
 
-	r = rbVkCreateCommandQueue(result->device, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, &(result->memQueue));
-	if (r) {
-		goto error_free;
-	}
-
-	r = rbVkInitMemoryManager(result, &(result->memoryManager));
+	r = pmVkInitMemoryManager(result, &(result->memoryManager));
 	if (r) {
 		goto error_free;
 	}
@@ -508,13 +508,6 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 		goto error_free;
 	}
 
-	/*result->renderPassCache = initRenderPassCache(result->device);
-	result->framebufferCache = initFramebufferCache(result);
-	result->pipelineCache = initPipelineCache(result);
-	result->descriptorSetCache = initDescriptorSetCache(result);
-
-	result->commandBuffers = createHandleList(sizeof(commandBuffer_t), 1);*/
-
 	*renderer = result;
 
 	return 1;
@@ -523,35 +516,26 @@ error_free:
 	free(result);
 error:
 	printf("failed to create renderer\n");
+	fatalError("Failed to create Vulkan renderer!");
 	// todo: translate error
 	return 0;
 }
 
-void rbVkDestroyRenderer(partyRenderer *renderer) {
-	/*destroyFramebufferCache(renderer->framebufferCache);
-	destroyPipelineCache(renderer->pipelineCache);
-	destroyRenderPassCache(renderer->renderPassCache);
-	destroyDescriptorSetCache(renderer->descriptorSetCache);*/
-	
-	//rbVkDestroyMemoryManager(renderer->memoryManager);
+void pmVkDestroyRenderer(partyRenderer *renderer) {
+	//pmVkDestroyMemoryManager(renderer->memoryManager);
 	destroyRenderCommandBuffer(renderer);
-	rbVkDestroyCommandQueue(renderer->memQueue);
-	rbVkDestroyCommandQueue(renderer->queue);
-	rbVkDestroySwapchain(renderer->swapchain);
-	rbVkDestroyDevice(renderer->device);
-	rbVkDestroyWindow(renderer->window);
-
-	//destroyPHandleList(renderer->pipelines);
-	// TODO: add renderpass and framebuffer cache destruction ?
-	//destroyPHandleList(renderer->renderPasses);
-	//destroyPHandleList(renderer->framebuffers);
+	pmVkDestroyCommandQueue(renderer->memQueue);
+	pmVkDestroyCommandQueue(renderer->queue);
+	pmVkDestroySwapchain(renderer->swapchain);
+	pmVkDestroyDevice(renderer->device);
+	pmVkDestroyWindow(renderer->window);
 
 	free(renderer);
 
 	destroyInstance();
 }
 
-uint8_t rbVkWaitIdle(partyRenderer *renderer) {
+uint8_t pmVkWaitIdle(partyRenderer *renderer) {
 	VkResult result = vkDeviceWaitIdle(renderer->device->device);
 	
 	if (result != VK_SUCCESS) {
@@ -562,31 +546,19 @@ uint8_t rbVkWaitIdle(partyRenderer *renderer) {
 	return 1;
 }
 
-/*void invalidateCommandBuffers(vid2_renderer_t *renderer) {
-	for (uint64_t i = 0; i < renderer->commandBuffers->len; i++) {
-		commandBuffer_t *data = renderer->commandBuffers->data;
-		data[i].dirty = 1;
-	}
-}*/
-
 void updateRenderer(partyRenderer *renderer) {
-	rbVkWaitIdle(renderer);
+	pmVkWaitIdle(renderer);
 
-	//clearFramebufferCache(renderer->framebufferCache);	// avoid reusing old framebuffers
-	//clearRenderPassCache(renderer->renderPassCache);
-
-	rbVkDestroySwapchain(renderer->swapchain);
-	rbVkCreateSwapchain(renderer->device, &(renderer->swapchain));	// FIXME: check errors
-	
-	//invalidateCommandBuffers(renderer);
+	pmVkDestroySwapchain(renderer->swapchain);
+	pmVkCreateSwapchain(renderer->device, &(renderer->swapchain));	// FIXME: check errors
 }
 
 // TODO: put images into list to have handles for them, then only return the handles
-uint8_t rbVkGetNextImage(partyRenderer *renderer, uint32_t *idx) {
+uint8_t pmVkGetNextImage(partyRenderer *renderer, uint32_t *idx) {
 	VkResult result;
 	result = vkWaitForFences(renderer->device->device, 1, &(renderer->swapchain->fence), VK_TRUE, 1000000000);	// FIXME: is there a better way to deal with an unsignaled fence?
 	if (result == VK_TIMEOUT) {
-		printf("TIME OUT!!!\n");	
+		//printf("TIME OUT!!!\n");	
 	} else if (result != VK_SUCCESS) {
 		printf("Failed to wait for swapchain fence: %d\n", result);
 		return 0;
@@ -614,7 +586,7 @@ uint8_t rbVkGetNextImage(partyRenderer *renderer, uint32_t *idx) {
 	return 1;
 }
 
-uint8_t rbVkPresent(partyRenderer *renderer) {
+uint8_t pmVkPresent(partyRenderer *renderer) {
 	VkPresentInfoKHR presentInfo;
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pNext = NULL;
@@ -640,18 +612,16 @@ uint8_t rbVkPresent(partyRenderer *renderer) {
 	return 1;
 }
 
-//void transitionImage(partyRenderer *renderer, )
-
 void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	uint32_t currentImage = 0;
-	if (!rbVkGetNextImage(renderer, &currentImage)) {
+	if (!pmVkGetNextImage(renderer, &currentImage)) {
 		printf("ERROR: failed to get next image\n");
 		return;
 	}
 
 	vkResetCommandBuffer(renderer->renderCommandBuffer, 0);
 
-	// kind of disorganized here: we've waited for the relevant fance in rbVkGetNextImage, so we can reset descriptor sets safely
+	// kind of disorganized here: we've waited for the relevant fance in pmVkGetNextImage, so we can reset descriptor sets safely
 	clear_descriptor_pools(renderer, renderer->descriptorAllocator);
 	flushTextureDeletes(renderer);
 
@@ -709,38 +679,6 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 		1, // imageMemoryBarrierCount
 		&image_memory_barrier // pImageMemoryBarriers
 	);
-
-	// END IMAGE TRANSITION
-
-	// START IMAGE TRANSITION
-
-	/*const VkImageMemoryBarrier depth_image_memory_barrier = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-		.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		.image = renderer->depthImage.image,
-		.subresourceRange = {
-		  .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-		  .baseMipLevel = 0,
-		  .levelCount = 1,
-		  .baseArrayLayer = 0,
-		  .layerCount = 1,
-		}
-	};
-
-	vkCmdPipelineBarrier(
-		renderer->renderCommandBuffer,
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // dstStageMask
-		0,
-		0,
-		NULL,
-		0,
-		NULL,
-		1, // imageMemoryBarrierCount
-		&depth_image_memory_barrier // pImageMemoryBarriers
-	);*/
 
 	// END IMAGE TRANSITION
 
@@ -849,10 +787,6 @@ void flushVerts(partyRenderer *renderer) {
 void setPipeline(partyRenderer *renderer, uint32_t pipeline) {
 	flushVerts(renderer);
 	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->renderPipelines[pipeline]);
-	//vkCmdSetViewport(renderer->renderCommandBuffer, 0, 1, &renderer->currentViewport);
-	//vkCmdSetScissor(renderer->renderCommandBuffer, 0, 1, &renderer->currentScissor);
-	//vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, (renderer->currentDepthTestState) ? VK_TRUE : VK_FALSE);
-	//vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, (renderer->currentDepthWriteState) ? VK_TRUE : VK_FALSE);
 }
 
 int getBlendPipeline(uint32_t mode) {
@@ -1016,38 +950,6 @@ void drawRenderTexture(partyRenderer *renderer) {
 		1, // imageMemoryBarrierCount
 		&image_memory_barrier_start // pImageMemoryBarriers
 	);
-
-	// END IMAGE TRANSITION
-
-	// START IMAGE TRANSITION
-
-	/*const VkImageMemoryBarrier depth_image_memory_barrier = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-		.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		.image = renderer->depthImage.image,
-		.subresourceRange = {
-		  .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-		  .baseMipLevel = 0,
-		  .levelCount = 1,
-		  .baseArrayLayer = 0,
-		  .layerCount = 1,
-		}
-	};
-
-	vkCmdPipelineBarrier(
-		renderer->renderCommandBuffer,
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // dstStageMask
-		0,
-		0,
-		NULL,
-		0,
-		NULL,
-		1, // imageMemoryBarrierCount
-		&depth_image_memory_barrier // pImageMemoryBarriers
-	);*/
 
 	// END IMAGE TRANSITION
 
@@ -1253,7 +1155,7 @@ void finishRender(partyRenderer *renderer) {
 		exit(1);
 	}
 
-	if (!rbVkPresent(renderer)) {
+	if (!pmVkPresent(renderer)) {
 		printf("Present failed!\n");	
 	}
 
@@ -1278,14 +1180,14 @@ void renderImageFrame(partyRenderer *renderer, uint32_t texIdx) {
 	texIdx--;
 
 	uint32_t currentImage = 0;
-	if (!rbVkGetNextImage(renderer, &currentImage)) {
+	if (!pmVkGetNextImage(renderer, &currentImage)) {
 		printf("ERROR: failed to get next image\n");
 		return;
 	}
 
 	vkResetCommandBuffer(renderer->renderCommandBuffer, 0);
 
-	// kind of disorganized here: we've waited for the relevant fance in rbVkGetNextImage, so we can reset descriptor sets safely
+	// kind of disorganized here: we've waited for the relevant fance in pmVkGetNextImage, so we can reset descriptor sets safely
 	clear_descriptor_pools(renderer, renderer->descriptorAllocator);
 	flushTextureDeletes(renderer);
 
@@ -1503,7 +1405,7 @@ void renderImageFrame(partyRenderer *renderer, uint32_t texIdx) {
 		exit(1);
 	}
 
-	if (!rbVkPresent(renderer)) {
+	if (!pmVkPresent(renderer)) {
 		printf("Present failed!\n");	
 	}
 

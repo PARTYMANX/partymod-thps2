@@ -129,12 +129,12 @@ uint8_t deviceSupportsSwapchain(VkPhysicalDevice phDevice, VkSurfaceKHR surface)
 	return formatCount > 0 && presentModeCount > 0;
 }
 
-VkResult getPhysicalDevice(struct rbVkWindow *window, struct rbVkPhysicalDevice *physicalDevice) {
+VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice *physicalDevice) {
 	VkResult r;
 
 	VkSurfaceKHR surface = getWindowSurface(window);
 
-	struct rbVkPhysicalDevice result;
+	struct pmVkPhysicalDevice result;
 	result.device = VK_NULL_HANDLE;
 	for (uint32_t *i = result.queueFamilyIdxs; i < result.queueFamilyIdxs + QUEUE_FAMILY_COUNT; i++) 
 		*i = 0;
@@ -204,13 +204,13 @@ VkResult getPhysicalDevice(struct rbVkWindow *window, struct rbVkPhysicalDevice 
 	return VK_SUCCESS;
 }
 
-VkResult createVulkanDevice(struct rbVkWindow *window, struct rbVkDevice **device) {
-	struct rbVkDevice *result;
+VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **device) {
+	struct pmVkDevice *result;
 	VkResult r;
 
 	*device = NULL;
 
-	result = malloc(sizeof(struct rbVkDevice));
+	result = malloc(sizeof(struct pmVkDevice));
 
 	if (!result) {
 		return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -284,7 +284,7 @@ VkResult createVulkanDevice(struct rbVkWindow *window, struct rbVkDevice **devic
 	return VK_SUCCESS;
 }
 
-void rbVkDestroyDevice(struct rbVkDevice *device) {
+void pmVkDestroyDevice(struct pmVkDevice *device) {
 	vkDestroyDevice(device->device, 0);
 
 	free(device);

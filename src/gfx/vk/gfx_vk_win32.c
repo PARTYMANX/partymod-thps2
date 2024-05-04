@@ -16,7 +16,7 @@
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/vk/vk.h>
 
-struct rbVkWindow {
+struct pmVkWindow {
 	HWND hwnd;
 	VkSurfaceKHR surface;
 };
@@ -31,8 +31,8 @@ const char * const windowExtNames[] = {
 	WINDOW
 */
 
-VkResult rbVkCreateWindow(void *windowHandle, struct rbVkWindow **window) {
-	struct rbVkWindow *result = malloc(sizeof(struct rbVkWindow));
+VkResult pmVkCreateWindow(void *windowHandle, struct pmVkWindow **window) {
+	struct pmVkWindow *result = malloc(sizeof(struct pmVkWindow));
 
 	if (!result) {
 		return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -69,17 +69,17 @@ VkResult rbVkCreateWindow(void *windowHandle, struct rbVkWindow **window) {
 	return VK_SUCCESS;
 }
 
-void rbVkDestroyWindow(struct rbVkWindow *window) {
+void pmVkDestroyWindow(struct pmVkWindow *window) {
 	vkDestroySurfaceKHR(instance, window->surface, NULL);
 	
 	free(window);
 }
 
-VkSurfaceKHR getWindowSurface(struct rbVkWindow *window) {
+VkSurfaceKHR getWindowSurface(struct pmVkWindow *window) {
 	return window->surface;
 }
 
-void rbVkGetDrawableSize(struct rbVkWindow *window, int *pWidth, int *pHeight) {
+void pmVkGetDrawableSize(struct pmVkWindow *window, int *pWidth, int *pHeight) {
 	RECT rect;
 
 	GetClientRect(window->hwnd, &rect);

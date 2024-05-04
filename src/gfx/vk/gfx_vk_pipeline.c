@@ -12,34 +12,6 @@ INCBIN(shader_base_frag, "shader-built/base-texture.frag.spv");
 INCBIN(shader_framebuffer_vert, "shader-built/framebuffer.vert.spv");
 INCBIN(shader_framebuffer_frag, "shader-built/framebuffer-sharp.frag.spv");
 
-// TODO: strip out all of the old handle stuff; we have the same problems on metal so we can probably surface it safely
-// TODO: figure out what that meant
-
-/*pipelineLayout_t createPipelineLayout(vid2_renderer_t *renderer, descriptorSetLayoutInfo_t *setLayout) {
-	pipelineLayout_t result;
-
-	result.setLayout = getDescriptorSetLayout(renderer, renderer->descriptorSetCache, setLayout);
-
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo;
-	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.pNext = NULL;
-	pipelineLayoutInfo.flags = 0;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &(result.setLayout.layout);
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
-	pipelineLayoutInfo.pPushConstantRanges = NULL;
-
-	if (vkCreatePipelineLayout(renderer->device->device, &pipelineLayoutInfo, NULL, &(result.pipelineLayout)) != VK_SUCCESS) {
-		printf("Failed to create pipeline layout!\n");
-		exit(1);
-	}
-
-	
-
-	return result;
-}*/
-
-// TODO: return handle to pipeline
 VkResult createRenderPipelines(partyRenderer *renderer) {
 	//pipeline_t pipeline;
 
@@ -305,18 +277,6 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	// pipeline layout
 
-	/*descriptorSetLayoutInfo_t layout;
-	layout.numBindings = 0;
-	layout.bindings = NULL;
-
-	copyDescriptorSetLayout(&layout, &descriptor->vertexShader->descriptorSetLayout);
-	copyDescriptorSetLayout(&layout, &descriptor->fragmentShader->descriptorSetLayout);
-	pipeline.pipelineLayout = createPipelineLayout(renderer, &layout);
-
-	//pipeline.pipelineLayout 
-
-	free(layout.bindings);*/
-
 	VkDescriptorSetLayoutBinding descBindings[1];
 	descBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	descBindings[0].binding = 0;
@@ -444,10 +404,6 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	return result;
 }
-
-/*void destroyPipelineLayout(vid2_renderer_t *renderer, pipelineLayout_t layout) {
-	vkDestroyPipelineLayout(renderer->device->device, layout.pipelineLayout, NULL);
-}*/
 
 void destroyPipeline(partyRenderer *renderer) {
 	for (int i = 0; i < 10; i++) {
@@ -643,18 +599,6 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 
 	// pipeline layout
 
-	/*descriptorSetLayoutInfo_t layout;
-	layout.numBindings = 0;
-	layout.bindings = NULL;
-
-	copyDescriptorSetLayout(&layout, &descriptor->vertexShader->descriptorSetLayout);
-	copyDescriptorSetLayout(&layout, &descriptor->fragmentShader->descriptorSetLayout);
-	pipeline.pipelineLayout = createPipelineLayout(renderer, &layout);
-
-	//pipeline.pipelineLayout 
-
-	free(layout.bindings);*/
-
 	VkDescriptorSetLayoutBinding descBindings[2];
 	descBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	descBindings[0].binding = 0;
@@ -752,38 +696,5 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &renderer->scalerPipeline);
 	renderer->scalerPipelineLayout = layout;
 
-	//free(vertexAttributeDesc);
-	//free(vertexBindingDesc);
-	//free(attachmentBlend);
-
 	return result;
 }
-
-/*void vid2_destroyPipeline(vid2_pipeline_t *pipeline) {
-	pipeline_t *inPipeline = (pipeline_t *)handleListGet(pipeline->cache->pipelines, pipeline->hdl);
-
-	destroyPipeline(pipeline->cache->renderer, *inPipeline);
-
-	handleListRemove(pipeline->cache->pipelines, pipeline->hdl);
-
-	free(pipeline);
-}
-
-pipelineCache_t *initPipelineCache(vid2_renderer_t *renderer) {
-	pipelineCache_t *result = malloc(sizeof(pipelineCache_t));
-
-	result->renderer = renderer;
-	result->pipelines = createHandleList(sizeof(pipeline_t), 1);
-
-	return result;
-}
-
-void destroyPipelineCache(pipelineCache_t *cache) {
-	pipeline_t *pipelines = cache->pipelines->data;
-
-	for(int i = 0; i < cache->pipelines->allocCount; i++) {
-		destroyPipeline(cache->renderer, pipelines[i]);
-	}
-
-	destroyHandleList(cache->pipelines);
-}*/
