@@ -9,6 +9,7 @@
 //#include "vid_vk.h"
 
 #include <gfx/vk/vk.h>
+#include <log.h>
 
 /*
 	QUEUE
@@ -36,11 +37,13 @@ VkResult pmVkCreateCommandQueue(struct pmVkDevice *device, VkCommandPoolCreateFl
 
 	VkResult r = vkCreateCommandPool(device->device, &commandPoolInfo, NULL, &(result->commandPool));
 	if (r) {
-		printf("ERROR: Failed to create device command pool!");
+		log_printf(LL_ERROR, "ERROR: Failed to create device command pool!");
 		return r;
 	}
 
 	*queue = result;
+
+	log_printf(LL_DEBUG, "Command pool created\n");
 
 	return r;
 }
@@ -62,10 +65,15 @@ VkResult createRenderCommandBuffer(partyRenderer *renderer) {
 	bufferAllocateInfo.commandPool = renderer->queue->commandPool;
 	bufferAllocateInfo.commandBufferCount = 1;
 
-	if (vkAllocateCommandBuffers(renderer->device->device, &bufferAllocateInfo, &(renderer->renderCommandBuffer)) != VK_SUCCESS) {
-		printf("ERROR: Failed to create render command buffer!");
-		exit(1);
+	VkResult r = vkAllocateCommandBuffers(renderer->device->device, &bufferAllocateInfo, &(renderer->renderCommandBuffer));
+	if (r != VK_SUCCESS) {
+		log_printf(LL_ERROR, "ERROR: Failed to create render command buffer!");
+		return r;
 	}
+
+	log_printf(LL_DEBUG, "Successfully created command buffer!\n");
+
+	return r;
 }
 
 void destroyRenderCommandBuffer(partyRenderer *renderer) {

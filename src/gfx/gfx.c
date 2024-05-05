@@ -10,6 +10,7 @@
 #include <patch.h>
 #include <global.h>
 #include <config.h>
+#include <log.h>
 #include <gfx/gfx_movie.h>
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/gfx_global.h>
@@ -72,9 +73,9 @@ void initD3D() {
 	uint8_t result = CreateVKRenderer(hwnd, &renderer);
 
 	if (!result) {
-		printf("failed to init vulkan!!!\n");
+		log_printf(LL_ERROR, "failed to init vulkan!!!\n");
 	} else {
-		printf("vulkan initialized!!\n");
+		log_printf(LL_INFO, "vulkan initialized!!\n");
 	}
 
 	setRenderResolution(renderer, internal_resolution_x, internal_resolution_y, aspectRatio);
@@ -384,7 +385,7 @@ void renderDXPoly(int *tag) {
 			setBlendState(renderer, 2);
 			break;
 		default:
-			printf("unknown blend mode 0x%08x\n", polyflags & 0x40);
+			log_printf(LL_WARN, "unknown blend mode 0x%08x\n", polyflags & 0x40);
 			alpha = 0xff000000;
 		}
 
@@ -1293,7 +1294,7 @@ void D3DPOLY_DrawOTag(int *tag) {
 						setBlendState(renderer, 2);
 						break;
 					default:
-						printf("unknown blend mode 0x%08x\n", *nextPSXBlendMode);
+						log_printf(LL_WARN, "unknown blend mode 0x%08x\n", *nextPSXBlendMode);
 						*alphaBlend = 0xff000000;
 					}
 
@@ -1353,7 +1354,7 @@ void D3DPOLY_DrawOTag(int *tag) {
 						renderTile16(tag);
 						break;
 					default:
-						printf("UNKNOWN RENDER COMMAND: %d\n", cmd >> 2);
+						log_printf(LL_WARN, "UNKNOWN RENDER COMMAND: %d\n", cmd >> 2);
 				}
 			} else if (cmd == 0xB0) {
 				renderDXPoly(tag);
@@ -1484,7 +1485,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 		}
 
 		if (!a->palette) {
-			printf("Palette Checksum not found: 0x%08x\n", b);
+			log_printf(LL_WARN, "Palette Checksum not found: 0x%08x\n", b);
 			a->palette = *palFront;
 		} else {
 			//printf("Found!\n");

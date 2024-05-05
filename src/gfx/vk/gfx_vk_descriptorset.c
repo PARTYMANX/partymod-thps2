@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 
 #include <gfx/vk/vk.h>
+#include <log.h>
 
 VkDescriptorPool createPool(partyRenderer *renderer, pmVkDescriptorAllocator *allocator) {
 	VkDescriptorPoolSize *sizes = malloc(sizeof(VkDescriptorPoolSize) * allocator->ratios->count);
@@ -67,6 +68,8 @@ pmVkDescriptorAllocator *init_descriptors(partyRenderer *renderer, uint32_t max_
 	result->sets_per_pool = max_sets * 1.5;
 
 	sb_push_back(result->ready_pools, &pool);
+
+	log_printf(LL_DEBUG, "Descriptor pool ready!\n");
 
 	return result;
 }

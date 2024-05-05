@@ -7,6 +7,7 @@
 #include <event.h>
 #include <gfx/gfx.h>
 #include <config.h>
+#include <log.h>
 
 //
 
@@ -136,7 +137,7 @@ void setCursorInactive() {
 }
 
 void addController(int idx) {
-	printf("Detected controller \"%s\"\n", SDL_GameControllerNameForIndex(idx));
+	log_printf(LL_INFO, "Detected controller \"%s\"\n", SDL_GameControllerNameForIndex(idx));
 
 	SDL_GameController *controller = SDL_GameControllerOpen(idx);
 
@@ -159,7 +160,7 @@ void addController(int idx) {
 }
 
 void removeController(SDL_GameController *controller) {
-	printf("Controller \"%s\" disconnected\n", SDL_GameControllerName(controller));
+	log_printf(LL_INFO, "Controller \"%s\" disconnected\n", SDL_GameControllerName(controller));
 
 	int i = 0;
 
@@ -179,7 +180,7 @@ void removeController(SDL_GameController *controller) {
 			activeController = -1;
 		}
 	} else {
-		printf("Did not find disconnected controller in list\n");
+		log_printf(LL_WARN, "Did not find disconnected controller in list\n");
 	}
 }
 
@@ -196,7 +197,7 @@ void setActiveController(SDL_GameController *controller) {
 }
 
 void initSDLControllers() {
-	printf("Initializing Controller Input\n");
+	log_printf(LL_INFO, "Initializing Controller Input\n");
 
 	controllerCount = 0;
 	controllerListSize = 1;
@@ -370,7 +371,7 @@ uint16_t pollKeyboard() {
 	if (keyboardState[keybinds.grab]) {
 		result |= 0x01 << 5;
 	}
-	if (keyboardState[keybinds.ollie] || keyboardState[SDL_SCANCODE_RETURN] || keyboardState[SDL_SCANCODE_SPACE]) {
+	if (keyboardState[keybinds.ollie] || keyboardState[SDL_SCANCODE_RETURN]) {
 		result |= 0x01 << 6;
 	}
 	if (keyboardState[keybinds.kick]) {
@@ -453,7 +454,10 @@ void __cdecl processController() {
 	}
 }
 
+uint32_t click_vblank = 0;
+
 void processMouse() {
+	uint32_t *vblanks = 0x0056af7c;
 	uint8_t *shouldCursorBeShown = 0x0069e050;
 	if (*shouldCursorBeShown && !isCursorActive) {
 		setCursorActive();
@@ -483,7 +487,10 @@ void processMouse() {
 	uint8_t *mouseUnk1 = 0x0069e04f;
 	uint32_t *mouseUnk2 = 0x0069e054;
 
-	*mouseClicked = 0;
+	if (*vblanks != click_vblank) {
+		*mouseClicked = 0;
+	}
+	
 	if (*gameMouseX == mouseX && *gameMouseY == mouseY && *gameMouseButtons == mouseButtons) {
 		*mouseChanged = 0;
 	} else {
@@ -491,6 +498,7 @@ void processMouse() {
 		*mouseUnk1 = 0;
 		*mouseUnk2 = 0;
 		if (*gameMouseButtons != mouseButtons && mouseButtons == 0) {
+			click_vblank = *vblanks;
 			*mouseClicked = 1;
 		}
 	}
@@ -506,7 +514,7 @@ void processInputEvent(SDL_Event *e) {
 			if (SDL_IsGameController(e->cdevice.which)) {
 				addController(e->cdevice.which);
 			} else {
-				printf("Not a game controller: %s\n", SDL_JoystickNameForIndex(e->cdevice.which));
+				log_printf(LL_INFO, "Not a game controller: %s\n", SDL_JoystickNameForIndex(e->cdevice.which));
 			}
 			return;
 		case SDL_CONTROLLERDEVICEREMOVED: {
@@ -517,7 +525,7 @@ void processInputEvent(SDL_Event *e) {
 			return;
 		}
 		case SDL_JOYDEVICEADDED:
-			printf("Joystick added: %s\n", SDL_JoystickNameForIndex(e->jdevice.which));
+			log_printf(LL_DEBUG, "Joystick added: %s\n", SDL_JoystickNameForIndex(e->jdevice.which));
 			setUsingKeyboard(0);
 			return;
 		case SDL_CONTROLLERBUTTONDOWN:
@@ -590,7 +598,7 @@ void configureControls() {
 }
 
 void InitDirectInput(void *hwnd, void *hinstance) {
-	printf("Initializing Input!\n");
+	log_printf(LL_INFO, "Initializing Input!\n");
 
 	// init sdl here
 	SDL_Init(SDL_INIT_GAMECONTROLLER);
@@ -603,9 +611,9 @@ void InitDirectInput(void *hwnd, void *hinstance) {
 	if (result) {
 		result = SDL_GameControllerAddMappingsFromFile(controllerDbPath);
 		if (result) {
-			printf("Loaded mappings\n");
+			log_printf(LL_INFO, "Loaded controller database\n");
 		} else {
-			printf("Failed to load %s\n", controllerDbPath);
+			log_printf(LL_WARN, "Failed to load %s\n", controllerDbPath);
 		}
 		
 	}

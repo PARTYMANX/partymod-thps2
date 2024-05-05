@@ -4,6 +4,7 @@
 
 #include <vulkan/vulkan.h>
 #include <gfx/vk/vk.h>
+#include <log.h>
 
 // REFACTOR STATUS: needs validation layers and surface
 
@@ -80,23 +81,23 @@ uint8_t deviceSupportsExt(VkPhysicalDevice phDevice, uint32_t extCount, char **e
 	uint32_t supportedExtCount = 0;
 	r = vkEnumerateDeviceExtensionProperties(phDevice, NULL, &supportedExtCount, NULL);
 	if (r) {
-		printf("Error enumerating devices\n");
+		log_printf(LL_ERROR, "Error enumerating devices\n");
 		return 0;
 	}
 
 	VkExtensionProperties *supportedExts = malloc(sizeof(VkExtensionProperties) * supportedExtCount);
 	r = vkEnumerateDeviceExtensionProperties(phDevice, NULL, &supportedExtCount, supportedExts);
 	if (r) {
-		printf("Error enumerating devices\n");
+		log_printf(LL_ERROR, "Error enumerating devices\n");
 		return 0;
 	}
 
 	uint32_t supportCount = 0;
 	for (char **i = extNames; i < extNames + extCount; i++) {
-		printf("TESTING SUPPORT FOR: %s\n", *i);
+		log_printf(LL_DEBUG, "TESTING SUPPORT FOR: %s\n", *i);
 		for (VkExtensionProperties *j = supportedExts; j < supportedExts + supportedExtCount; j++) {
 			if (strcmp(*i, j->extensionName) == 0) {
-				printf("%s supported!\n", j->extensionName);
+				log_printf(LL_DEBUG, "%s supported!\n", j->extensionName);
 				supportCount++;
 				break;
 			}
@@ -116,13 +117,13 @@ uint8_t deviceSupportsSwapchain(VkPhysicalDevice phDevice, VkSurfaceKHR surface)
 
 	r = vkGetPhysicalDeviceSurfaceFormatsKHR(phDevice, surface, &formatCount, NULL);
 	if (r) {
-		printf("Error getting device surface formats\n");
+		log_printf(LL_ERROR, "Error getting device surface formats\n");
 		return 0;
 	}
 
 	r = vkGetPhysicalDeviceSurfacePresentModesKHR(phDevice, surface, &presentModeCount, NULL);
 	if (r) {
-		printf("Error getting device present modes\n");
+		log_printf(LL_ERROR, "Error getting device present modes\n");
 		return 0;
 	}
 
@@ -145,7 +146,7 @@ VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice 
 	r = vkEnumeratePhysicalDevices(instance, &phDeviceCount, NULL);
 
 	if (r) {
-		printf("Failed to enumerate devices\n");
+		log_printf(LL_ERROR, "Failed to enumerate devices\n");
 		return r;
 	}
 
@@ -154,7 +155,7 @@ VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice 
 #endif
 
 	if (phDeviceCount == 0) {
-		printf("ERROR: Cannot find GPU supporting Vulkan!\n");
+		log_printf(LL_ERROR, "ERROR: Cannot find GPU supporting Vulkan!\n");
 		return VK_SUCCESS;
 	}
 
@@ -163,7 +164,7 @@ VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice 
 	r = vkEnumeratePhysicalDevices(instance, &phDeviceCount, phDevices);
 
 	if (r) {
-		printf("Failed to enumerate devices\n");
+		log_printf(LL_ERROR, "Failed to enumerate devices\n");
 		return r;
 	}
 
@@ -183,7 +184,7 @@ VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice 
 			deviceSupportsSwapchain(*i, surface) && phDeviceFeatures.samplerAnisotropy) {	// FIXME: error checking
 			result.device = *i;
 
-			printf("DEVICE: %s\n", phDeviceProperties.deviceName);
+			log_printf(LL_DEBUG, "TESTING DEVICE: %s\n", phDeviceProperties.deviceName);
 
 			isDiscrete = phDeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
 		}
@@ -195,11 +196,15 @@ VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice 
 	free(phDevices);
 
 	if (!result.device) {
-		printf("ERROR: Cannot find suitable GPU supporting Vulkan!\n");
+		log_printf(LL_ERROR, "ERROR: Cannot find suitable GPU supporting Vulkan!\n");
 		return VK_SUCCESS;
 	}
 
 	*physicalDevice = result;
+
+	VkPhysicalDeviceProperties phDeviceProperties;
+	vkGetPhysicalDeviceProperties(result.device, &phDeviceProperties);
+	log_printf(LL_INFO, "Selected physical device: %s\n", phDeviceProperties.deviceName);
 
 	return VK_SUCCESS;
 }
@@ -218,7 +223,7 @@ VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **devic
 
 	r = getPhysicalDevice(window, &(result->physicalDevice));
 	if (r || result->physicalDevice.device == VK_NULL_HANDLE) {
-		printf("Failed to get physical device!\n");
+		log_printf(LL_ERROR, "Failed to get physical device!\n");
 		free(result);
 		return r;
 	}
@@ -274,12 +279,13 @@ VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **devic
 
 	r = vkCreateDevice(result->physicalDevice.device, &deviceInfo, NULL, &(result->device));
 	if (r) {
-		printf("ERROR: Failed to create Vulkan device!\n");
+		log_printf(LL_ERROR, "ERROR: Failed to create Vulkan device!\n");
 		free(result);
 		return r;
 	}
 
 	*device = result;
+	log_printf(LL_INFO, "Vulkan device created successfully!\n");
 
 	return VK_SUCCESS;
 }

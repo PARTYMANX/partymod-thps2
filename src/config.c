@@ -25,3 +25,7 @@ int getConfigBool(char *section, char *key, int def) {
 int getConfigInt(char *section, char *key, int def) {
 	return GetPrivateProfileInt(section, key, def, configFile);
 }
+
+int getConfigString(char *section, char *key, char *dst, size_t sz) {
+	return GetPrivateProfileString(section, key, "", dst, sz, configFile);
+}

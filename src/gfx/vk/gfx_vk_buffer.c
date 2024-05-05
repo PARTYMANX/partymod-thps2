@@ -6,6 +6,7 @@
 #include <vk_mem_alloc.h>
 
 #include <gfx/vk/vk.h>
+#include <log.h>
 
 
 // why's this a function anyway?
@@ -26,7 +27,7 @@ void createBuffer(partyRenderer *renderer, VkDeviceSize size, VkBufferUsageFlags
 
 	VkResult r = vkCreateBuffer(renderer->device->device, &info, NULL, &(result.buffer));
 	if (r != VK_SUCCESS) {
-		printf("Failed allocation of size %lld: 0x%08x!\n", size, r);
+		log_printf(LL_ERROR, "Failed allocation of size %lld: 0x%08x!\n", size, r);
 		exit(1);
 	}
 
@@ -56,7 +57,7 @@ void *mapBuffer(partyRenderer *renderer, pmVkBuffer *buffer) {
 	void *result;
 	
 	if (vmaMapMemory(renderer->memoryManager->allocator, buffer->allocation, &result) != VK_SUCCESS) {
-		printf("FAILED TO MAP MEMORY\n");
+		log_printf(LL_ERROR, "FAILED TO MAP MEMORY\n");
 	}
 
 	return result;

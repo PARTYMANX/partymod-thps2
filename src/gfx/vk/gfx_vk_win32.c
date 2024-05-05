@@ -16,6 +16,8 @@
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/vk/vk.h>
 
+#include <log.h>
+
 struct pmVkWindow {
 	HWND hwnd;
 	VkSurfaceKHR surface;
@@ -45,7 +47,7 @@ VkResult pmVkCreateWindow(void *windowHandle, struct pmVkWindow **window) {
 	PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR) vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
 
 	if (!vkCreateWin32SurfaceKHR) {
-		printf("failed to create window surface!\n");
+		log_printf(LL_ERROR, "failed to create window surface!\n");
 		free(result);
 		return VK_ERROR_UNKNOWN;
 	}
@@ -59,7 +61,7 @@ VkResult pmVkCreateWindow(void *windowHandle, struct pmVkWindow **window) {
 
 	VkResult r = vkCreateWin32SurfaceKHR(instance, &createInfo, NULL, &(result->surface));
 	if (r) {
-		printf("failed to create window surface!\n");
+		log_printf(LL_ERROR, "failed to create window surface!\n");
 		free(result);
 		return r;
 	}

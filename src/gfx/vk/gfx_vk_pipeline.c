@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 
 #include <gfx/vk/vk.h>
+#include <log.h>
 
 #include <incbin.h>
 
@@ -291,8 +292,9 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	descInfo.bindingCount = 1;
 	descInfo.pBindings = descBindings;
 
+	log_printf(LL_TRACE, "createRenderPipelines(): descriptor set layout\n");
 	if (vkCreateDescriptorSetLayout(renderer->device->device, &descInfo, NULL, &renderer->renderDescriptorLayout) != VK_SUCCESS) {
-		printf("Failed to create descriptor set layout!\n");
+		log_printf(LL_ERROR, "Failed to create descriptor set layout!\n");
 		exit(1);
 	}
 
@@ -307,8 +309,9 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = NULL;
 
+	log_printf(LL_TRACE, "createRenderPipelines(): pipeline layout\n");
 	if (vkCreatePipelineLayout(renderer->device->device, &pipelineLayoutInfo, NULL, &(layout)) != VK_SUCCESS) {
-		printf("Failed to create pipeline layout!\n");
+		log_printf(LL_ERROR, "Failed to create pipeline layout!\n");
 		exit(1);
 	}
 
@@ -384,18 +387,20 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 		printf("failed to create fragment shader!\n");
 	}*/
 
+	log_printf(LL_TRACE, "createRenderPipelines(): vertex shader\n");
 	shaderResult = createShader(renderer, gshader_base_vertData, gshader_base_vertSize, &(shaderStageInfo[0].module));
 	if (!shaderResult) {
-		printf("failed to create vertex shader!\n");
+		log_printf(LL_ERROR, "failed to create vertex shader for render pipeline!\n");
 	}
 
-		shaderResult = createShader(renderer, gshader_base_fragData, gshader_base_fragSize, &(shaderStageInfo[1].module));
+	log_printf(LL_TRACE, "createRenderPipelines(): fragment shader\n");
+	shaderResult = createShader(renderer, gshader_base_fragData, gshader_base_fragSize, &(shaderStageInfo[1].module));
 	if (!shaderResult) {
-		printf("failed to create vertex shader!\n");
+		log_printf(LL_ERROR, "failed to create fragment shader for render pipeline!\n");
 	}
 
 	// to avoid having to use a dynamic state extension (even though probably everyone has it), make one pipeline per blend mode
-
+	log_printf(LL_TRACE, "createRenderPipelines(): pipelines\n");
 	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 10, pipelineInfo, NULL, renderer->renderPipelines);
 
 	//free(vertexAttributeDesc);
@@ -619,8 +624,9 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 	descInfo.bindingCount = 2;
 	descInfo.pBindings = descBindings;
 
+	log_printf(LL_TRACE, "createScalerPipeline(): descriptor set layout\n");
 	if (vkCreateDescriptorSetLayout(renderer->device->device, &descInfo, NULL, &renderer->scalerLayout) != VK_SUCCESS) {
-		printf("Failed to create descriptor set layout!\n");
+		log_printf(LL_ERROR, "Failed to create descriptor set layout!\n");
 		exit(1);
 	}
 
@@ -635,8 +641,9 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = NULL;
 
+	log_printf(LL_TRACE, "createScalerPipeline(): pipeline layout\n");
 	if (vkCreatePipelineLayout(renderer->device->device, &pipelineLayoutInfo, NULL, &layout) != VK_SUCCESS) {
-		printf("Failed to create pipeline layout!\n");
+		log_printf(LL_ERROR, "Failed to create pipeline layout!\n");
 		exit(1);
 	}
 
@@ -683,16 +690,19 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 		printf("failed to create fragment shader!\n");
 	}*/
 
+	log_printf(LL_TRACE, "createScalerPipeline(): vertex shader\n");
 	shaderResult = createShader(renderer, gshader_framebuffer_vertData, gshader_framebuffer_vertSize, &(shaderStageInfo[0].module));
 	if (!shaderResult) {
-		printf("failed to create vertex shader!\n");
+		log_printf(LL_ERROR, "failed to create vertex shader!\n");
 	}
 
+	log_printf(LL_TRACE, "createScalerPipeline(): fragment shader\n");
 	shaderResult = createShader(renderer, gshader_framebuffer_fragData, gshader_framebuffer_fragSize, &(shaderStageInfo[1].module));
 	if (!shaderResult) {
-		printf("failed to create vertex shader!\n");
+		log_printf(LL_ERROR, "failed to create vertex shader!\n");
 	}
 
+	log_printf(LL_TRACE, "createScalerPipeline(): pipeline\n");
 	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &renderer->scalerPipeline);
 	renderer->scalerPipelineLayout = layout;
 

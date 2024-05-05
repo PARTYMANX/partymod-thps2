@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <global.h>
+#include <log.h>
 
 #include <vulkan/vulkan.h>
 
@@ -34,7 +35,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugMessageCallback(
 	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 	void* pUserData) {
 
-	printf("VALIDATION LAYER: %s\n", pCallbackData->pMessage);
+	log_printf(LL_INFO, "VALIDATION LAYER: %s\n", pCallbackData->pMessage);
 
 	return VK_FALSE;
 }
@@ -71,14 +72,14 @@ uint8_t checkLayerSupport(char **layers, uint32_t layerCount) {
 	uint32_t supportedLayerCount = 0;
 	r = vkEnumerateInstanceLayerProperties(&supportedLayerCount, NULL);
 	if (r) {
-		printf("Failed to enumerate instance layer properties\n");
+		log_printf(LL_ERROR, "Failed to enumerate instance layer properties\n");
 		return 0;
 	}
 
 	VkLayerProperties *supportedLayers = malloc(sizeof(VkLayerProperties) * supportedLayerCount);
 	r = vkEnumerateInstanceLayerProperties(&supportedLayerCount, supportedLayers);
 	if (r) {
-		printf("Failed to enumerate instance layer properties\n");
+		log_printf(LL_ERROR, "Failed to enumerate instance layer properties\n");
 		return 0;
 	}
 
@@ -93,7 +94,7 @@ uint8_t checkLayerSupport(char **layers, uint32_t layerCount) {
 		}
 
 		if (!found) {
-			printf("Layer not supported: %s\n", *i);
+			log_printf(LL_ERROR, "Layer not supported: %s\n", *i);
 			return 0;
 		}
 	}
@@ -118,7 +119,7 @@ VkResult initInstance() {
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pNext = NULL;
 	appInfo.pApplicationName = "PARTYMOD for THPS2";
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.applicationVersion = VK_MAKE_VERSION(VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH);
 	appInfo.pEngineName = "M3D";
 	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
 	appInfo.apiVersion = VK_API_VERSION_1_3;
@@ -147,7 +148,7 @@ VkResult initInstance() {
 
 		appendExtensions(&extCount, &extNames, validationExtCount, validationExtNames);
 	} else {
-		printf("Failed to get validation layer!\n");
+		log_printf(LL_ERROR, "Failed to get validation layer!\n");
 
 		instanceInfo.enabledLayerCount = 0;
 		instanceInfo.ppEnabledLayerNames = NULL;
@@ -156,12 +157,10 @@ VkResult initInstance() {
 
 	appendExtensions(&extCount, &extNames, reqExtensionCount, reqExtensionNames);
 
-#ifdef DEBUG
-	printf("Creating Vulkan instance with %u extensions:\n", extCount);
+	log_printf(LL_INFO, "Creating Vulkan instance with %u extensions:\n", extCount);
 	for (int i = 0; i < extCount; i++) {
-		printf("%s\n", extNames[i]);
+		log_printf(LL_INFO, "%s\n", extNames[i]);
 	}
-#endif
 
 	instanceInfo.enabledExtensionCount = extCount;
 	instanceInfo.ppEnabledExtensionNames = extNames;
@@ -170,7 +169,7 @@ VkResult initInstance() {
 
 	if (result != VK_SUCCESS) {
 		// error
-		printf("ERROR: Failed to create Vulkan instance!\n");
+		log_printf(LL_ERROR, "ERROR: Failed to create Vulkan instance!\n");
 		return result;
 	}
 
@@ -179,12 +178,12 @@ VkResult initInstance() {
 	vkpfn_vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
 
 	if (!vkpfn_vkCreateDebugUtilsMessengerEXT) {
-		printf("ERROR: Failed to load vkCreateDebugUtilsMessengerEXT function!\n");
+		log_printf(LL_ERROR, "ERROR: Failed to load vkCreateDebugUtilsMessengerEXT function!\n");
 		//return VK_ERROR_EXTENSION_NOT_PRESENT;
 	}
 
 	if (!vkpfn_vkDestroyDebugUtilsMessengerEXT) {
-		printf("ERROR: Failed to load vkDestroyDebugUtilsMessengerEXT function!\n");
+		log_printf(LL_ERROR, "ERROR: Failed to load vkDestroyDebugUtilsMessengerEXT function!\n");
 		//return VK_ERROR_EXTENSION_NOT_PRESENT;
 	}
 
@@ -229,7 +228,7 @@ void appendPolyBuffer(partyRenderer *renderer, renderVertex *vertices, uint32_t 
 
 	if (vertices[0].texture > 0) {
 		if (!renderer->textureManager.occupied[vertices[0].texture]) {
-			printf("Referencing freed texture %d!!!\n", vertices[0].texture);
+			log_printf(LL_ERROR, "Referencing freed texture %d!!!\n", vertices[0].texture);
 		}
 	}
 
@@ -305,7 +304,7 @@ void destroyTextureEntry(partyRenderer *renderer, uint32_t idx) {
 		// emergency flush last half of pending image deletes.  something went horribly wrong 
 		// this can actually happen if images don't get cleared during a long-held soft reset
 
-		printf("DOING EMERGENCY TEXTURE DELETION FLUSH\n");
+		log_printf(LL_WARN, "DOING EMERGENCY TEXTURE DELETION FLUSH\n");
 		if (renderer->pendingImageWrites->count > 0) {
 			vkQueueWaitIdle(renderer->memQueue->queue);
 
@@ -471,6 +470,8 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 	};
 	result->descriptorAllocator = init_descriptors(result, 1000, descriptor_ratios, 4);
 
+	log_printf(LL_DEBUG, "Creating render targets...\n");
+
 	// create default render targets at 640x480, 4:3
 	createRenderTargets(result, 640, 480, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D16_UNORM);
 	result->aspectRatio = 4.0f / 3.0f;
@@ -478,15 +479,23 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 	result->renderHeight = 480;
 	result->textureFilter = 0;
 
+	log_printf(LL_DEBUG, "Successful!\n");
+	
+	log_printf(LL_DEBUG, "Creating pipelines...\n");
+
 	r = createRenderPipelines(result);
 	if (r) {
 		goto error_free;
 	}
 
+	log_printf(LL_DEBUG, "Created render pipelines\n");
+
 	r = createScalerPipeline(result);
 	if (r) {
 		goto error_free;
 	}
+
+	log_printf(LL_DEBUG, "Scaler pipeline created!\n");
 
 	r = createPolyBuffer(result);
 	if (r) {
@@ -515,7 +524,7 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 error_free:
 	free(result);
 error:
-	printf("failed to create renderer\n");
+	log_printf(LL_ERROR, "failed to create renderer\n");
 	fatalError("Failed to create Vulkan renderer!");
 	// todo: translate error
 	return 0;
@@ -560,13 +569,13 @@ uint8_t pmVkGetNextImage(partyRenderer *renderer, uint32_t *idx) {
 	if (result == VK_TIMEOUT) {
 		//printf("TIME OUT!!!\n");	
 	} else if (result != VK_SUCCESS) {
-		printf("Failed to wait for swapchain fence: %d\n", result);
+		log_printf(LL_ERROR, "Failed to wait for swapchain fence: %d\n", result);
 		return 0;
 	}
 
 	result = vkResetFences(renderer->device->device, 1, &(renderer->swapchain->fence));
 	if (result != VK_SUCCESS) {
-		printf("Failed to reset swapchain fence: %d\n", result);
+		log_printf(LL_ERROR, "Failed to reset swapchain fence: %d\n", result);
 		return 0;
 	}
 
@@ -577,7 +586,7 @@ uint8_t pmVkGetNextImage(partyRenderer *renderer, uint32_t *idx) {
 
 		vkAcquireNextImageKHR(renderer->device->device, renderer->swapchain->swapchain, UINT64_MAX, renderer->swapchain->imageReadySemaphore, VK_NULL_HANDLE, &(renderer->swapchain->imageIdx));
 	} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-		printf("Failed to get next image: %d\n", result);
+		log_printf(LL_ERROR, "Failed to get next image: %d\n", result);
 		return 0;
 	}
 
@@ -615,7 +624,7 @@ uint8_t pmVkPresent(partyRenderer *renderer) {
 void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	uint32_t currentImage = 0;
 	if (!pmVkGetNextImage(renderer, &currentImage)) {
-		printf("ERROR: failed to get next image\n");
+		log_printf(LL_ERROR, "ERROR: failed to get next image\n");
 		return;
 	}
 
@@ -626,7 +635,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	flushTextureDeletes(renderer);
 
 	if (renderer->renderWidth != renderer->renderImage.width || renderer->renderHeight != renderer->renderImage.height) {
-		printf("Adjusting internal render resolution from %dx%d to %dx%d\n", renderer->renderImage.width, renderer->renderImage.height, renderer->renderWidth, renderer->renderHeight);
+		log_printf(LL_INFO, "Adjusting internal render resolution from %dx%d to %dx%d\n", renderer->renderImage.width, renderer->renderImage.height, renderer->renderWidth, renderer->renderHeight);
 		destroyRenderTargets(renderer);
 		createRenderTargets(renderer, renderer->renderWidth, renderer->renderHeight, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D16_UNORM);
 
@@ -646,7 +655,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	beginInfo.pInheritanceInfo = NULL;
 
 	if (vkBeginCommandBuffer(renderer->renderCommandBuffer, &beginInfo) != VK_SUCCESS) {
-		printf("ERROR: Failed to begin command buffers!\n");
+		log_printf(LL_ERROR, "ERROR: Failed to begin command buffers!\n");
 		exit(1);
 	}
 
@@ -800,7 +809,7 @@ int getBlendPipeline(uint32_t mode) {
 		case 6:
 			return 4;
 		default:
-			printf("UNKNOWN BLEND MODE %d\n", mode);
+			log_printf(LL_WARN, "UNKNOWN BLEND MODE %d\n", mode);
 		case 0:
 		case 3:
 			return 0;
@@ -837,7 +846,7 @@ void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vert
 	// fix texture idx for each vertex
 	for (int i = 0; i < vertex_count; i++) {
 		if (vertices[i].texture > 1024) {
-			printf("invalid texture: 0x%08x\n", vertices[i].texture);
+			log_printf(LL_ERROR, "invalid texture: 0x%08x\n", vertices[i].texture);
 			vertices[i].texture = -1;
 		}
 
@@ -1151,12 +1160,12 @@ void finishRender(partyRenderer *renderer) {
 	}
 
 	if (vkQueueSubmit(renderer->queue->queue, 1, &submitInfo, renderer->swapchain->fence) != VK_SUCCESS) {
-		printf("ERROR: Failed to submit command queue!");
+		log_printf(LL_ERROR, "ERROR: Failed to submit command queue!\n");
 		exit(1);
 	}
 
 	if (!pmVkPresent(renderer)) {
-		printf("Present failed!\n");	
+		log_printf(LL_ERROR, "Present failed!\n");	
 	}
 
 	if (renderer->pendingImageWrites->count > 0) {
@@ -1181,7 +1190,7 @@ void renderImageFrame(partyRenderer *renderer, uint32_t texIdx) {
 
 	uint32_t currentImage = 0;
 	if (!pmVkGetNextImage(renderer, &currentImage)) {
-		printf("ERROR: failed to get next image\n");
+		log_printf(LL_ERROR, "ERROR: failed to get next image\n");
 		return;
 	}
 
@@ -1208,7 +1217,7 @@ void renderImageFrame(partyRenderer *renderer, uint32_t texIdx) {
 	beginInfo.pInheritanceInfo = NULL;
 
 	if (vkBeginCommandBuffer(renderer->renderCommandBuffer, &beginInfo) != VK_SUCCESS) {
-		printf("ERROR: Failed to begin command buffers!\n");
+		log_printf(LL_ERROR, "ERROR: Failed to begin command buffers!\n");
 		exit(1);
 	}
 
@@ -1401,12 +1410,12 @@ void renderImageFrame(partyRenderer *renderer, uint32_t texIdx) {
 	}
 
 	if (vkQueueSubmit(renderer->queue->queue, 1, &submitInfo, renderer->swapchain->fence) != VK_SUCCESS) {
-		printf("ERROR: Failed to submit command queue!");
+		log_printf(LL_ERROR, "ERROR: Failed to submit command queue!");
 		exit(1);
 	}
 
 	if (!pmVkPresent(renderer)) {
-		printf("Present failed!\n");	
+		log_printf(LL_ERROR, "Present failed!\n");	
 	}
 
 	if (renderer->pendingImageWrites->count > 0) {

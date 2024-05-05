@@ -3,6 +3,7 @@
 #include <patch.h>
 #include <event.h>
 #include <config.h>
+#include <log.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
@@ -60,7 +61,7 @@ void configWindow() {
 }
 
 HWND initWindow() {
-	printf("Creating window\n");
+	log_printf(LL_INFO, "Creating window\n");
 
 	configWindow();
 
@@ -94,7 +95,7 @@ HWND initWindow() {
 	window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowResX, windowResY, SDL_WINDOW_SHOWN | flags);
 
 	if (!window) {
-		printf("Failed to create window! Error: %s\n", SDL_GetError());
+		log_printf(LL_ERROR, "Failed to create window! Error: %s\n", SDL_GetError());
 	}
 
 	SDL_SysWMinfo wmInfo;
@@ -102,7 +103,7 @@ HWND initWindow() {
 	SDL_GetWindowWMInfo(window, &wmInfo);
 	HWND windowHandle = wmInfo.info.win.window;
 
-	printf("Created window\n");
+	log_printf(LL_INFO, "Created window\n");
 
 	registerEventHandler(handleWindowEvents);
 

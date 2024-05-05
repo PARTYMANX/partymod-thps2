@@ -15,10 +15,7 @@
 #include <mem.h>
 #include <event.h>
 #include <window.h>
-
-#define VERSION_NUMBER_MAJOR 1
-#define VERSION_NUMBER_MINOR 0
-#define VERSION_NUMBER_PATCH 0
+#include <log.h>
 
 // disable the options menu entries for control and display options as they're no longer relevant
 void __fastcall OptionsMenuConstructorWrapper(uint8_t **optionsMenu) {
@@ -76,8 +73,10 @@ void initPatch() {
 	sprintf(configFile, "%s%s", executableDirectory, CONFIG_FILE_NAME);
 
 	initConfig();
-
+	
 	int isDebug = getConfigBool("Miscellaneous", "Debug", 0);
+
+	configureLogging(isDebug);
 
 	if (isDebug) {
 		AllocConsole();
@@ -87,9 +86,9 @@ void initPatch() {
 		freopen_s(&fDummy, "CONOUT$", "w", stderr);
 		freopen_s(&fDummy, "CONOUT$", "w", stdout);
 	}
-	printf("PARTYMOD for THPS2 %d.%d.%d\n", VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH);
+	log_printf(LL_INFO, "PARTYMOD for THPS2 %d.%d.%d\n", VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH);
 
-	printf("DIRECTORY: %s\n", executableDirectory);
+	log_printf(LL_INFO, "DIRECTORY: %s\n", executableDirectory);
 
 #ifdef MEM_AUDIT
 	initMemAudit();
@@ -99,10 +98,11 @@ void initPatch() {
 
 	loadAutokickSetting();
 
-	printf("Patch Initialized\n");
+	log_printf(LL_INFO, "Patch Initialized\n");
 }
 
 void fatalError(const char *msg) {
+	log_printf(LL_ERROR, "FATAL ERROR: %s\n", msg);
 	createErrorMessageBox(msg);
 	exit(1);
 }

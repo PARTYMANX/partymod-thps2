@@ -7,6 +7,7 @@
 #include <vk_mem_alloc.h>
 
 #include <gfx/vk/vk.h>
+#include <log.h>
 
 VkResult pmVkInitMemoryManager(partyRenderer *renderer, struct pmVkMemoryManager **memManager) {
 	struct pmVkMemoryManager *result = malloc(sizeof(struct pmVkMemoryManager));
@@ -40,6 +41,8 @@ VkResult pmVkInitMemoryManager(partyRenderer *renderer, struct pmVkMemoryManager
 	}
 
 	*memManager = result;
+
+	log_printf(LL_DEBUG, "Vulkan Memory Allocator initialized!\n");
 
 	return VK_SUCCESS;
 }

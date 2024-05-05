@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 
 #include <gfx/vk/vk.h>
+#include <log.h>
 
 // REFACTOR STATUS: needs window surface
 // REFACTOR STATUS: needs texture refactor
@@ -112,7 +113,7 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 	VkSurfaceCapabilitiesKHR capabilities;
 	r = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physicalDevice.device, surface, &capabilities);
 	if (r) {
-		printf("Failed to get physical device surface capabilities! %d\n", r);
+		log_printf(LL_ERROR, "Failed to get physical device surface capabilities! %d\n", r);
 		free(result);
 		return r;
 	}
@@ -144,7 +145,7 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 	VkSurfaceFormatKHR surfaceFormat;
 	r = getSwapchainFormat(device, &surfaceFormat);
 	if (r) {
-		printf("Failed to get swapchain format!\n");
+		log_printf(LL_ERROR, "Failed to get swapchain format!\n");
 		free(result);
 		return r;
 	}
@@ -152,7 +153,7 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 	VkPresentModeKHR presentMode;
 	r = getSwapchainPresentMode(device, &presentMode);
 	if (r) {
-		printf("Failed to get swapchain present mode!\n");
+		log_printf(LL_ERROR, "Failed to get swapchain present mode!\n");
 		free(result);
 		return r;
 	}
@@ -186,14 +187,14 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 
 	r = vkCreateSwapchainKHR(device->device, &swapchainInfo, NULL, &(result->swapchain));
 	if (r) {
-		printf("Failed to create swapchain!\n");
+		log_printf(LL_ERROR, "Failed to create swapchain!\n");
 		free(result);
 		return r;
 	}
 
 	r = vkGetSwapchainImagesKHR(device->device, result->swapchain, &(result->imageCount), NULL);
 	if (r) {
-		printf("Failed to get swapchain image count!\n");
+		log_printf(LL_ERROR, "Failed to get swapchain image count!\n");
 		free(result);
 		return r;
 	}
@@ -203,7 +204,7 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 	result->images = malloc(sizeof(VkImage) * result->imageCount);
 	r = vkGetSwapchainImagesKHR(device->device, result->swapchain, &(result->imageCount), result->images);
 	if (r) {
-		printf("Failed to get swapchain images!\n");
+		log_printf(LL_ERROR, "Failed to get swapchain images!\n");
 		free(result->images);
 		free(result);
 		return r;
@@ -235,7 +236,7 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 
 		r = vkCreateImageView(device->device, &imageViewInfo, NULL, result->imageViews + i);
 		if (r) {
-			printf("Failed to create swapchain image view %d\n", i);
+			log_printf(LL_ERROR, "Failed to create swapchain image view %d\n", i);
 			free(result->imageViews);
 			free(result->images);
 			free(result);
@@ -253,7 +254,7 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 
 	r = vkCreateSemaphore(device->device, &semaphoreInfo, NULL, &(result->imageReadySemaphore));
 	if (r) {
-		printf("Failed to create image ready semaphore!\n");
+		log_printf(LL_ERROR, "Failed to create image ready semaphore!\n");
 		free(result->imageViews);
 		free(result->images);
 		free(result);
@@ -262,7 +263,7 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 
 	r = vkCreateSemaphore(device->device, &semaphoreInfo, NULL, &(result->imageFinishedSemaphore));
 	if (r) {
-		printf("Failed to create image finished semaphore\n");
+		log_printf(LL_ERROR, "Failed to create image finished semaphore\n");
 		free(result->imageViews);
 		free(result->images);
 		free(result);
@@ -278,7 +279,7 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 
 	r = vkCreateFence(device->device, &fenceInfo, NULL, &(result->fence));
 	if (r) {
-		printf("Failed to create swapchain fence\n");
+		log_printf(LL_ERROR, "Failed to create swapchain fence\n");
 		free(result->imageViews);
 		free(result->images);
 		free(result);
@@ -288,6 +289,8 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 	result->fenceUsed = 0;
 
 	*swapchain = result;
+
+	log_printf(LL_DEBUG, "Successfully created swapchain!\n");
 
 	return VK_SUCCESS;
 }

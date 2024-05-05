@@ -5,6 +5,7 @@
 
 #include <patch.h>
 #include <util/hash.h>
+#include <log.h>
 
 map_t *memmap = NULL;
 int allocbytes = 0;
@@ -25,12 +26,12 @@ void *__cdecl mem_new_wrapper(int size, void *b, void *c, int d) {
 	int result = mem_newx(size, b, c, d);	// subtle difference from original here: allocating four extra bytes as padding.  hopefully fixes out of bounds access the game sometimes does
 
 #ifdef MEM_AUDIT
-	printf("MEM_NEW WITH SIZE %d\n", size);
+	log_printf(LL_TRACE, "MEM_NEW WITH SIZE %d\n", size);
 
 	int headersize = *((uint32_t *)(result - 8)) >> 4;
 
 	if (headersize != size) {
-		printf("RESULT DIFFERENT SIZE: %d -> %d\n", size, headersize);
+		log_printf(LL_ERROR, "RESULT DIFFERENT SIZE: %d -> %d\n", size, headersize);
 	}
 #endif
 
@@ -40,7 +41,7 @@ void *__cdecl mem_new_wrapper(int size, void *b, void *c, int d) {
 
 #ifdef MEM_AUDIT
 	if (result & 0x3) {
-		printf("NEW 0x%08x NOT LWORD ALIGNED\n");
+		log_printf(LL_WARN, "NEW 0x%08x NOT LWORD ALIGNED\n");
 		while(1) {
 		
 		}
@@ -50,7 +51,7 @@ void *__cdecl mem_new_wrapper(int size, void *b, void *c, int d) {
 
 	allocbytes += size;
 
-	printf("MEM_NEW WITH SIZE %d - 0x%08x, TOTAL: %d\n", size, result, allocbytes);
+	log_printf(LL_TRACE, "MEM_NEW WITH SIZE %d - 0x%08x, TOTAL: %d\n", size, result, allocbytes);
 #endif
 
 	return result;
@@ -69,7 +70,7 @@ void __cdecl mem_delete_wrapper(int p) {
 
 	if (sz) {
 		if (*sz != headersize) {
-			printf("FOUND CORRUPT BLOCK WHILE DELETING 0x%08x - HEADER SIZE: %d, KNOWN SIZE: %d\n", p, headersize, *sz);
+			log_printf(LL_ERROR, "FOUND CORRUPT BLOCK WHILE DELETING 0x%08x - HEADER SIZE: %d, KNOWN SIZE: %d\n", p, headersize, *sz);
 			while(1) {
 
 			}
@@ -78,13 +79,13 @@ void __cdecl mem_delete_wrapper(int p) {
 
 		map_del(memmap, &p, sizeof(int));
 	} else {
-		printf("0x%08x WASN'T FOUND\n", p);
+		log_printf(LL_ERROR, "0x%08x WASN'T FOUND\n", p);
 		while(1) {
 		
 		}
 	}
 
-	printf("MEM_DELETE - 0x%08x, TOTAL: %d\n", p, allocbytes);
+	log_printf(LL_TRACE, "MEM_DELETE - 0x%08x, TOTAL: %d\n", p, allocbytes);
 #endif
 }
 
@@ -96,7 +97,7 @@ void __cdecl mem_shrink_wrapper(int p, int newsize) {
 
 #ifdef MEM_AUDIT
 	if (newsize & 0x3) {
-		printf("SHRINKING 0x%08x TO %d - NOT LWORD ALIGNED\n", p, newsize);
+		log_printf(LL_WARN, "SHRINKING 0x%08x TO %d - NOT LWORD ALIGNED\n", p, newsize);
 		while(1) {
 		
 		}
@@ -112,7 +113,7 @@ void __cdecl mem_shrink_wrapper(int p, int newsize) {
 
 	if (sz) {
 		if (*sz != headersize) {
-			printf("FOUND CORRUPT BLOCK WHILE SHRINKING 0x%08x - HEADER SIZE: %d, KNOWN SIZE: %d\n", p, headersize, *sz);
+			log_printf(LL_ERROR, "FOUND CORRUPT BLOCK WHILE SHRINKING 0x%08x - HEADER SIZE: %d, KNOWN SIZE: %d\n", p, headersize, *sz);
 			while(1) {
 
 			}
@@ -123,13 +124,13 @@ void __cdecl mem_shrink_wrapper(int p, int newsize) {
 		map_del(memmap, &p, sizeof(int));
 		map_put(memmap, &p, sizeof(int), &newsize, sizeof(int));
 	} else {
-		printf("0x%08x WASN'T FOUND\n", p);
+		log_printf(LL_ERROR, "0x%08x WASN'T FOUND\n", p);
 		while(1) {
 		
 		}
 	}
 	
-	printf("MEM_SHRINK - 0x%08x, %d, TOTAL: %d\n", p, newsize, allocbytes);
+	log_printf(LL_TRACE, "MEM_SHRINK - 0x%08x, %d, TOTAL: %d\n", p, newsize, allocbytes);
 #endif
 }
 
@@ -153,7 +154,7 @@ void *__cdecl mem_new(int size, int a, int b, int c) {
 
 	#ifdef MEM_AUDIT
 	allocbytes += size;
-	printf("allocated %d bytes at 0x%08x (total %d)\n", size, result, allocbytes);
+	log_printf(LL_TRACE, "allocated %d bytes at 0x%08x (total %d)\n", size, result, allocbytes);
 	#endif
 
 	return result + 1;
@@ -166,7 +167,7 @@ void __cdecl mem_delete(void *p) {
 		#ifdef MEM_AUDIT
 		allocbytes -= *pp;
 
-		printf("mem delete for 0x%08x (total allocated %d)\n", pp, allocbytes);
+		log_printf(LL_TRACE, "mem delete for 0x%08x (total allocated %d)\n", pp, allocbytes);
 		#endif
 
 		free(pp);

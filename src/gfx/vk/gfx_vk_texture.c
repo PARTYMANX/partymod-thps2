@@ -5,6 +5,7 @@
 #include <vulkan/vulkan.h>
 
 #include <gfx/vk/vk.h>
+#include <log.h>
 
 uint8_t isDepthFormat(VkFormat format) {
 	return (format == VK_FORMAT_D16_UNORM || 
@@ -27,7 +28,7 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	renderer->depthImage.sampleCount = 1;
 
 	renderer->renderImage.type = VK_IMAGE_TYPE_2D;
-	renderer->renderImage.pixelFormat = depthFmt;
+	renderer->renderImage.pixelFormat = colorFmt;
 
 	renderer->renderImage.width = width;
 	renderer->renderImage.height = height;
@@ -61,16 +62,18 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	imgCreateInfo.queueFamilyIndexCount = 0;
 	imgCreateInfo.pQueueFamilyIndices = NULL;
 
+	log_printf(LL_TRACE, "createRenderTargets(): depth image\n");
 	if (vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(renderer->depthImage.image)) != VK_SUCCESS) {
-		printf("Failed to create depth texture!\n");
+		log_printf(LL_ERROR, "Failed to create depth texture!\n");
 		exit(1);
 	}
 
 	imgCreateInfo.format = colorFmt;
 	imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
+	log_printf(LL_TRACE, "createRenderTargets(): color image\n");
 	if (vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(renderer->renderImage.image)) != VK_SUCCESS) {
-		printf("Failed to create render texture!\n");
+		log_printf(LL_ERROR, "Failed to create render texture!\n");
 		exit(1);
 	}
 
@@ -86,6 +89,7 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	allocInfo.pUserData = NULL;
 	allocInfo.priority = 0.0f;
 
+	log_printf(LL_TRACE, "createRenderTargets(): allocate and bind memory\n");
 	vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->depthImage.image, &allocInfo, &renderer->depthImage.allocation, NULL);
 
 	vmaBindImageMemory(renderer->memoryManager->allocator, renderer->depthImage.allocation, renderer->depthImage.image);
@@ -115,18 +119,18 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	viewCreateInfo.subresourceRange.levelCount = 1;
 	viewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	viewCreateInfo.subresourceRange.layerCount = 1;
-
+	log_printf(LL_TRACE, "createRenderTargets(): depth image view\n");
 	if(vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(renderer->depthImage.imageView)) != VK_SUCCESS) {
-		printf("Failed to create depth image view");
+		log_printf(LL_ERROR, "Failed to create depth image view");
 		exit(1);
 	}
 
 	viewCreateInfo.image = renderer->renderImage.image;
 	viewCreateInfo.format = colorFmt;
 	viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-
+	log_printf(LL_TRACE, "createRenderTargets(): color image view\n");
 	if(vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(renderer->renderImage.imageView)) != VK_SUCCESS) {
-		printf("Failed to create render image view");
+		log_printf(LL_ERROR, "Failed to create render image view");
 		exit(1);
 	}
 
@@ -158,9 +162,9 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	samplerInfo.mipLodBias = 0;
 	samplerInfo.minLod = VK_LOD_CLAMP_NONE;
 	samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
-
+	log_printf(LL_TRACE, "createRenderTargets(): sampler\n");
 	if(vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &(renderer->renderSampler)) != VK_SUCCESS) {
-		printf("Failed to create sampler");
+		log_printf(LL_ERROR, "Failed to create sampler");
 		exit(1);
 	}
 }
@@ -215,7 +219,7 @@ VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height,
 
 	VkResult r = vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(result->image));
 	if (r != VK_SUCCESS) {
-		printf("Failed to create texture!\n");
+		log_printf(LL_ERROR, "Failed to create texture!\n");
 		return r;
 	}
 
@@ -258,7 +262,7 @@ VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height,
 
 	r = vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(result->imageView));
 	if(r != VK_SUCCESS) {
-		printf("Failed to create image view");
+		log_printf(LL_ERROR, "Failed to create image view");
 	}
 
 	return r;
@@ -302,7 +306,7 @@ VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter) {
 	samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
 
 	if(vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &result) != VK_SUCCESS) {
-		printf("Failed to create sampler");
+		log_printf(LL_ERROR, "Failed to create sampler");
 		exit(1);
 	}
 

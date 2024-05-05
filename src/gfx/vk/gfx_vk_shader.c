@@ -5,6 +5,7 @@
 #include <vulkan/vulkan.h>
 
 #include <gfx/vk/vk.h>
+#include <log.h>
 
 uint8_t createShaderFromFile(partyRenderer *renderer, char *filename, VkShaderModule *dst) {
 	uint8_t result = 0;
@@ -29,19 +30,19 @@ uint8_t createShaderFromFile(partyRenderer *renderer, char *filename, VkShaderMo
 			shaderInfo.pCode = buffer;
 
 			if (vkCreateShaderModule(renderer->device->device, &shaderInfo, NULL, dst) != VK_SUCCESS) {
-				printf("Failed to create shader!\n");
+				log_printf(LL_ERROR, "Failed to create shader!\n");
 			} else {
 				result = 1;
 			}
 
 			free(buffer);
 		} else {
-			printf("Failed to allocate buffer for file!\n");
+			log_printf(LL_ERROR, "Failed to allocate buffer for file!\n");
 		}
 
 		fclose(f);
 	} else {
-		printf("Could not open file: %s\n", filename);
+		log_printf(LL_ERROR, "Could not open file: %s\n", filename);
 	}
 
 	return result;
@@ -62,7 +63,7 @@ uint8_t createShader(partyRenderer *renderer, uint8_t *code, uint32_t codeSz, Vk
 	shaderInfo.pCode = code;
 
 	if (vkCreateShaderModule(renderer->device->device, &shaderInfo, NULL, dst) != VK_SUCCESS) {
-		printf("Failed to create shader!\n");
+		log_printf(LL_ERROR, "Failed to create shader!\n");
 	} else {
 		result = 1;
 	}
