@@ -322,7 +322,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	renderingInfo.pNext = NULL;
 	renderingInfo.viewMask = 0;
 	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachmentFormats = &renderer->swapchain->imageFormat;
+	renderingInfo.pColorAttachmentFormats = &renderer->renderImage.pixelFormat;
 	renderingInfo.depthAttachmentFormat = renderer->depthImage.pixelFormat;
 	renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 

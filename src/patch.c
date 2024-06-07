@@ -43,6 +43,14 @@ void patchFloat(void *addr, float val) {
     VirtualProtect(addr, 1, oldProtect, &oldProtect);
 }
 
+void patchCpy(void *addr, void *data, size_t sz) {
+    DWORD oldProtect;
+
+    VirtualProtect(addr, 1, PAGE_EXECUTE_READWRITE, &oldProtect);
+    memcpy(addr, data, sz);
+    VirtualProtect(addr, 1, oldProtect, &oldProtect);
+}
+
 void patchCall(void *addr, void *func) {
     DWORD oldProtect;
 

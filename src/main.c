@@ -16,6 +16,7 @@
 #include <event.h>
 #include <window.h>
 #include <log.h>
+#include <thps1.h>
 
 // disable the options menu entries for control and display options as they're no longer relevant
 void __fastcall OptionsMenuConstructorWrapper(uint8_t **optionsMenu) {
@@ -158,6 +159,8 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			installMemPatches();
 			patchSaveOpen();
 			patchOptionsMenu();
+
+			patchTHPS1Career();
 
 			//installAltMemManager();
 
