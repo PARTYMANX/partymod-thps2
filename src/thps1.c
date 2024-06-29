@@ -206,7 +206,7 @@ const SLevel warehouse = {
 const SLevel school = {
     .levelName = "School",
     .pCityName = "Miami",
-    .pVab = "ware",
+    .pVab = "school2",
     .isCompetition = 0,
     .pTRGName = "SkSchl_T",
     .GoldScore = 0,
@@ -270,7 +270,7 @@ const SLevel school = {
         {
             .type = 4,
             .name = "Grind 5 Tables",
-            .unit = "TABLES",
+            .unit = "LUNCH TABLES",
             .score = 5,
             .cash = 1,
             .maybe_hidden = 0
@@ -330,7 +330,7 @@ const SLevel school = {
 const SLevel mall = {
     .levelName = "Mall",
     .pCityName = "New York",
-    .pVab = "ware",
+    .pVab = "school2",
     .isCompetition = 0,
     .pTRGName = "SkMall_T",
     .GoldScore = 0,
@@ -578,7 +578,7 @@ const SLevel vans = {
 const SLevel downtown = {
     .levelName = "Downtown",
     .pCityName = "Minneapolis",
-    .pVab = "JAM",
+    .pVab = "ny",
     .isCompetition = 0,
     .pTRGName = "SkDown_T",
     .GoldScore = 0,
@@ -826,7 +826,7 @@ const SLevel jam = {
 const SLevel burnside = {
     .levelName = "Burnside",
     .pCityName = "Portland",
-    .pVab = "comp",
+    .pVab = "ware",
     .isCompetition = 1,
     .pTRGName = "SkBurn_T",
     .GoldScore = 40000,
@@ -950,7 +950,7 @@ const SLevel burnside = {
 const SLevel sf = {
     .levelName = "Streets",
     .pCityName = "San Francisco",
-    .pVab = "jam",
+    .pVab = "school2",
     .isCompetition = 0,
     .pTRGName = "SkSF_T",
     .GoldScore = 0,
@@ -1255,7 +1255,20 @@ void updateSkaterStats() {
     //00537328 - 005371b8
 }
 
-void __cdecl updateSkaterThenPlayAway(int a) {
+void completeDummyGoals() {
+    uint32_t *level_id = 0x0055e8f0;
+
+    uint32_t *profile = 0x005674b8;
+    //printf("SKATER aaa: 0x%08x\n", *profile);
+    uint32_t* skater_id = (*profile) + 0x2cc0;
+
+    //printf("SKATER ID: %d\n", *skater_id);
+
+    uint32_t *skatermanager = 0x005656cc;
+    uint32_t skaterprof = 0x005656cc + ((*skater_id) * 0x104);   // + 4 is money, + 56 is stats (stored as bytes)
+}
+
+void __cdecl updateSkaterThenPlayAway() {
     void (*__cdecl PlayAway)() = 0x0046a330;
 
     updateSkaterStats();
@@ -1271,7 +1284,7 @@ char *c_van = "c_van";
 // stats upgrades
 // sound banks
 // disable powerups
-
+// mark dummy goals as complete when loading in to prevent loud goal completion sound at start
 void patchTHPS1Career() {
     // use thps1 gaps
     patchNop(0x0045452a, 2);    // use thps1 gaps
@@ -1301,9 +1314,9 @@ void patchTHPS1Career() {
 
     patchDWord(0x004126df + 1, c_van);  // fix loading streets
 
-    patchJmp(0x004cffb0, fixPushbacks);
+    patchJmp(0x004cffb0, fixPushbacks); // remove z biases meant for the thps2 levels
     patchNop(0x004cf4c2, 5); // fix burnside transparency
 
-    patchCall(0x0046ad11, updateSkaterThenPlayAway);
+    patchCall(0x0046ad11, updateSkaterThenPlayAway);    // hook to update stuff on level start
 
 }
