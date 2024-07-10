@@ -372,6 +372,7 @@ void renderDXPoly(int *tag) {
 			alpha = 0xff000000;
 			// blend mode 2
 			setBlendState(renderer, 2);
+			setDepthState(renderer, 1, 1);
 			break;
 		case 0x100:
 			alpha = 0x00000000;
@@ -2028,6 +2029,89 @@ void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int
 	Font_Draw(font, NULL, a, b, c, d);
 }
 
+//float pushbackmult = 1.0f / 65535.0f; 
+float pushbackmult = 0.0f; 
+float f1 = 1.0f;
+
+
+
+int setDepthWrapper(int face, int unk, float bias, float unk2) {
+	int (__cdecl *setDepthOrig)(int, int, float, float) = 0x004cf8c0;
+
+	//printf("bias: %f\n", bias);
+
+	float *hither = 0x0057d4ec;
+	float *yon = 0x00599f8c;
+	int OTPushback = (int)bias;
+
+	float biasval = 0.0f;
+	/*int tmp = OTPushback;
+	while (tmp) {
+		biasval += 64.0f;
+		tmp >>= 1;
+	}*/
+
+	//bias = (bias * (128.0f / 65536.0f)) * *hither;
+
+	int result = setDepthOrig(face, unk, bias, unk2);
+
+	//printf("IN: %f, OUT: %d\n", unk2, result);
+
+	int *faceflags = 0x0058bf5c;
+
+	
+
+	for (int i = 0; i < *(int *)(face + 0x14); i++) {
+		float *z = NULL;
+		float *w = NULL;
+		if (*faceflags & 1) {
+			z = face + 0x20 + (i * 0x1c);
+			w = face + 0x24 + (i * 0x1c);
+		} else {
+			z = face + 0x20 + (i * 0x14);
+			w = face + 0x24 + (i * 0x14);
+		}
+
+		*z = *z / *w;
+
+		//printf("w: %f z: %f\n", *w, *z);
+
+		//*z -= bias * (1.0f / 65536.0f);
+		
+		/*if (*z > 1.0f) {
+			*z = 1.0f;
+		}
+		if (*z < 0.0f) {
+			*z = 0.0f;
+		}*/
+
+		*z = *z * *w;
+
+		if (bias == 0) {
+			//*z = -1.0f;
+		} else {
+		//	*z = *z - (biasval * (8.0f / 65535.0f));
+
+			//*z = 
+		}
+
+		//float r = *hither / (*yon - *hither);
+
+		//*z = *z * r * r * *hither;
+		//printf("h: %f, y: %f, r: %f\n", *hither, *yon, r);
+	}
+
+	result += OTPushback;
+
+	// OT placement is based on max z value on psx.  is that the case here???
+
+	if (result > 0xfff) {
+		result = 0xfff;
+	}
+
+	return result;
+}
+
 void installGfxPatches() {
 	patchJmp(0x004f5190, initDDraw);
 	patchJmp(0x004f41c0, initD3D);
@@ -2109,6 +2193,23 @@ void installGfxPatches() {
 	//patchDWord(0x004cfaba + 2, &pushbackmult);
 	//patchDWord(0x004cfa5a + 2, &fzero);
 	//patchByte(0x004cfb28 + 1, 0xc1);	// FMUL -> FADD
+	//patchByte(0x004cfb28 + 1, 0xe1);	// FMUL -> FSUB
+	//patchByte(0x004cfb23 + 1, 0x61);	// FADD -> FSUB
+
+	patchByte(0x004cfa62, 0xeb);	// skip replacing pushback
+	
+	//patchNop(0x004cfa93, 26);	// transparent object z-bias
+	//patchNop(0x004cfaaf, 21);	// skater z-bias to avoid clipping
+	//patchNop(0x004cfad2, 14);	// something with park editor?
+
+	//patchDWord(0x004cfaa7 + 2, &f1);	// don't bias transparent objects
+
+	//patchNop(0x004cfb7f, 28); // disable transformation
+
+	patchCall(0x004cf4b4, setDepthWrapper);
+
+	patchNop(0x004cf8df, 10);
+	patchDWord(0x004cf8df, 0x0080a966);	// i'll be real i have no idea why this is kind of working but change ordering behavior for everything but masked transparent faces
 	
 
 	// pal_loadpalette - don't mess with alpha
