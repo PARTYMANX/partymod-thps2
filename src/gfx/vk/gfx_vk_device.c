@@ -246,12 +246,14 @@ VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **devic
 
 		// if the queue family is unique, create the queue
 		if (isUnique) {
-			deviceQueueInfo[deviceQueueCount].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-			deviceQueueInfo[deviceQueueCount].pNext = NULL;
-			deviceQueueInfo[deviceQueueCount].flags = 0;
-			deviceQueueInfo[deviceQueueCount].queueFamilyIndex = result->physicalDevice.queueFamilyIdxs[i];
-			deviceQueueInfo[deviceQueueCount].queueCount = 1;
-			deviceQueueInfo[deviceQueueCount].pQueuePriorities = &priority;
+			deviceQueueInfo[deviceQueueCount] = (VkDeviceQueueCreateInfo) {
+				.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+				.pNext = NULL,
+				.flags = 0,
+				.queueFamilyIndex = result->physicalDevice.queueFamilyIdxs[i],
+				.queueCount = 1,
+				.pQueuePriorities = &priority,
+			};
 
 			deviceQueueCount++;
 		}
@@ -260,22 +262,23 @@ VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **devic
 	VkPhysicalDeviceFeatures phDeviceFeatures;
 	memset(&phDeviceFeatures, 0, sizeof(VkPhysicalDeviceFeatures));
 
-	VkDeviceCreateInfo deviceInfo;
-	deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceInfo.pNext = &dynamic_rendering_feature;
-	deviceInfo.flags = 0;
-	deviceInfo.queueCreateInfoCount = deviceQueueCount;
-	deviceInfo.pQueueCreateInfos = deviceQueueInfo;
-	deviceInfo.pEnabledFeatures = &phDeviceFeatures;
-	deviceInfo.enabledExtensionCount = deviceExtCount;
-	deviceInfo.ppEnabledExtensionNames = deviceExtNames;
+	VkDeviceCreateInfo deviceInfo = {
+		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		.pNext = &dynamic_rendering_feature,
+		.flags = 0,
+		.queueCreateInfoCount = deviceQueueCount,
+		.pQueueCreateInfos = deviceQueueInfo,
+		.pEnabledFeatures = &phDeviceFeatures,
+		.enabledExtensionCount = deviceExtCount,
+		.ppEnabledExtensionNames = deviceExtNames,
 #ifdef VK_VALIDATION
-	deviceInfo.enabledLayerCount = validationLayerCount;
-	deviceInfo.ppEnabledLayerNames = validationLayerNames;
+		.enabledLayerCount = validationLayerCount,
+		.ppEnabledLayerNames = validationLayerNames,
 #else
-	deviceInfo.enabledLayerCount = 0;
-	deviceInfo.ppEnabledLayerNames = NULL;
+		.enabledLayerCount = 0,
+		.ppEnabledLayerNames = NULL,
 #endif
+	};
 
 	r = vkCreateDevice(result->physicalDevice.device, &deviceInfo, NULL, &(result->device));
 	if (r) {

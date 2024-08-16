@@ -20,18 +20,19 @@ VkResult pmVkInitMemoryManager(partyRenderer *renderer, struct pmVkMemoryManager
 
 	result->renderer = renderer;
 
-	VmaAllocatorCreateInfo info;
-	info.flags = 0;
-	info.physicalDevice = renderer->device->physicalDevice.device;
-	info.device = renderer->device->device;
-	info.preferredLargeHeapBlockSize = 0;
-	info.pAllocationCallbacks = NULL;
-	info.pDeviceMemoryCallbacks = NULL;
-	info.pHeapSizeLimit = NULL;
-	info.pVulkanFunctions = NULL;
-	info.instance = instance;
-	info.vulkanApiVersion = VK_API_VERSION_1_3;
-	info.pTypeExternalMemoryHandleTypes = NULL;
+	VmaAllocatorCreateInfo info = {
+		.flags = 0,
+		.physicalDevice = renderer->device->physicalDevice.device,
+		.device = renderer->device->device,
+		.preferredLargeHeapBlockSize = 0,
+		.pAllocationCallbacks = NULL,
+		.pDeviceMemoryCallbacks = NULL,
+		.pHeapSizeLimit = NULL,
+		.pVulkanFunctions = NULL,
+		.instance = instance,
+		.vulkanApiVersion = VK_API_VERSION_1_3,
+		.pTypeExternalMemoryHandleTypes = NULL,
+	};
 
 	VkResult r = vmaCreateAllocator(&info, &(result->allocator));
 

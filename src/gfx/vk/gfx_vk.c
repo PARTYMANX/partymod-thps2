@@ -41,14 +41,15 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugMessageCallback(
 }
 
 void createDebugMessenger() {
-	VkDebugUtilsMessengerCreateInfoEXT messengerInfo;
-	messengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	messengerInfo.pNext = NULL;
-	messengerInfo.flags = 0;
-	messengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
-	messengerInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-	messengerInfo.pfnUserCallback = debugMessageCallback;
-	messengerInfo.pUserData = NULL;
+	VkDebugUtilsMessengerCreateInfoEXT messengerInfo = {
+		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+		.pNext = NULL,
+		.flags = 0,
+		.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
+		.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+		.pfnUserCallback = debugMessageCallback,
+		.pUserData = NULL,
+	};
 
 	vkpfn_vkCreateDebugUtilsMessengerEXT(instance, &messengerInfo, NULL, &debugMessenger);
 }
@@ -115,14 +116,15 @@ void appendExtensions(uint32_t *dstExtCount, char ***dstExtNames, uint32_t srcEx
 }
 
 VkResult initInstance() {
-	VkApplicationInfo appInfo;
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pNext = NULL;
-	appInfo.pApplicationName = "PARTYMOD for THPS2";
-	appInfo.applicationVersion = VK_MAKE_VERSION(VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH);
-	appInfo.pEngineName = "M3D";
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_3;
+	VkApplicationInfo appInfo = {
+		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+		.pNext = NULL,
+		.pApplicationName = "PARTYMOD for THPS2",
+		.applicationVersion = VK_MAKE_VERSION(VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH),
+		.pEngineName = "M3D",
+		.engineVersion = VK_MAKE_VERSION(VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH),
+		.apiVersion = VK_API_VERSION_1_3,
+	};
 
 	// get extension count
 	uint32_t extCount = 0;
@@ -130,11 +132,12 @@ VkResult initInstance() {
 
 	appendWindowExtensions(&extCount, &extNames);
 
-	VkInstanceCreateInfo instanceInfo;
-	instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceInfo.pNext = NULL;
-	instanceInfo.flags = 0;
-	instanceInfo.pApplicationInfo = &appInfo;
+	VkInstanceCreateInfo instanceInfo = {
+		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.pApplicationInfo = &appInfo,
+	};
 
 #ifndef VK_VALIDATION
 	instanceInfo.enabledExtensionCount = extCount;
@@ -596,19 +599,21 @@ uint8_t pmVkGetNextImage(partyRenderer *renderer, uint32_t *idx) {
 }
 
 uint8_t pmVkPresent(partyRenderer *renderer) {
-	VkPresentInfoKHR presentInfo;
-	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	presentInfo.pNext = NULL;
-
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = &(renderer->swapchain->imageFinishedSemaphore);
-
-	presentInfo.swapchainCount = 1;
-	presentInfo.pSwapchains = &(renderer->swapchain->swapchain);
-	presentInfo.pImageIndices = &(renderer->swapchain->imageIdx);
-
 	VkResult result;
-	presentInfo.pResults = &result;
+
+	VkPresentInfoKHR presentInfo = {
+		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.pNext = NULL,
+
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &(renderer->swapchain->imageFinishedSemaphore),
+
+		.swapchainCount = 1,
+		.pSwapchains = &(renderer->swapchain->swapchain),
+		.pImageIndices = &(renderer->swapchain->imageIdx),
+
+		.pResults = &result,
+	};
 
 	vkQueuePresentKHR(renderer->queue->presentQueue, &presentInfo);
 
@@ -648,11 +653,12 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	}
 
 	// begin command buffer
-	VkCommandBufferBeginInfo beginInfo;
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.pNext = NULL;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-	beginInfo.pInheritanceInfo = NULL;
+	VkCommandBufferBeginInfo beginInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.pNext = NULL,
+		.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+		.pInheritanceInfo = NULL,
+	};
 
 	if (vkBeginCommandBuffer(renderer->renderCommandBuffer, &beginInfo) != VK_SUCCESS) {
 		log_printf(LL_ERROR, "ERROR: Failed to begin command buffers!\n");
@@ -692,70 +698,78 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	// END IMAGE TRANSITION
 
 	// begin rendering
-	VkClearColorValue clearColor;
-	clearColor.float32[0] = (float)(clearCol & 0xFF) / 255.0f;
-	clearColor.float32[1] = (float)((clearCol >> 8) & 0xFF) / 255.0f;
-	clearColor.float32[2] = (float)((clearCol >> 16) & 0xFF) / 255.0f;
-	clearColor.float32[3] = 1.0f;
+	VkClearColorValue clearColor = {
+		.float32[0] = (float)(clearCol & 0xFF) / 255.0f,
+		.float32[1] = (float)((clearCol >> 8) & 0xFF) / 255.0f,
+		.float32[2] = (float)((clearCol >> 16) & 0xFF) / 255.0f,
+		.float32[3] = 1.0f,
+	};
 
-	VkClearValue clearVal;
-	clearVal.color = clearColor;
+	VkClearValue clearVal = {
+		.color = clearColor,
+	};
 
-	VkRenderingAttachmentInfo colorAttachment;
-	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	colorAttachment.pNext = NULL;
-	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachment.imageView = renderer->renderImage.imageView;
-	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-	colorAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	colorAttachment.resolveImageView = renderer->renderImage.imageView;
-	colorAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
-	colorAttachment.clearValue = clearVal;
+	VkRenderingAttachmentInfo colorAttachment = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.pNext = NULL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.imageView = renderer->renderImage.imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR,
+		.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.resolveImageView = renderer->renderImage.imageView,
+		.resolveMode = VK_RESOLVE_MODE_NONE,
+		.clearValue = clearVal,
+	};
 
-	VkClearValue clearDepth;
-	clearDepth.depthStencil.depth = 0.0f;
-	clearDepth.depthStencil.stencil = 0;
+	VkClearValue clearDepth = {
+		.depthStencil.depth = 0.0f,
+		.depthStencil.stencil = 0,
+	};
 
-	VkRenderingAttachmentInfo depthAttachment;
-	depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	depthAttachment.pNext = NULL;
-	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachment.imageView = renderer->depthImage.imageView;
-	depthAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-	depthAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	depthAttachment.resolveImageView = renderer->depthImage.imageView;
-	depthAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
-	depthAttachment.clearValue = clearDepth;
+	VkRenderingAttachmentInfo depthAttachment = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.pNext = NULL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.imageView = renderer->depthImage.imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR,
+		.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.resolveImageView = renderer->depthImage.imageView,
+		.resolveMode = VK_RESOLVE_MODE_NONE,
+		.clearValue = clearDepth,
+	};
 
-	VkRect2D renderArea;
-	renderArea.offset = (VkOffset2D) { 0.0f, 0.0f };
-	renderArea.extent = (VkExtent2D) { renderer->renderImage.width, renderer->renderImage.height };
+	VkRect2D renderArea = {
+		.offset = { 0.0f, 0.0f },
+		.extent = { renderer->renderImage.width, renderer->renderImage.height },
+	};
 
-	VkRenderingInfo renderInfo;
-	renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	renderInfo.pNext = NULL;
-	renderInfo.flags = 0;
-	renderInfo.colorAttachmentCount = 1;
-	renderInfo.pColorAttachments = &colorAttachment;
-	renderInfo.pDepthAttachment = &depthAttachment;
-	renderInfo.pStencilAttachment = NULL;
-	renderInfo.layerCount = 1;
-	renderInfo.renderArea = renderArea;
-	renderInfo.viewMask = 0;
+	VkRenderingInfo renderInfo = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &colorAttachment,
+		.pDepthAttachment = &depthAttachment,
+		.pStencilAttachment = NULL,
+		.layerCount = 1,
+		.renderArea = renderArea,
+		.viewMask = 0,
+	};
 
 	vkCmdBeginRendering(renderer->renderCommandBuffer, &renderInfo);
 
 	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->renderPipelines[0]);
 
-	VkViewport viewport;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = renderer->renderImage.width;
-	viewport.height = renderer->renderImage.height;
+	VkViewport viewport = {
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f,
+		.x = 0.0f,
+		.y = 0.0f,
+		.width = renderer->renderImage.width,
+		.height = renderer->renderImage.height,
+	};
 
 	vkCmdSetViewport(renderer->renderCommandBuffer, 0, 1, &viewport);
 
@@ -884,13 +898,14 @@ void drawLines(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_
 void setViewport(partyRenderer *renderer, float x, float y, float width, float height) {
 	flushVerts(renderer);
 
-	VkViewport viewport;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	viewport.x = x;
-	viewport.y = y;
-	viewport.width = width;
-	viewport.height = height;
+	VkViewport viewport = {
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f,
+		.x = x,
+		.y = y,
+		.width = width,
+		.height = height,
+	};
 
 	renderer->currentViewport = viewport;
 
@@ -900,9 +915,10 @@ void setViewport(partyRenderer *renderer, float x, float y, float width, float h
 void setScissor(partyRenderer *renderer, float x, float y, float width, float height) {
 	flushVerts(renderer);
 
-	VkRect2D renderArea;
-	renderArea.offset = (VkOffset2D) { x, y };
-	renderArea.extent = (VkExtent2D) { width, height };
+	VkRect2D renderArea = {
+		.offset = { x, y },
+		.extent = { width, height },
+	};
 
 	renderer->currentScissor = renderArea;
 
@@ -963,70 +979,78 @@ void drawRenderTexture(partyRenderer *renderer) {
 	// END IMAGE TRANSITION
 
 	// begin rendering
-	VkClearColorValue clearColor;
-	clearColor.float32[0] = 0.0f;
-	clearColor.float32[1] = 0.0f;
-	clearColor.float32[2] = 0.0f;
-	clearColor.float32[3] = 1.0f;
+	VkClearColorValue clearColor = {
+		.float32[0] = 0.0f,
+		.float32[1] = 0.0f,
+		.float32[2] = 0.0f,
+		.float32[3] = 1.0f,
+	};
 
-	VkClearValue clearVal;
-	clearVal.color = clearColor;
+	VkClearValue clearVal = {
+		clearVal.color = clearColor,
+	};
 
-	VkRenderingAttachmentInfo colorAttachment;
-	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	colorAttachment.pNext = NULL;
-	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachment.imageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx];
-	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-	colorAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	colorAttachment.resolveImageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx];
-	colorAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
-	colorAttachment.clearValue = clearVal;
+	VkRenderingAttachmentInfo colorAttachment = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.pNext = NULL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.imageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx],
+		.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR,
+		.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.resolveImageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx],
+		.resolveMode = VK_RESOLVE_MODE_NONE,
+		.clearValue = clearVal,
+	};
 
-	VkClearValue clearDepth;
-	clearDepth.depthStencil.depth = 1.0f;
-	clearDepth.depthStencil.stencil = 0;
+	VkClearValue clearDepth = {
+		.depthStencil.depth = 1.0f,
+		.depthStencil.stencil = 0,
+	};
 
-	VkRenderingAttachmentInfo depthAttachment;
-	depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	depthAttachment.pNext = NULL;
-	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachment.imageView = renderer->depthImage.imageView;
-	depthAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-	depthAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	depthAttachment.resolveImageView = renderer->depthImage.imageView;
-	depthAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
-	depthAttachment.clearValue = clearDepth;
+	VkRenderingAttachmentInfo depthAttachment = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.pNext = NULL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.imageView = renderer->depthImage.imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR,
+		.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.resolveImageView = renderer->depthImage.imageView,
+		.resolveMode = VK_RESOLVE_MODE_NONE,
+		.clearValue = clearDepth,
+	};
 
-	VkRect2D renderArea;
-	renderArea.offset = (VkOffset2D) { 0.0f, 0.0f };
-	renderArea.extent = renderer->swapchain->extent;
+	VkRect2D renderArea = {
+		.offset = { 0.0f, 0.0f },
+		.extent = renderer->swapchain->extent,
+	};
 
-	VkRenderingInfo renderInfo;
-	renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	renderInfo.pNext = NULL;
-	renderInfo.flags = 0;
-	renderInfo.colorAttachmentCount = 1;
-	renderInfo.pColorAttachments = &colorAttachment;
-	renderInfo.pDepthAttachment = NULL;
-	renderInfo.pStencilAttachment = NULL;
-	renderInfo.layerCount = 1;
-	renderInfo.renderArea = renderArea;
-	renderInfo.viewMask = 0;
+	VkRenderingInfo renderInfo = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &colorAttachment,
+		.pDepthAttachment = NULL,
+		.pStencilAttachment = NULL,
+		.layerCount = 1,
+		.renderArea = renderArea,
+		.viewMask = 0,
+	};
 
 	vkCmdBeginRendering(renderer->renderCommandBuffer, &renderInfo);
 
 	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->scalerPipeline);
 
-	VkViewport viewport;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = renderer->swapchain->extent.width;
-	viewport.height = renderer->swapchain->extent.height;
+	VkViewport viewport = {
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f,
+		.x = 0.0f,
+		.y = 0.0f,
+		.width = renderer->swapchain->extent.width,
+		.height = renderer->swapchain->extent.height,
+	};
 
 	// modify viewport for letterboxing/pillarboxing
 	float windowAspectRatio = viewport.width / viewport.height;
@@ -1135,22 +1159,24 @@ void finishRender(partyRenderer *renderer) {
 
 	vkEndCommandBuffer(renderer->renderCommandBuffer);
 
-	VkSubmitInfo submitInfo;
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.pNext = NULL;
-
-	// TODO: store all command buffers in array?
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &(renderer->renderCommandBuffer);
-
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &(renderer->swapchain->imageReadySemaphore);
-
 	VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	submitInfo.pWaitDstStageMask = &waitStages;
 
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &(renderer->swapchain->imageFinishedSemaphore);
+	VkSubmitInfo submitInfo = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.pNext = NULL,
+
+		// TODO: store all command buffers in array?
+		.commandBufferCount = 1,
+		.pCommandBuffers = &(renderer->renderCommandBuffer),
+
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &(renderer->swapchain->imageReadySemaphore),
+
+		.pWaitDstStageMask = &waitStages,
+
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = &(renderer->swapchain->imageFinishedSemaphore),
+	};
 
 	updatePolyBuffer(renderer);
 	resetPolyBuffer(renderer);
@@ -1210,11 +1236,12 @@ void renderImageFrame(partyRenderer *renderer, uint32_t texIdx) {
 	}
 
 	// begin command buffer
-	VkCommandBufferBeginInfo beginInfo;
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.pNext = NULL;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-	beginInfo.pInheritanceInfo = NULL;
+	VkCommandBufferBeginInfo beginInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.pNext = NULL,
+		.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+		.pInheritanceInfo = NULL,
+	};
 
 	if (vkBeginCommandBuffer(renderer->renderCommandBuffer, &beginInfo) != VK_SUCCESS) {
 		log_printf(LL_ERROR, "ERROR: Failed to begin command buffers!\n");
@@ -1254,70 +1281,78 @@ void renderImageFrame(partyRenderer *renderer, uint32_t texIdx) {
 	// END IMAGE TRANSITION
 
 	// begin rendering
-	VkClearColorValue clearColor;
-	clearColor.float32[0] = 0.0f;
-	clearColor.float32[1] = 0.0f;
-	clearColor.float32[2] = 0.0f;
-	clearColor.float32[3] = 1.0f;
+	VkClearColorValue clearColor = {
+		.float32[0] = 0.0f,
+		.float32[1] = 0.0f,
+		.float32[2] = 0.0f,
+		.float32[3] = 1.0f,
+	};
 
-	VkClearValue clearVal;
-	clearVal.color = clearColor;
+	VkClearValue clearVal = {
+		.color = clearColor,
+	};
 
-	VkRenderingAttachmentInfo colorAttachment;
-	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	colorAttachment.pNext = NULL;
-	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachment.imageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx];
-	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-	colorAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	colorAttachment.resolveImageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx];
-	colorAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
-	colorAttachment.clearValue = clearVal;
+	VkRenderingAttachmentInfo colorAttachment = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.pNext = NULL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.imageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx],
+		.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR,
+		.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.resolveImageView = renderer->swapchain->imageViews[renderer->swapchain->imageIdx],
+		.resolveMode = VK_RESOLVE_MODE_NONE,
+		.clearValue = clearVal,
+	};
 
-	VkClearValue clearDepth;
-	clearDepth.depthStencil.depth = 1.0f;
-	clearDepth.depthStencil.stencil = 0;
+	VkClearValue clearDepth = {
+		.depthStencil.depth = 1.0f,
+		.depthStencil.stencil = 0,
+	};
 
-	VkRenderingAttachmentInfo depthAttachment;
-	depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	depthAttachment.pNext = NULL;
-	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachment.imageView = renderer->depthImage.imageView;
-	depthAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-	depthAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	depthAttachment.resolveImageView = renderer->depthImage.imageView;
-	depthAttachment.resolveMode = VK_RESOLVE_MODE_NONE;
-	depthAttachment.clearValue = clearDepth;
+	VkRenderingAttachmentInfo depthAttachment = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.pNext = NULL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.imageView = renderer->depthImage.imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR,
+		.resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.resolveImageView = renderer->depthImage.imageView,
+		.resolveMode = VK_RESOLVE_MODE_NONE,
+		.clearValue = clearDepth,
+	};
 
-	VkRect2D renderArea;
-	renderArea.offset = (VkOffset2D) { 0.0f, 0.0f };
-	renderArea.extent = renderer->swapchain->extent;
+	VkRect2D renderArea = {
+		.offset = { 0.0f, 0.0f },
+		.extent = renderer->swapchain->extent,
+	};
 
-	VkRenderingInfo renderInfo;
-	renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	renderInfo.pNext = NULL;
-	renderInfo.flags = 0;
-	renderInfo.colorAttachmentCount = 1;
-	renderInfo.pColorAttachments = &colorAttachment;
-	renderInfo.pDepthAttachment = NULL;
-	renderInfo.pStencilAttachment = NULL;
-	renderInfo.layerCount = 1;
-	renderInfo.renderArea = renderArea;
-	renderInfo.viewMask = 0;
+	VkRenderingInfo renderInfo = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &colorAttachment,
+		.pDepthAttachment = NULL,
+		.pStencilAttachment = NULL,
+		.layerCount = 1,
+		.renderArea = renderArea,
+		.viewMask = 0,
+	};
 
 	vkCmdBeginRendering(renderer->renderCommandBuffer, &renderInfo);
 
 	vkCmdBindPipeline(renderer->renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->scalerPipeline);
 
-	VkViewport viewport;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = renderer->swapchain->extent.width;
-	viewport.height = renderer->swapchain->extent.height;
+	VkViewport viewport = {
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f,
+		.x = 0.0f,
+		.y = 0.0f,
+		.width = renderer->swapchain->extent.width,
+		.height = renderer->swapchain->extent.height,
+	};
 
 	// modify viewport for letterboxing/pillarboxing
 	float windowAspectRatio = viewport.width / viewport.height;
@@ -1388,22 +1423,24 @@ void renderImageFrame(partyRenderer *renderer, uint32_t texIdx) {
 
 	vkEndCommandBuffer(renderer->renderCommandBuffer);
 
-	VkSubmitInfo submitInfo;
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.pNext = NULL;
-
-	// TODO: store all command buffers in array?
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &(renderer->renderCommandBuffer);
-
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &(renderer->swapchain->imageReadySemaphore);
-
 	VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	submitInfo.pWaitDstStageMask = &waitStages;
 
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &(renderer->swapchain->imageFinishedSemaphore);
+	VkSubmitInfo submitInfo = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.pNext = NULL,
+
+		// TODO: store all command buffers in array?
+		.commandBufferCount = 1,
+		.pCommandBuffers = &(renderer->renderCommandBuffer),
+
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &(renderer->swapchain->imageReadySemaphore),
+
+		.pWaitDstStageMask = &waitStages,
+
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = &(renderer->swapchain->imageFinishedSemaphore),
+	};
 
 	if (renderer->pendingImageWrites->count > 0) {
 		vkQueueWaitIdle(renderer->memQueue->queue);
