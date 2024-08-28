@@ -29,11 +29,12 @@ VkResult pmVkCreateCommandQueue(struct pmVkDevice *device, VkCommandPoolCreateFl
 	vkGetDeviceQueue(device->device, device->physicalDevice.queueFamilyIdxs[QUEUE_FAMILY_GRAPHICS], 0, &(result->queue));
 	vkGetDeviceQueue(device->device, device->physicalDevice.queueFamilyIdxs[QUEUE_FAMILY_PRESENT], 0, &(result->presentQueue));
 
-	VkCommandPoolCreateInfo commandPoolInfo;
-	commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolInfo.pNext = NULL;
-	commandPoolInfo.flags = flags;
-	commandPoolInfo.queueFamilyIndex = device->physicalDevice.queueFamilyIdxs[QUEUE_FAMILY_GRAPHICS];
+	VkCommandPoolCreateInfo commandPoolInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.pNext = NULL,
+		.flags = flags,
+		.queueFamilyIndex = device->physicalDevice.queueFamilyIdxs[QUEUE_FAMILY_GRAPHICS],
+	};
 
 	VkResult r = vkCreateCommandPool(device->device, &commandPoolInfo, NULL, &(result->commandPool));
 	if (r) {
@@ -58,12 +59,13 @@ void pmVkDestroyCommandQueue(struct pmVkCommandQueue *queue) {
 */
 
 VkResult createRenderCommandBuffer(partyRenderer *renderer) {
-	VkCommandBufferAllocateInfo bufferAllocateInfo;
-	bufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	bufferAllocateInfo.pNext = NULL;
-	bufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	bufferAllocateInfo.commandPool = renderer->queue->commandPool;
-	bufferAllocateInfo.commandBufferCount = 1;
+	VkCommandBufferAllocateInfo bufferAllocateInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = NULL,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandPool = renderer->queue->commandPool,
+		.commandBufferCount = 1,
+	};
 
 	VkResult r = vkAllocateCommandBuffers(renderer->device->device, &bufferAllocateInfo, &(renderer->renderCommandBuffer));
 	if (r != VK_SUCCESS) {
@@ -81,21 +83,23 @@ void destroyRenderCommandBuffer(partyRenderer *renderer) {
 }
 
 VkCommandBuffer startStagingCommandBuffer(partyRenderer *renderer) {
-	VkCommandBufferAllocateInfo cmdbufAllocInfo;
-	cmdbufAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdbufAllocInfo.pNext = NULL;
-	cmdbufAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	cmdbufAllocInfo.commandPool = renderer->memQueue->commandPool;
-	cmdbufAllocInfo.commandBufferCount = 1;
+	VkCommandBufferAllocateInfo cmdbufAllocInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = NULL,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandPool = renderer->memQueue->commandPool,
+		.commandBufferCount = 1,
+	};
 
 	VkCommandBuffer cmdbuf;
 	vkAllocateCommandBuffers(renderer->device->device, &cmdbufAllocInfo, &cmdbuf);
 
-	VkCommandBufferBeginInfo cmdbufBeginInfo;
-	cmdbufBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	cmdbufBeginInfo.pNext = NULL;
-	cmdbufBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	cmdbufBeginInfo.pInheritanceInfo = NULL;
+	VkCommandBufferBeginInfo cmdbufBeginInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.pNext = NULL,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+		.pInheritanceInfo = NULL,
+	};
 
 	vkBeginCommandBuffer(cmdbuf, &cmdbufBeginInfo);
 
@@ -105,16 +109,17 @@ VkCommandBuffer startStagingCommandBuffer(partyRenderer *renderer) {
 void endStagingCommandBuffer(partyRenderer *renderer, VkCommandBuffer cmdbuf) {
 	vkEndCommandBuffer(cmdbuf);
 
-	VkSubmitInfo submitInfo;
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.pNext = NULL;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &cmdbuf;
-	submitInfo.signalSemaphoreCount = 0;
-	submitInfo.pSignalSemaphores = NULL;
-	submitInfo.waitSemaphoreCount = 0;
-	submitInfo.pWaitSemaphores = NULL;
-	submitInfo.pWaitDstStageMask = NULL;
+	VkSubmitInfo submitInfo = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.pNext = NULL,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &cmdbuf,
+		.signalSemaphoreCount = 0,
+		.pSignalSemaphores = NULL,
+		.waitSemaphoreCount = 0,
+		.pWaitSemaphores = NULL,
+		.pWaitDstStageMask = NULL,
+	};
 
 	vkQueueSubmit(renderer->memQueue->queue, 1, &submitInfo, VK_NULL_HANDLE);
 	//vkQueueWaitIdle(renderer->memQueue->queue);	// TODO: maybe make a queue of sorts of the command buffers to free?  lets us load faster

@@ -2016,6 +2016,10 @@ void getGameResolution(int *w, int *h) {
 	*h = resolution_y;
 }
 
+uint8_t isGameMinimized() {
+	return isMinimized;
+}
+
 void MENUPC_DrawMouseCursor() {
 
 }

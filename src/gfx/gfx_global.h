@@ -29,5 +29,6 @@ struct texture {
 };
 
 void updateMovieTexture();
+uint8_t isGameMinimized();
 
 #endif

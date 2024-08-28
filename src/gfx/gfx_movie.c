@@ -78,7 +78,7 @@ uint32_t __cdecl advanceBinkMovie() {
 		binkBuffer[i] |= 0xff000000;
 	}
 
-	if (!*BinkHasVideo != 0) {
+	if (!*BinkHasVideo != 0 && !isGameMinimized()) {
 		updateTextureEntry(renderer, binkTexIdx, *BinkWidth, *BinkHeight, binkBuffer);
 		renderImageFrame(renderer, binkTexIdx);
 	}

@@ -14,13 +14,14 @@ VkDescriptorPool createPool(partyRenderer *renderer, pmVkDescriptorAllocator *al
 		sizes[i].descriptorCount = ratios[i].ratio * allocator->sets_per_pool;
 	}
 	
-	VkDescriptorPoolCreateInfo poolInfo;
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.pNext = NULL;
-	poolInfo.flags = 0;
-	poolInfo.maxSets = allocator->sets_per_pool;
-	poolInfo.poolSizeCount = allocator->ratios->count;
-	poolInfo.pPoolSizes = sizes;
+	VkDescriptorPoolCreateInfo poolInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.maxSets = allocator->sets_per_pool,
+		.poolSizeCount = allocator->ratios->count,
+		.pPoolSizes = sizes,
+	};
 
 	VkDescriptorPool result;
 
@@ -106,12 +107,13 @@ void destroy_descriptor_pools(partyRenderer *renderer, pmVkDescriptorAllocator *
 VkDescriptorSet allocate_descriptor_set(partyRenderer *renderer, pmVkDescriptorAllocator *allocator, VkDescriptorSetLayout layout) {
 	VkDescriptorPool pool = getPool(renderer, allocator);
 
-	VkDescriptorSetAllocateInfo allocInfo;
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.pNext = NULL;
-	allocInfo.descriptorPool = pool;
-	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts = &layout;
+	VkDescriptorSetAllocateInfo allocInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.pNext = NULL,
+		.descriptorPool = pool,
+		.descriptorSetCount = 1,
+		.pSetLayouts = &layout,
+	};
 
 	VkDescriptorSet result;
 	VkResult r = vkAllocateDescriptorSets(renderer->device->device, &allocInfo, &result);
@@ -137,17 +139,18 @@ void write_descriptor_buffer(pmVkDescriptorAllocator *allocator, int binding, Vk
 	bufferInfo->offset = offset;
 	bufferInfo->range = size;
 
-	VkWriteDescriptorSet write;
-	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write.pNext = NULL;
-	write.dstBinding = binding;
-	write.dstSet = VK_NULL_HANDLE;
-	write.dstArrayElement = 0;
-	write.descriptorCount = 1;
-	write.descriptorType = type;
-	write.pBufferInfo = bufferInfo;
-	write.pImageInfo = NULL;
-	write.pTexelBufferView = NULL;
+	VkWriteDescriptorSet write = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.pNext = NULL,
+		.dstBinding = binding,
+		.dstSet = VK_NULL_HANDLE,
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = type,
+		.pBufferInfo = bufferInfo,
+		.pImageInfo = NULL,
+		.pTexelBufferView = NULL,
+	};
 	
 	sb_push_back(allocator->writes, &write);
 }
@@ -158,17 +161,18 @@ void write_descriptor_image(pmVkDescriptorAllocator *allocator, int binding, VkS
 	imageInfo->imageView = imageView;
 	imageInfo->imageLayout = imageLayout;
 
-	VkWriteDescriptorSet write;
-	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write.pNext = NULL;
-	write.dstBinding = binding;
-	write.dstSet = VK_NULL_HANDLE;
-	write.dstArrayElement = 0;
-	write.descriptorCount = 1;
-	write.descriptorType = type;
-	write.pBufferInfo = NULL;
-	write.pImageInfo = imageInfo;
-	write.pTexelBufferView = NULL;
+	VkWriteDescriptorSet write = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.pNext = NULL,
+		.dstBinding = binding,
+		.dstSet = VK_NULL_HANDLE,
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = type,
+		.pBufferInfo = NULL,
+		.pImageInfo = imageInfo,
+		.pTexelBufferView = NULL,
+	};
 	
 	sb_push_back(allocator->writes, &write);
 }
@@ -179,17 +183,18 @@ void write_descriptor_image_array(pmVkDescriptorAllocator *allocator, int bindin
 	imageInfo->imageView = imageView;
 	imageInfo->imageLayout = imageLayout;
 
-	VkWriteDescriptorSet write;
-	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write.pNext = NULL;
-	write.dstBinding = binding;
-	write.dstSet = VK_NULL_HANDLE;
-	write.dstArrayElement = idx;
-	write.descriptorCount = 1;
-	write.descriptorType = type;
-	write.pBufferInfo = NULL;
-	write.pImageInfo = imageInfo;
-	write.pTexelBufferView = NULL;
+	VkWriteDescriptorSet write = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.pNext = NULL,
+		.dstBinding = binding,
+		.dstSet = VK_NULL_HANDLE,
+		.dstArrayElement = idx,
+		.descriptorCount = 1,
+		.descriptorType = type,
+		.pBufferInfo = NULL,
+		.pImageInfo = imageInfo,
+		.pTexelBufferView = NULL,
+	};
 	
 	sb_push_back(allocator->writes, &write);
 }

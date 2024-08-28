@@ -13,15 +13,16 @@
 void createBuffer(partyRenderer *renderer, VkDeviceSize size, VkBufferUsageFlags usageFlags, VmaMemoryUsage usage, pmVkBuffer *dst) {
 	pmVkBuffer result;
 
-	VkBufferCreateInfo info;
-	info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	info.pNext = NULL;
-	info.flags = 0;
-	info.size = size;
-	info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	info.queueFamilyIndexCount = 0;
-	info.pQueueFamilyIndices = NULL;
-	info.usage = usageFlags;
+	VkBufferCreateInfo info = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.size = size,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = NULL,
+		.usage = usageFlags,
+	};
 
 	//printf("TEST! %lld 0x%08x\n", size, info.usage);
 
@@ -31,15 +32,16 @@ void createBuffer(partyRenderer *renderer, VkDeviceSize size, VkBufferUsageFlags
 		exit(1);
 	}
 
-	VmaAllocationCreateInfo allocInfo;
-	allocInfo.flags = 0;
-	allocInfo.usage = usage;
-	allocInfo.requiredFlags = 0;
-	allocInfo.preferredFlags = 0;
-	allocInfo.memoryTypeBits = 0;
-	allocInfo.pool = VK_NULL_HANDLE;
-	allocInfo.pUserData = NULL;
-	allocInfo.priority = 0.0f;
+	VmaAllocationCreateInfo allocInfo = {
+		.flags = 0,
+		.usage = usage,
+		.requiredFlags = 0,
+		.preferredFlags = 0,
+		.memoryTypeBits = 0,
+		.pool = VK_NULL_HANDLE,
+		.pUserData = NULL,
+		.priority = 0.0f,
+	};
 
 	vmaAllocateMemoryForBuffer(renderer->memoryManager->allocator, result.buffer, &allocInfo, &(result.allocation), NULL);
 

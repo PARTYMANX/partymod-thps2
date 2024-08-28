@@ -20,10 +20,11 @@ VkResult getSwapchainFormat(struct pmVkDevice *device, VkSurfaceFormatKHR *fmt) 
 
 	VkResult r;
 
-	VkSurfaceFormatKHR preferredFormat;
-	preferredFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	//preferredFormat.format = VK_FORMAT_B8G8R8A8_SRGB;
-	preferredFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
+	VkSurfaceFormatKHR preferredFormat = {
+		.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+		//.format = VK_FORMAT_B8G8R8A8_SRGB,
+		.format = VK_FORMAT_B8G8R8A8_UNORM,
+	};
 
 	uint32_t formatCount = 0;
 	r = vkGetPhysicalDeviceSurfaceFormatsKHR(device->physicalDevice.device, surface, &formatCount, NULL);
@@ -217,22 +218,23 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 	}
 
 	for (uint32_t i = 0; i < result->imageCount; i++) {
-		VkImageViewCreateInfo imageViewInfo;
-		imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		imageViewInfo.pNext = NULL;
-		imageViewInfo.flags = 0;
-		imageViewInfo.image = result->images[i];
-		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		imageViewInfo.format = result->imageFormat;
-		imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageViewInfo.subresourceRange.baseMipLevel = 0;
-		imageViewInfo.subresourceRange.levelCount = 1;
-		imageViewInfo.subresourceRange.baseArrayLayer = 0;
-		imageViewInfo.subresourceRange.layerCount = 1;
+		VkImageViewCreateInfo imageViewInfo = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.pNext = NULL,
+			.flags = 0,
+			.image = result->images[i],
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format = result->imageFormat,
+			.components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.subresourceRange.baseMipLevel = 0,
+			.subresourceRange.levelCount = 1,
+			.subresourceRange.baseArrayLayer = 0,
+			.subresourceRange.layerCount = 1,
+		};
 
 		r = vkCreateImageView(device->device, &imageViewInfo, NULL, result->imageViews + i);
 		if (r) {
@@ -247,10 +249,11 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 	// setup semaphores
 	result->imageIdx = 0;
 
-	VkSemaphoreCreateInfo semaphoreInfo;
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	semaphoreInfo.pNext = NULL;
-	semaphoreInfo.flags = 0;
+	VkSemaphoreCreateInfo semaphoreInfo = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
+	};
 
 	r = vkCreateSemaphore(device->device, &semaphoreInfo, NULL, &(result->imageReadySemaphore));
 	if (r) {
@@ -272,10 +275,11 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 
 	// setup fences
 
-	VkFenceCreateInfo fenceInfo;
-	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceInfo.pNext = NULL;
-	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+	VkFenceCreateInfo fenceInfo = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+	};
 
 	r = vkCreateFence(device->device, &fenceInfo, NULL, &(result->fence));
 	if (r) {
