@@ -23,7 +23,7 @@ VkResult getSwapchainFormat(struct pmVkDevice *device, VkSurfaceFormatKHR *fmt) 
 	VkSurfaceFormatKHR preferredFormat = {
 		.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
 		//.format = VK_FORMAT_B8G8R8A8_SRGB,
-		.format = VK_FORMAT_B8G8R8A8_UNORM,
+		.format = GFX_COLOR_FORMAT,
 	};
 
 	uint32_t formatCount = 0;

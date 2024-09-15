@@ -119,7 +119,7 @@ VkResult initInstance() {
 	VkApplicationInfo appInfo = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext = NULL,
-		.pApplicationName = "PARTYMOD for THPS2",
+		.pApplicationName = "PARTYMOD for MHPB",
 		.applicationVersion = VK_MAKE_VERSION(VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH),
 		.pEngineName = "M3D",
 		.engineVersion = VK_MAKE_VERSION(VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH),
@@ -230,8 +230,13 @@ void appendPolyBuffer(partyRenderer *renderer, renderVertex *vertices, uint32_t 
 	}
 
 	if (vertices[0].texture > 0) {
-		if (!renderer->textureManager.occupied[vertices[0].texture]) {
-			log_printf(LL_ERROR, "Referencing freed texture %d!!!\n", vertices[0].texture);
+		int16_t targetTexture = vertices[0].texture;
+		if (targetTexture >= renderer->textureManager.capacity) {
+			targetTexture -= renderer->textureManager.capacity;
+		}
+
+		if (!renderer->textureManager.occupied[targetTexture]) {
+			log_printf(LL_ERROR, "Referencing freed texture %d!!!\n", targetTexture);
 		}
 	}
 
@@ -259,10 +264,12 @@ void updatePolyBuffer(partyRenderer *renderer) {
 void createTextureManager(partyRenderer *renderer) {
 	textureManager result;
 
-	result.capacity = 2048;
+	result.capacity = 1024;
 	result.count = 0;
-	result.samplers[0] = createSampler(renderer, VK_FILTER_NEAREST);
-	result.samplers[1] = createSampler(renderer, VK_FILTER_LINEAR);
+	result.samplers[0] = createSampler(renderer, VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+	result.samplers[1] = createSampler(renderer, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+	result.samplers[2] = createSampler(renderer, VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+	result.samplers[3] = createSampler(renderer, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 	result.images = malloc(sizeof(pmVkImage) * result.capacity);
 	result.occupied = calloc(result.capacity, sizeof(uint8_t));
 
@@ -303,7 +310,7 @@ void destroyTextureEntry(partyRenderer *renderer, uint32_t idx) {
 	renderer->textureManager.occupied[idx - 1] = 0;
 	renderer->textureManager.count--;
 
-	if (renderer->pendingImageDeletes->count > 1024) {
+	if (renderer->pendingImageDeletes->count > (renderer->textureManager.capacity / 2)) {
 		// emergency flush last half of pending image deletes.  something went horribly wrong 
 		// this can actually happen if images don't get cleared during a long-held soft reset
 
@@ -334,6 +341,36 @@ void destroyTextureEntry(partyRenderer *renderer, uint32_t idx) {
 	destroyTexture(renderer, renderer->textureManager.images[idx - 1]);*/
 }
 
+int getTextureCount(partyRenderer *renderer) {
+	return renderer->textureManager.count;
+}
+
+// DANGER: this will cause dangling pointers!!!
+void clearAllTextures(partyRenderer *renderer) {
+	// flush writes
+	if (renderer->pendingImageWrites->count > 0) {
+		vkQueueWaitIdle(renderer->memQueue->queue);
+
+		for (int i = 0; i < renderer->pendingImageWrites->count; i++) {
+			pendingImageWrite *imgWrite = ((pendingImageWrite *)renderer->pendingImageWrites->data) + i;
+			vkFreeCommandBuffers(renderer->device->device, renderer->memQueue->commandPool, 1, &imgWrite->cmdbuf);
+			destroyBuffer(renderer, &imgWrite->transferbuf);
+		}
+		renderer->pendingImageWrites->count = 0;
+	}
+
+	renderer->pendingImageDeletes->count = 0;
+
+	for (int i = 0; i < renderer->textureManager.capacity; i++) {
+		if (renderer->textureManager.occupied[i]) {
+			destroyTexture(renderer, renderer->textureManager.images[i]);
+			renderer->textureManager.occupied[i] = 0;
+		}
+	}
+
+	renderer->textureManager.count = 0;
+}
+
 void writeTextureDescriptors(partyRenderer *renderer) {
 	//printf("writing %d descriptors...\n", renderer->textureManager.count);
 	int i = 0;
@@ -341,6 +378,7 @@ void writeTextureDescriptors(partyRenderer *renderer) {
 	while(count < renderer->textureManager.count) {
 		if (renderer->textureManager.occupied[i]) {
 			write_descriptor_image_array(renderer->descriptorAllocator, 0, i, renderer->textureManager.samplers[renderer->textureFilter], renderer->textureManager.images[i].imageView, VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+			write_descriptor_image_array(renderer->descriptorAllocator, 0, i + renderer->textureManager.capacity, renderer->textureManager.samplers[renderer->textureFilter + 2], renderer->textureManager.images[i].imageView, VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 			count++;
 		}
 
@@ -476,7 +514,7 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 	log_printf(LL_DEBUG, "Creating render targets...\n");
 
 	// create default render targets at 640x480, 4:3
-	createRenderTargets(result, 640, 480, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D16_UNORM);
+	createRenderTargets(result, 640, 480, GFX_COLOR_FORMAT, GFX_DEPTH_FORMAT);
 	result->aspectRatio = 4.0f / 3.0f;
 	result->renderWidth = 640;
 	result->renderHeight = 480;
@@ -642,7 +680,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	if (renderer->renderWidth != renderer->renderImage.width || renderer->renderHeight != renderer->renderImage.height) {
 		log_printf(LL_INFO, "Adjusting internal render resolution from %dx%d to %dx%d\n", renderer->renderImage.width, renderer->renderImage.height, renderer->renderWidth, renderer->renderHeight);
 		destroyRenderTargets(renderer);
-		createRenderTargets(renderer, renderer->renderWidth, renderer->renderHeight, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D16_UNORM);
+		createRenderTargets(renderer, renderer->renderWidth, renderer->renderHeight, GFX_COLOR_FORMAT, GFX_DEPTH_FORMAT);
 
 		imageInfo info = { renderer->renderImage.width, renderer->renderImage.height };
 		imageInfo *buffer = mapBuffer(renderer, &renderer->renderImageInfoBuffer);
@@ -721,6 +759,10 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 		.resolveMode = VK_RESOLVE_MODE_NONE,
 		.clearValue = clearVal,
 	};
+
+	if (clearCol == 0) {
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+	}
 
 	VkClearValue clearDepth = {
 		.depthStencil.depth = 0.0f,
@@ -855,16 +897,20 @@ void setBlendState(partyRenderer *renderer, uint32_t mode) {
 	}
 }*/
 
-void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count) {
+void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_count, uint8_t clamp_texture, float zbias) {
 	//vkCmdDraw(renderer->renderCommandBuffer, vertex_count, 1, renderer->polyBuffer.currentVertex, 0);
 	// fix texture idx for each vertex
 	for (int i = 0; i < vertex_count; i++) {
-		if (vertices[i].texture > 1024) {
-			log_printf(LL_ERROR, "invalid texture: 0x%08x\n", vertices[i].texture);
+		vertices[i].texture -= 1;
+
+		if (vertices[i].texture > ((int16_t)renderer->textureManager.capacity)) {
+			log_printf(LL_ERROR, "invalid texture: 0x%04x\n", vertices[i].texture);
 			vertices[i].texture = -1;
 		}
 
-		vertices[i].texture -= 1;
+		if (vertices[i].texture >= 0 && clamp_texture) {
+			vertices[i].texture += renderer->textureManager.capacity;
+		}
 	}
 
 	if (renderer->currentLineState) {
@@ -874,6 +920,9 @@ void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vert
 	renderer->processedVerts += vertex_count;
 
 	appendPolyBuffer(renderer, vertices, vertex_count);
+
+	vkCmdSetDepthBiasEnable(renderer->renderCommandBuffer, VK_TRUE);
+	vkCmdSetDepthBias(renderer->renderCommandBuffer, zbias, 0.0f, 0.0f);
 
 #ifdef FLUSH_ALL
 	flushVerts(renderer);

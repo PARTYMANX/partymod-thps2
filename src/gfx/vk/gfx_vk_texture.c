@@ -284,7 +284,7 @@ void destroyTexture(partyRenderer *renderer, pmVkImage img) {
 	//free(img);
 }
 
-VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter) {
+VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter, VkSamplerAddressMode addressMode) {
 	VkSampler result;
 
 	VkSamplerCreateInfo samplerInfo = {
@@ -295,9 +295,9 @@ VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter) {
 		.minFilter = minMagFilter,
 		.magFilter = minMagFilter,
 
-		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeU = addressMode,
+		.addressModeV = addressMode,
+		.addressModeW = addressMode,
 
 		.anisotropyEnable = VK_FALSE,
 		.maxAnisotropy = 0,

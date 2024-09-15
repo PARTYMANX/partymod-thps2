@@ -270,7 +270,7 @@ void renderDXPolyWireframe(int *tag) {
 			buf[outputVert].u = 0.0f;
 			buf[outputVert].v = 0.0f;
 			buf[outputVert].color = fixDXColor(vertices[i].color);
-			buf[outputVert].texture = 0;
+			buf[outputVert].texture = -1;
 			buf[outputVert].flags = 0;
 
 			buf[outputVert + 1].x = vertices[i + 1].x;
@@ -280,7 +280,7 @@ void renderDXPolyWireframe(int *tag) {
 			buf[outputVert + 1].u = 0.0f;
 			buf[outputVert + 1].v = 0.0f;
 			buf[outputVert + 1].color = fixDXColor(vertices[i + 1].color);
-			buf[outputVert + 1].texture = 0;
+			buf[outputVert + 1].texture = -1;
 			buf[outputVert + 1].flags = 0;
 
 			outputVert += 2;
@@ -314,7 +314,7 @@ void renderDXPolyWireframe(int *tag) {
 			buf[outputVert].u = 0.0f;
 			buf[outputVert].v = 0.0f;
 			buf[outputVert].color = fixDXColor(vertices[i].color);
-			buf[outputVert].texture = 0;
+			buf[outputVert].texture = -1;
 			buf[outputVert].flags = 0;
 
 			buf[outputVert + 1].x = vertices[i + 1].x;
@@ -324,7 +324,7 @@ void renderDXPolyWireframe(int *tag) {
 			buf[outputVert + 1].u = 0.0f;
 			buf[outputVert + 1].v = 0.0f;
 			buf[outputVert + 1].color = fixDXColor(vertices[i + 1].color);
-			buf[outputVert + 1].texture = 0;
+			buf[outputVert + 1].texture = -1;
 			buf[outputVert + 1].flags = 0;
 
 			outputVert += 2;
@@ -345,6 +345,7 @@ void renderDXPolyWireframe(int *tag) {
 
 void renderDXPoly(int *tag) {
 	uint32_t polyflags = *(uint32_t *)((uint8_t *)tag + 8);
+	float *zbias = ((uint8_t *)tag + 0xc);
 
 	if ((polyflags & 0x30000000) == 0x10000000) {
 		// wireframe unfilled
@@ -457,7 +458,7 @@ void renderDXPoly(int *tag) {
 		} 
 
 		transformDXCoords(buf, outputVert);
-		drawVertices(renderer, buf, outputVert);
+		drawVertices(renderer, buf, outputVert, 0, (-*zbias));
 	} else {
 		struct dxpolytextured *vertices = ((uint8_t *)tag + 0x18);
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
@@ -550,7 +551,7 @@ void renderDXPoly(int *tag) {
 		} 
 
 		transformDXCoords(buf, outputVert);
-		drawVertices(renderer, buf, outputVert);
+		drawVertices(renderer, buf, outputVert, !(polyflags & 0x20), (-*zbias));
 	}
 }
 
@@ -825,7 +826,7 @@ void renderPolyF3(int *tag) {
 
 	transformCoords(vertices, 3);
 
-	drawVertices(renderer, vertices, 3);
+	drawVertices(renderer, vertices, 3, 1, 0.0f);
 }
 
 void renderPolyF4(int *tag) {
@@ -862,7 +863,7 @@ void renderPolyF4(int *tag) {
 
 	transformCoords(vertices, 6);
 
-	drawVertices(renderer, vertices, 6);
+	drawVertices(renderer, vertices, 6, 1, 0.0f);
 }
 
 void renderPolyFT3(int *tag) {
@@ -906,7 +907,7 @@ void renderPolyFT3(int *tag) {
 		fixUVs(vertices, 3, tex);
 		transformCoords(vertices, 3);
 
-		drawVertices(renderer, vertices, 3);
+		drawVertices(renderer, vertices, 3, 1, 0.0f);
 	}
 }
 
@@ -959,7 +960,7 @@ void renderPolyFT4(int *tag) {
 		fixUVs(vertices, 6, tex);
 		transformCoords(vertices, 6);
 
-		drawVertices(renderer, vertices, 6);
+		drawVertices(renderer, vertices, 6, 1, 0.0f);
 	}
 }
 
@@ -992,7 +993,7 @@ void renderPolyG3(int *tag) {
 
 	transformCoords(vertices, 3);
 
-	drawVertices(renderer, vertices, 3);
+	drawVertices(renderer, vertices, 3, 1, 0.0f);
 }
 
 void renderPolyG4(int *tag) {
@@ -1031,7 +1032,7 @@ void renderPolyG4(int *tag) {
 
 	transformCoords(vertices, 6);
 
-	drawVertices(renderer, vertices, 6);
+	drawVertices(renderer, vertices, 6, 1, 0.0f);
 }
 
 void renderPolyGT3(int *tag) {
@@ -1076,7 +1077,7 @@ void renderPolyGT3(int *tag) {
 		fixUVs(vertices, 3, tex);
 		transformCoords(vertices, 3);
 
-		drawVertices(renderer, vertices, 3);
+		drawVertices(renderer, vertices, 3, 1, 0.0f);
 	}
 }
 
@@ -1131,7 +1132,7 @@ void renderPolyGT4(int *tag) {
 		fixUVs(vertices, 6, tex);
 		transformCoords(vertices, 6);
 
-		drawVertices(renderer, vertices, 6);
+		drawVertices(renderer, vertices, 6, 1, 0.0f);
 	}
 }
 
@@ -1171,7 +1172,7 @@ void renderTile(int *tag) {
 
 	transformCoords(vertices, 6);
 
-	drawVertices(renderer, vertices, 6);
+	drawVertices(renderer, vertices, 6, 1, 0.0f);
 }
 
 void renderTile1(int *tag) {
@@ -2057,13 +2058,14 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 
 	//bias = (bias * (128.0f / 65536.0f)) * *hither;
 
-	int result = setDepthOrig(face, unk, bias, unk2);
+	int result = setDepthOrig(face, unk, 0.0f, unk2);
 
 	//printf("IN: %f, OUT: %d\n", unk2, result);
 
 	int *faceflags = 0x0058bf5c;
 
-	
+	float *zbias = face + 0xc;
+	*zbias = bias;
 
 	for (int i = 0; i < *(int *)(face + 0x14); i++) {
 		float *z = NULL;
@@ -2202,18 +2204,20 @@ void installGfxPatches() {
 
 	patchByte(0x004cfa62, 0xeb);	// skip replacing pushback
 	
-	//patchNop(0x004cfa93, 26);	// transparent object z-bias
-	//patchNop(0x004cfaaf, 21);	// skater z-bias to avoid clipping
-	//patchNop(0x004cfad2, 14);	// something with park editor?
+	patchNop(0x004cfa93, 26);	// transparent object z-bias
+	patchNop(0x004cfaaf, 21);	// skater z-bias to avoid clipping
+	patchNop(0x004cfad2, 14);	// something with park editor?
 
 	//patchDWord(0x004cfaa7 + 2, &f1);	// don't bias transparent objects
 
 	//patchNop(0x004cfb7f, 28); // disable transformation
 
+	patchNop(0x004cf9c5, 6);	// no ordering shenanigans
+
 	patchCall(0x004cf4b4, setDepthWrapper);
 
-	patchNop(0x004cf8df, 10);
-	patchDWord(0x004cf8df, 0x0080a966);	// i'll be real i have no idea why this is kind of working but change ordering behavior for everything but masked transparent faces
+	//patchNop(0x004cf8df, 10);
+	//patchDWord(0x004cf8df, 0x0080a966);	// i'll be real i have no idea why this is kind of working but change ordering behavior for everything but masked transparent faces
 	
 
 	// pal_loadpalette - don't mess with alpha

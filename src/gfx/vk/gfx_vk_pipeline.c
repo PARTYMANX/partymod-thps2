@@ -326,7 +326,8 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	const VkDynamicState dynamicState[] = { 
 		VK_DYNAMIC_STATE_VIEWPORT, 
 		VK_DYNAMIC_STATE_SCISSOR, 
-		//VK_DYNAMIC_STATE_DEPTH_BIAS, 
+		VK_DYNAMIC_STATE_DEPTH_BIAS, 
+		VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE, 
 		VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE,
 		VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE,
 		//VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY,
@@ -338,7 +339,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
 		.pNext = NULL,
 		.flags = 0,
-		.dynamicStateCount = 4,
+		.dynamicStateCount = (sizeof(dynamicState) / sizeof(VkDynamicState)),
 		.pDynamicStates = &dynamicState,
 	};
 
@@ -596,16 +597,28 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 
 	uint8_t shaderResult = 0;
 
-	/*shaderResult = createShaderFromFile(renderer, "shaders/base-texture.vert.spv", &(shaderStageInfo[0].module));
+#ifdef SHADERS_FROM_FILE
+	log_printf(LL_TRACE, "createRenderPipelines(): vertex shader\n");
+	shaderResult = createShaderFromFile(renderer, "shaders/base-texture.vert.spv", &(shaderStageInfo[0].module));
 	if (!shaderResult) {
-		printf("failed to create vertex shader!\n");
+		log_printf(LL_INFO, "falling back to built-in shader!\n");
+		shaderResult = createShader(renderer, gshader_base_vertData, gshader_base_vertSize, &(shaderStageInfo[0].module));
+		if (!shaderResult) {
+			log_printf(LL_ERROR, "failed to create vertex shader for render pipeline!\n");
+		}
 	}
 
+	log_printf(LL_TRACE, "createRenderPipelines(): fragment shader\n");
 	shaderResult = createShaderFromFile(renderer, "shaders/base-texture.frag.spv", &(shaderStageInfo[1].module));
 	if (!shaderResult) {
-		printf("failed to create fragment shader!\n");
-	}*/
-
+		log_printf(LL_INFO, "falling back to built-in shader!\n");
+		shaderResult = createShader(renderer, gshader_base_fragData, gshader_base_fragSize, &(shaderStageInfo[1].module));
+		if (!shaderResult) {
+			log_printf(LL_ERROR, "failed to create fragment shader for render pipeline!\n");
+		}
+		log_printf(LL_ERROR, "failed to create fragment shader!\n");
+	}
+#else
 	log_printf(LL_TRACE, "createRenderPipelines(): vertex shader\n");
 	shaderResult = createShader(renderer, gshader_base_vertData, gshader_base_vertSize, &(shaderStageInfo[0].module));
 	if (!shaderResult) {
@@ -617,6 +630,7 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	if (!shaderResult) {
 		log_printf(LL_ERROR, "failed to create fragment shader for render pipeline!\n");
 	}
+#endif
 
 	// to avoid having to use a dynamic state extension (even though probably everyone has it), make one pipeline per blend mode
 	log_printf(LL_TRACE, "createRenderPipelines(): pipelines\n");
@@ -930,16 +944,28 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 
 	uint8_t shaderResult = 0;
 
-	/*shaderResult = createShaderFromFile(renderer, "shaders/framebuffer.vert.spv", &(shaderStageInfo[0].module));
+#ifdef SHADERS_FROM_FILE
+	log_printf(LL_TRACE, "createScalerPipeline(): vertex shader\n");
+	shaderResult = createShaderFromFile(renderer, "shaders/framebuffer.vert.spv", &(shaderStageInfo[0].module));
 	if (!shaderResult) {
-		printf("failed to create vertex shader!\n");
+		log_printf(LL_INFO, "falling back to built-in shader!\n");
+		shaderResult = createShader(renderer, gshader_framebuffer_vertData, gshader_framebuffer_vertSize, &(shaderStageInfo[0].module));
+		if (!shaderResult) {
+			log_printf(LL_ERROR, "failed to create vertex shader for scaler render pipeline!\n");
+		}
 	}
 
+	log_printf(LL_TRACE, "createScalerPipeline(): fragment shader\n");
 	shaderResult = createShaderFromFile(renderer, "shaders/framebuffer-sharp.frag.spv", &(shaderStageInfo[1].module));
 	if (!shaderResult) {
-		printf("failed to create fragment shader!\n");
-	}*/
-
+		log_printf(LL_INFO, "falling back to built-in shader!\n");
+		shaderResult = createShader(renderer, gshader_framebuffer_fragData, gshader_framebuffer_fragSize, &(shaderStageInfo[1].module));
+		if (!shaderResult) {
+			log_printf(LL_ERROR, "failed to create fragment shader for scaler render pipeline!\n");
+		}
+		log_printf(LL_ERROR, "failed to create fragment shader!\n");
+	}
+#else
 	log_printf(LL_TRACE, "createScalerPipeline(): vertex shader\n");
 	shaderResult = createShader(renderer, gshader_framebuffer_vertData, gshader_framebuffer_vertSize, &(shaderStageInfo[0].module));
 	if (!shaderResult) {
@@ -951,6 +977,7 @@ VkResult createScalerPipeline(partyRenderer *renderer) {
 	if (!shaderResult) {
 		log_printf(LL_ERROR, "failed to create vertex shader!\n");
 	}
+#endif
 
 	log_printf(LL_TRACE, "createScalerPipeline(): pipeline\n");
 	VkResult result = vkCreateGraphicsPipelines(renderer->device->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &renderer->scalerPipeline);

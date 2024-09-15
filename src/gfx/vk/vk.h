@@ -15,7 +15,7 @@
 #define QUEUE_FAMILY_GRAPHICS 0
 #define QUEUE_FAMILY_PRESENT 1
 
-//#define VK_VALIDATION
+#define VK_VALIDATION
 
 /*
 	GLOBALS
@@ -117,7 +117,7 @@ typedef struct {
 typedef struct {
 	size_t capacity;
 	size_t count;
-	VkSampler samplers[2];
+	VkSampler samplers[4];
 	uint8_t *occupied;
 	pmVkImage *images;
 } textureManager;
@@ -251,6 +251,6 @@ void clear_writes(pmVkDescriptorAllocator *allocator);
 VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height, pmVkImage *result);
 void destroyTexture(partyRenderer *renderer, pmVkImage img);
 void updateTexture(partyRenderer *renderer, pmVkImage *img, uint32_t width, uint32_t height, void *data);
-VkSampler createSampler(partyRenderer *renderer);
+VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter, VkSamplerAddressMode addressMode);
 
 #endif
