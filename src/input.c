@@ -248,6 +248,77 @@ void getStick(SDL_GameController *controller, controllerStick stick, int16_t *xO
 	}
 }
 
+SDL_Joystick *sdvx_con = NULL;
+
+int16_t sdvx_l_prev = 0;
+int16_t sdvx_r_prev = 0;
+
+uint16_t pollSDVX() {
+	uint16_t result = 0;
+
+	if (SDL_JoystickGetAttached(sdvx_con)) {
+		// buttons
+		if (SDL_JoystickGetButton(sdvx_con, 0)) {
+			result |= 0x01 << 11;
+		}
+
+		if (SDL_JoystickGetButton(sdvx_con, 2)) {	// grind
+			result |= 0x01 << 4;
+		}
+		if (SDL_JoystickGetButton(sdvx_con, 4)) {	// grab
+			result |= 0x01 << 5;
+		}
+		if (SDL_JoystickGetButton(sdvx_con, 3)) {	// ollie
+			result |= 0x01 << 6;
+		}
+		if (SDL_JoystickGetButton(sdvx_con, 1)) {	// kick
+			result |= 0x01 << 7;
+		}
+
+		// shoulders
+		if (SDL_JoystickGetButton(sdvx_con, 5)) {	// l
+			result |= 0x01 << 2;
+			result |= 0x01 << 0;
+		}
+
+		if (SDL_JoystickGetButton(sdvx_con, 6)) {	// r
+			result |= 0x01 << 3;
+			result |= 0x01 << 1;
+		}
+
+		int16_t cur_l = SDL_JoystickGetAxis(sdvx_con, 0);
+		int16_t cur_r = SDL_JoystickGetAxis(sdvx_con, 1);
+
+		// knob input
+		int16_t delta_l = cur_l - sdvx_l_prev;
+		int16_t delta_r = cur_r - sdvx_r_prev;
+
+		printf("DELTA L: %d, DELTA R: %d\n", delta_l, delta_r);
+
+		if (delta_r < -1000) {
+			result |= 0x01 << 12;	// up
+		}
+		if (delta_l > 1000) {
+			result |= 0x01 << 13;	// right
+		}
+		if (delta_r > 1000) {
+			result |= 0x01 << 14;	// down
+		}
+		if (delta_l < -1000) {
+			result |= 0x01 << 15;	// left
+		}
+
+		if (delta_l > 5000 || delta_l < -5000) {
+			result |= 0x01 << 14;	// if rotating fast, add down input
+		}
+
+		sdvx_l_prev = cur_l;
+		sdvx_r_prev = cur_r;
+	}
+
+	return result;
+}
+
 uint16_t pollController(SDL_GameController *controller) {
 	uint16_t result = 0;
 
@@ -424,6 +495,8 @@ void __cdecl processController() {
 		controlData |= pollKeyboard();
 	}
 
+	controlData |= pollSDVX();
+
 	// TODO: maybe smart selection of active controller?
 	for (int i = 0; i < controllerCount; i++) {
 		controlData |= pollController(controllerList[i]);
@@ -526,6 +599,24 @@ void processInputEvent(SDL_Event *e) {
 		}
 		case SDL_JOYDEVICEADDED:
 			log_printf(LL_DEBUG, "Joystick added: %s\n", SDL_JoystickNameForIndex(e->jdevice.which));
+
+			log_printf(LL_DEBUG, "JOYSTICK VENDOR: 0x%04x PRODUCT: 0x%04x\n", SDL_JoystickGetDeviceVendor(e->jdevice.which), SDL_JoystickGetDeviceProduct(e->jdevice.which));
+
+			uint16_t vendor = SDL_JoystickGetDeviceVendor(e->jdevice.which);
+			uint16_t product = SDL_JoystickGetDeviceProduct(e->jdevice.which);
+
+			// SDVX CONSOLE -NEMSYS- Ultimate Model
+			if (vendor == 0x1ccf && product == 0x1014) {
+				sdvx_con = SDL_JoystickOpen(e->jdevice.which);
+
+				sdvx_l_prev = SDL_JoystickGetAxis(sdvx_con, 0);
+				sdvx_r_prev = SDL_JoystickGetAxis(sdvx_con, 1);
+			}
+
+			setUsingKeyboard(0);
+			return;
+		case SDL_JOYBUTTONDOWN:
+		case SDL_JOYAXISMOTION:
 			setUsingKeyboard(0);
 			return;
 		case SDL_CONTROLLERBUTTONDOWN:
