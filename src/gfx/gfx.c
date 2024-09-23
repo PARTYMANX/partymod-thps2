@@ -162,7 +162,7 @@ void D3DPOLY_StartScene(int a, int b) {
 
 	setupFog(a);
 
-	uint32_t clearColor = fixDXColor(b);
+	uint32_t clearColor = fixDXColor(b) | 0xFF000000;
 
 	if (!isMinimized) {
 		startRender(renderer, clearColor);
@@ -373,7 +373,7 @@ void renderDXPoly(int *tag) {
 			alpha = 0xff000000;
 			// blend mode 2
 			setBlendState(renderer, 2);
-			setDepthState(renderer, 1, 1);
+			//setDepthState(renderer, 1, 1);
 			break;
 		case 0x100:
 			alpha = 0x00000000;
@@ -469,7 +469,7 @@ void renderDXPoly(int *tag) {
 		}
 
 		if (!(tex->flags & 0x10)) {
-			setDepthState(renderer, 1, 0);
+			//setDepthState(renderer, 1, 0);
 		}
 
 		// calc final colors
@@ -1231,6 +1231,51 @@ void changeViewport(int *tag) {
 	setScissor(renderer, x, y, width, height);
 }
 
+int tagIsTransparent(int *tag) {
+	if (tag[1] != 0) {
+		uint8_t cmd = *(uint8_t *)((int)tag + 7);
+		if (!(cmd & 0x80)) {
+			/*if (cmd & 0x02) {
+				return 0;
+			} else {
+				return 1;
+			}*/
+			return 1;	// non DXPOLY is correctly ordered already, draw last
+		} else if (cmd == 0xB0) {
+			uint32_t polyflags = *(uint32_t *)((uint8_t *)tag + 8);
+
+			if ((polyflags & 0x30000000) == 0x10000000) {
+				// wireframe unfilled
+			} else if ((polyflags & 0x30000000) & 0x20000000) {
+				// wireframe filled
+			}
+
+			if (polyflags & 0x40/* && (polyflags & 0x180) != 0x80*/) {
+				return 1;
+			} else {
+				if (*(uint32_t *)((uint8_t *)tag + 0x10) && 0) {
+					struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 0x10) + 0x14);
+					if (tex && !(tex->flags & 0x10)) {
+						return 1;
+					} else {
+						return 0;
+					}
+				} else {
+					return 0;
+				}
+			}
+		} else if (cmd == 0xE1) {
+			// maybe blend mode
+			return 2;
+		} else if (cmd == 0xE3) {
+			// set viewport
+			return 2;
+		}
+	} else {
+		return 0;
+	}
+}
+
 void D3DPOLY_DrawOTag(int *tag) {
 	uint32_t *polyFlags = 0x0065c8ac;
 	uint32_t *alphaBlend = 0x0069c8b0;
@@ -1240,138 +1285,208 @@ void D3DPOLY_DrawOTag(int *tag) {
 		return;
 	}
 
+	// move transparent DXPOLYs to the back of the render queue
+	/*int *opaqueHead = NULL;
+	int *transparentHead = NULL;
+	int *opaqueTail = NULL;
+	int *transparentTail = NULL;
+
 	while(tag != NULL) {
-		if (tag[1] != 0) {
-			// hangar heli causes command 226, what's up there?
-			uint8_t cmd = *(uint8_t *)((int)tag + 7);
-			if (!(cmd & 0x80)) {
-				//*nextPSXBlendMode = 0;
+		int isTransparent = tagIsTransparent(tag);
 
-				uint8_t blendMode = cmd & 0xfffffffc;
-				uint8_t otherBlendMode = cmd & 4;
-				if (blendMode == 0x40 || blendMode == 0x48 || blendMode == 0x4c || blendMode == 0x50) {
-					otherBlendMode = 0;
-				} else if (!otherBlendMode) {
-					if (!(cmd & 0x04)) {
-					
-					} else {
-					
-					}
-
-				} else {
-					if (!(cmd & 0x10)) {
-						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x16));
-					} else {
-						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x1a));
-					}
-				}
-
-				if (cmd & 0x02) {
-					setDepthState(renderer, 1, 0);
-
-					if (otherBlendMode) {
-						*nextPSXBlendMode = (blendMode >> 5) & 3;
-					}
-
-					// alpha blending
-					switch(*nextPSXBlendMode) {
-					case 0:
-						*alphaBlend = 0x80000000;
-						// blend mode 1
-						setBlendState(renderer, 1);
-						break;
-					case 1:
-						*alphaBlend = 0xff000000;
-						// blend mode 2
-						setBlendState(renderer, 2);
-						break;
-					case 2:
-						*alphaBlend = 0x00000000;
-						// blend mode 4
-						setBlendState(renderer, 4);
-						break;
-					case 3:
-						*alphaBlend = 0x40000000;
-						// blend mode 2
-						setBlendState(renderer, 2);
-						break;
-					default:
-						log_printf(LL_WARN, "unknown blend mode 0x%08x\n", *nextPSXBlendMode);
-						*alphaBlend = 0xff000000;
-					}
-
-				} else {
-					*alphaBlend = 0xff000000;
-					setDepthState(renderer, 1, 1);
-					setBlendState(renderer, 1);
-				}
-
-				switch(cmd >> 2) {
-					case 8: 
-						renderPolyF3(tag);
-						break;
-					case 9: 
-						renderPolyFT3(tag);
-						break;
-					case 10: 
-						renderPolyF4(tag);
-						break;
-					case 11: 
-						renderPolyFT4(tag);
-						break;
-					case 12: 
-						renderPolyG3(tag);
-						break;
-					case 13: 
-						renderPolyGT3(tag);
-						break;
-					case 14: 
-						renderPolyG4(tag);
-						break;
-					case 15: 
-						renderPolyGT4(tag);
-						break;
-					case 16: 
-						renderLineF2(tag);
-						break;
-					case 18: 
-						renderLineF3(tag);
-						break;
-					case 19: 
-						renderLineF4(tag);
-						break;
-					case 20: 
-						renderLineG2(tag);
-						break;
-					case 24: 
-						renderTile(tag);
-						break;
-					case 26: 
-						renderTile1(tag);
-						break;
-					case 28: 
-						renderTile8(tag);
-						break;
-					case 30: 
-						renderTile16(tag);
-						break;
-					default:
-						log_printf(LL_WARN, "UNKNOWN RENDER COMMAND: %d\n", cmd >> 2);
-				}
-			} else if (cmd == 0xB0) {
-				renderDXPoly(tag);
-			} else if (cmd == 0xE1) {
-				// maybe blend mode
-				uint32_t blendMode = tag[1];
-				*nextPSXBlendMode = (blendMode >> 5) & 3;
-			} else if (cmd == 0xE3) {
-				// set viewport
-				changeViewport(tag);
+		if (isTransparent == 1) {
+			if (!transparentHead) {
+				transparentHead = tag;
+				transparentTail = tag;
 			} else {
-				//printf("UNKNOWN RENDER COMMAND: %d\n", cmd);
+				*transparentTail = tag;
+				transparentTail = tag;
+			}
+		} else if (isTransparent == 2) {
+			if (!opaqueHead) {
+				opaqueHead = tag;
+				opaqueTail = tag;
+			} else {
+				*opaqueTail = tag;
+				opaqueTail = tag;
+			}
+
+			if (!transparentHead) {
+				transparentHead = tag;
+				transparentTail = tag;
+			} else {
+				*transparentTail = tag;
+				transparentTail = tag;
+			}
+		} else {
+			if (!opaqueHead) {
+				opaqueHead = tag;
+				opaqueTail = tag;
+			} else {
+				*opaqueTail = tag;
+				opaqueTail = tag;
 			}
 		}
+
 		tag = *tag;
+	}
+
+	if (opaqueTail) {
+		*opaqueTail = transparentHead;
+		if (transparentTail) {
+			*transparentTail = NULL;
+		}
+		tag = opaqueHead;
+	} else {
+		tag = transparentHead;
+		if (transparentTail) {
+			*transparentTail = NULL;
+		}
+	}*/
+
+	int *tagHead = tag;
+	for (int i = 0; i < 2; i++) {
+		while(tag != NULL) {
+			int isTransparent = tagIsTransparent(tag);
+
+			if (isTransparent != i && isTransparent != 2) {
+				tag = *tag;
+				continue;
+			}
+
+			if (tag[1] != 0) {
+				uint8_t cmd = *(uint8_t *)((int)tag + 7);
+				if (!(cmd & 0x80)) {
+					//*nextPSXBlendMode = 0;
+
+					uint8_t blendMode = cmd & 0xfffffffc;
+					uint8_t otherBlendMode = cmd & 4;
+					if (blendMode == 0x40 || blendMode == 0x48 || blendMode == 0x4c || blendMode == 0x50) {
+						otherBlendMode = 0;
+					} else if (!otherBlendMode) {
+						if (!(cmd & 0x04)) {
+					
+						} else {
+					
+						}
+
+					} else {
+						if (!(cmd & 0x10)) {
+							blendMode = *(uint16_t *)(((uint8_t *)tag + 0x16));
+						} else {
+							blendMode = *(uint16_t *)(((uint8_t *)tag + 0x1a));
+						}
+					}
+
+					if (cmd & 0x02) {
+						setDepthState(renderer, 1, 0);
+
+						if (otherBlendMode) {
+							*nextPSXBlendMode = (blendMode >> 5) & 3;
+						}
+
+						// alpha blending
+						switch(*nextPSXBlendMode) {
+						case 0:
+							*alphaBlend = 0x80000000;
+							// blend mode 1
+							setBlendState(renderer, 1);
+							break;
+						case 1:
+							*alphaBlend = 0xff000000;
+							// blend mode 2
+							setBlendState(renderer, 2);
+							break;
+						case 2:
+							*alphaBlend = 0x00000000;
+							// blend mode 4
+							setBlendState(renderer, 4);
+							break;
+						case 3:
+							*alphaBlend = 0x40000000;
+							// blend mode 2
+							setBlendState(renderer, 2);
+							break;
+						default:
+							log_printf(LL_WARN, "unknown blend mode 0x%08x\n", *nextPSXBlendMode);
+							*alphaBlend = 0xff000000;
+						}
+
+					} else {
+						*alphaBlend = 0xff000000;
+						setDepthState(renderer, 1, 1);
+						setBlendState(renderer, 1);
+					}
+
+					switch(cmd >> 2) {
+						case 8: 
+							renderPolyF3(tag);
+							break;
+						case 9: 
+							renderPolyFT3(tag);
+							break;
+						case 10: 
+							renderPolyF4(tag);
+							break;
+						case 11: 
+							renderPolyFT4(tag);
+							break;
+						case 12: 
+							renderPolyG3(tag);
+							break;
+						case 13: 
+							renderPolyGT3(tag);
+							break;
+						case 14: 
+							renderPolyG4(tag);
+							break;
+						case 15: 
+							renderPolyGT4(tag);
+							break;
+						case 16: 
+							renderLineF2(tag);
+							break;
+						case 18: 
+							renderLineF3(tag);
+							break;
+						case 19: 
+							renderLineF4(tag);
+							break;
+						case 20: 
+							renderLineG2(tag);
+							break;
+						case 24: 
+							renderTile(tag);
+							break;
+						case 26: 
+							renderTile1(tag);
+							break;
+						case 28: 
+							renderTile8(tag);
+							break;
+						case 30: 
+							renderTile16(tag);
+							break;
+						default:
+							log_printf(LL_WARN, "UNKNOWN RENDER COMMAND: %d\n", cmd >> 2);
+					}
+				} else if (cmd == 0xB0) {
+					renderDXPoly(tag);
+				} else if (cmd == 0xE1) {
+					// maybe blend mode
+					uint32_t blendMode = tag[1];
+					*nextPSXBlendMode = (blendMode >> 5) & 3;
+				} else if (cmd == 0xE3) {
+					// set viewport
+					changeViewport(tag);
+				} else {
+					//printf("UNKNOWN RENDER COMMAND: %d\n", cmd);
+				}
+			}
+			tag = *tag;
+		}
+
+		tag = tagHead;
 	}
 }
 
@@ -2066,6 +2181,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 
 	float *zbias = face + 0xc;
 	*zbias = bias;
+	//*zbias = 0.0f;
 
 	for (int i = 0; i < *(int *)(face + 0x14); i++) {
 		float *z = NULL;
@@ -2078,7 +2194,26 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 			w = face + 0x24 + (i * 0x14);
 		}
 
-		*z = *z / *w;
+		/*uint32_t polyflags = *(uint32_t *)((uint8_t *)face + 8);
+
+		if (polyflags & 0x40 && (polyflags & 0x180) == 0x80) {
+			*z = *z * 0.7;
+		}*/
+
+		//*z = *z / *w;
+
+		/*uint32_t polyflags = *(uint32_t *)((uint8_t *)face + 8);
+
+		if (polyflags & 0x40 && (polyflags & 0x180) == 0x80) {
+			*z = *z * 0.7;
+		}*/
+
+		float dout = *z - (*zbias * (1.0f / 16777215.0f));
+
+		if (dout < 0.0f || dout > 1.0f) {
+			printf("DETECTED DEPTH OVERFLOW\n");
+			*zbias = *zbias + ((*z - dout) * 16777215.0f);
+		}
 
 		//printf("w: %f z: %f\n", *w, *z);
 
@@ -2091,7 +2226,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 			*z = 0.0f;
 		}*/
 
-		*z = *z * *w;
+		//*z = *z * *w;
 
 		if (bias == 0) {
 			//*z = -1.0f;
@@ -2107,7 +2242,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 		//printf("h: %f, y: %f, r: %f\n", *hither, *yon, r);
 	}
 
-	result += OTPushback;
+	//result += OTPushback;
 
 	// OT placement is based on max z value on psx.  is that the case here???
 
@@ -2116,6 +2251,10 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 	}
 
 	return result;
+}
+
+int *hitherClipPolyDummy(int *tag) {
+	return tag;
 }
 
 void installGfxPatches() {
@@ -2205,16 +2344,17 @@ void installGfxPatches() {
 	patchByte(0x004cfa62, 0xeb);	// skip replacing pushback
 	
 	patchNop(0x004cfa93, 26);	// transparent object z-bias
-	patchNop(0x004cfaaf, 21);	// skater z-bias to avoid clipping
-	patchNop(0x004cfad2, 14);	// something with park editor?
+	//patchNop(0x004cfaaf, 21);	// skater z-bias to avoid clipping
+	//patchNop(0x004cfad2, 14);	// something with park editor?
 
 	//patchDWord(0x004cfaa7 + 2, &f1);	// don't bias transparent objects
 
 	//patchNop(0x004cfb7f, 28); // disable transformation
 
-	patchNop(0x004cf9c5, 6);	// no ordering shenanigans
+	//patchNop(0x004cf9c5, 6);	// no ordering shenanigans
 
 	patchCall(0x004cf4b4, setDepthWrapper);
+	//patchJmp(0x004cf520, hitherClipPolyDummy);
 
 	//patchNop(0x004cf8df, 10);
 	//patchDWord(0x004cf8df, 0x0080a966);	// i'll be real i have no idea why this is kind of working but change ordering behavior for everything but masked transparent faces

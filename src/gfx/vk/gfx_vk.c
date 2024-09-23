@@ -119,7 +119,7 @@ VkResult initInstance() {
 	VkApplicationInfo appInfo = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext = NULL,
-		.pApplicationName = "PARTYMOD for MHPB",
+		.pApplicationName = "PARTYMOD for THPS2",
 		.applicationVersion = VK_MAKE_VERSION(VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH),
 		.pEngineName = "M3D",
 		.engineVersion = VK_MAKE_VERSION(VERSION_NUMBER_MAJOR, VERSION_NUMBER_MINOR, VERSION_NUMBER_PATCH),
@@ -938,6 +938,9 @@ void drawLines(partyRenderer *renderer, renderVertex *vertices, uint32_t vertex_
 	renderer->processedVerts += vertex_count;
 
 	appendPolyBuffer(renderer, vertices, vertex_count);
+
+	vkCmdSetDepthBiasEnable(renderer->renderCommandBuffer, VK_FALSE);
+	vkCmdSetDepthBias(renderer->renderCommandBuffer, 0.0f, 0.0f, 0.0f);
 
 #ifdef FLUSH_ALL
 	flushVerts(renderer);
