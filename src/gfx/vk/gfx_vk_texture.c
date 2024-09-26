@@ -40,27 +40,28 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 
 	//renderer->depthImage.flags = 0;
 
-	VkImageCreateInfo imgCreateInfo;
-	imgCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imgCreateInfo.pNext = NULL;
-	imgCreateInfo.flags = 0;
-	imgCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	imgCreateInfo.extent.width = width;
-	imgCreateInfo.extent.height = height;
-	imgCreateInfo.extent.depth = 1;
-	imgCreateInfo.mipLevels = 1;
-	imgCreateInfo.arrayLayers = 1;
+	VkImageCreateInfo imgCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.imageType = VK_IMAGE_TYPE_2D,
+		.extent.width = width,
+		.extent.height = height,
+		.extent.depth = 1,
+		.mipLevels = 1,
+		.arrayLayers = 1,
 
-	imgCreateInfo.format = depthFmt;
-	imgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	imgCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	imgCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		.format = depthFmt,
+		.tiling = VK_IMAGE_TILING_OPTIMAL,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 
-	imgCreateInfo.samples = 1;
+		.samples = 1,
 
-	imgCreateInfo.queueFamilyIndexCount = 0;
-	imgCreateInfo.pQueueFamilyIndices = NULL;
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = NULL,
+	};
 
 	log_printf(LL_TRACE, "createRenderTargets(): depth image\n");
 	if (vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(renderer->depthImage.image)) != VK_SUCCESS) {
@@ -79,15 +80,16 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 
 	// allocate memory
 
-	VmaAllocationCreateInfo allocInfo;
-	allocInfo.flags = 0;
-	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	allocInfo.requiredFlags = 0;
-	allocInfo.preferredFlags = 0;
-	allocInfo.memoryTypeBits = 0;
-	allocInfo.pool = VK_NULL_HANDLE;
-	allocInfo.pUserData = NULL;
-	allocInfo.priority = 0.0f;
+	VmaAllocationCreateInfo allocInfo = {
+		.flags = 0,
+		.usage = VMA_MEMORY_USAGE_GPU_ONLY,
+		.requiredFlags = 0,
+		.preferredFlags = 0,
+		.memoryTypeBits = 0,
+		.pool = VK_NULL_HANDLE,
+		.pUserData = NULL,
+		.priority = 0.0f,
+	};
 
 	log_printf(LL_TRACE, "createRenderTargets(): allocate and bind memory\n");
 	vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->depthImage.image, &allocInfo, &renderer->depthImage.allocation, NULL);
@@ -100,25 +102,27 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 
 	// create image view
 
-	VkImageViewCreateInfo viewCreateInfo;
-	viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewCreateInfo.pNext = NULL;
-	viewCreateInfo.flags = 0;
-	viewCreateInfo.image = renderer->depthImage.image;
-	viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewCreateInfo.format = depthFmt;
+	VkImageViewCreateInfo viewCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.image = renderer->depthImage.image,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.format = depthFmt,
 
-	viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		.components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+		.components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+		.components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+		.components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
 
-	//viewCreateInfo.subresourceRange.aspectMask = (isDepthFormat(info->pixelFormat)) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-	viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	viewCreateInfo.subresourceRange.baseMipLevel = 0;
-	viewCreateInfo.subresourceRange.levelCount = 1;
-	viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	viewCreateInfo.subresourceRange.layerCount = 1;
+		//.subresourceRange.aspectMask = (isDepthFormat(info->pixelFormat)) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
+		.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+		.subresourceRange.baseMipLevel = 0,
+		.subresourceRange.levelCount = 1,
+		.subresourceRange.baseArrayLayer = 0,
+		.subresourceRange.layerCount = 1,
+	};
+
 	log_printf(LL_TRACE, "createRenderTargets(): depth image view\n");
 	if(vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(renderer->depthImage.imageView)) != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to create depth image view");
@@ -136,32 +140,34 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 
 	// create render image sampler
 
-	VkSamplerCreateInfo samplerInfo;
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.pNext = NULL;
-	samplerInfo.flags = 0;
+	VkSamplerCreateInfo samplerInfo = {
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
 
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.magFilter = VK_FILTER_LINEAR;
+		.minFilter = VK_FILTER_LINEAR,
+		.magFilter = VK_FILTER_LINEAR,
 
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+		.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+		.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
 
-	samplerInfo.anisotropyEnable = VK_FALSE;
-	samplerInfo.maxAnisotropy = 0;
+		.anisotropyEnable = VK_FALSE,
+		.maxAnisotropy = 0,
 
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+		.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
 
-	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+		.unnormalizedCoordinates = VK_FALSE,
 
-	samplerInfo.compareEnable = VK_FALSE;
-	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+		.compareEnable = VK_FALSE,
+		.compareOp = VK_COMPARE_OP_ALWAYS,
 
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.mipLodBias = 0;
-	samplerInfo.minLod = VK_LOD_CLAMP_NONE;
-	samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+		.mipLodBias = 0,
+		.minLod = VK_LOD_CLAMP_NONE,
+		.maxLod = VK_LOD_CLAMP_NONE,
+	};
+
 	log_printf(LL_TRACE, "createRenderTargets(): sampler\n");
 	if(vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &(renderer->renderSampler)) != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to create sampler");
@@ -195,27 +201,28 @@ VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height,
 
 	//result->flags = 0;
 
-	VkImageCreateInfo imgCreateInfo;
-	imgCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imgCreateInfo.pNext = NULL;
-	imgCreateInfo.flags = 0;
-	imgCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	imgCreateInfo.extent.width = result->width;
-	imgCreateInfo.extent.height = result->height;
-	imgCreateInfo.extent.depth = 1;
-	imgCreateInfo.mipLevels = 1;
-	imgCreateInfo.arrayLayers = 1;
+	VkImageCreateInfo imgCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.imageType = VK_IMAGE_TYPE_2D,
+		.extent.width = result->width,
+		.extent.height = result->height,
+		.extent.depth = 1,
+		.mipLevels = 1,
+		.arrayLayers = 1,
 
-	imgCreateInfo.format = result->pixelFormat;
-	imgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	imgCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;	// FIXME: ? causes issue if when trying to display before update + mipmap generation
-	imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-	imgCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;	// TODO: (probably) from info??
+		.format = result->pixelFormat,
+		.tiling = VK_IMAGE_TILING_OPTIMAL,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,	// FIXME: ? causes issue if when trying to display before update + mipmap generation
+		.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,	// TODO: (probably) from info??
 
-	imgCreateInfo.samples = 1;
+		.samples = 1,
 
-	imgCreateInfo.queueFamilyIndexCount = 0;
-	imgCreateInfo.pQueueFamilyIndices = NULL;
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = NULL,
+	};
 
 	VkResult r = vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(result->image));
 	if (r != VK_SUCCESS) {
@@ -225,15 +232,16 @@ VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height,
 
 	// allocate memory
 
-	VmaAllocationCreateInfo allocInfo;
-	allocInfo.flags = 0;
-	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	allocInfo.requiredFlags = 0;
-	allocInfo.preferredFlags = 0;
-	allocInfo.memoryTypeBits = 0;
-	allocInfo.pool = VK_NULL_HANDLE;
-	allocInfo.pUserData = NULL;
-	allocInfo.priority = 0.0f;
+	VmaAllocationCreateInfo allocInfo = {
+		.flags = 0,
+		.usage = VMA_MEMORY_USAGE_GPU_ONLY,
+		.requiredFlags = 0,
+		.preferredFlags = 0,
+		.memoryTypeBits = 0,
+		.pool = VK_NULL_HANDLE,
+		.pUserData = NULL,
+		.priority = 0.0f,
+	};
 
 	vmaAllocateMemoryForImage(renderer->memoryManager->allocator, result->image, &allocInfo, &result->allocation, NULL);
 
@@ -241,24 +249,25 @@ VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height,
 
 	// create image view
 
-	VkImageViewCreateInfo viewCreateInfo;
-	viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewCreateInfo.pNext = NULL;
-	viewCreateInfo.flags = 0;
-	viewCreateInfo.image = result->image;
-	viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewCreateInfo.format = result->pixelFormat;
+	VkImageViewCreateInfo viewCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.image = result->image,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.format = result->pixelFormat,
 
-	viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		.components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+		.components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+		.components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+		.components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
 
-	viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	viewCreateInfo.subresourceRange.baseMipLevel = 0;
-	viewCreateInfo.subresourceRange.levelCount = 1;
-	viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	viewCreateInfo.subresourceRange.layerCount = 1;
+		.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.subresourceRange.baseMipLevel = 0,
+		.subresourceRange.levelCount = 1,
+		.subresourceRange.baseArrayLayer = 0,
+		.subresourceRange.layerCount = 1,
+	};
 
 	r = vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(result->imageView));
 	if(r != VK_SUCCESS) {
@@ -278,32 +287,33 @@ void destroyTexture(partyRenderer *renderer, pmVkImage img) {
 VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter) {
 	VkSampler result;
 
-	VkSamplerCreateInfo samplerInfo;
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.pNext = NULL;
-	samplerInfo.flags = 0;
+	VkSamplerCreateInfo samplerInfo = {
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
 
-	samplerInfo.minFilter = minMagFilter;
-	samplerInfo.magFilter = minMagFilter;
+		.minFilter = minMagFilter,
+		.magFilter = minMagFilter,
 
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 
-	samplerInfo.anisotropyEnable = VK_FALSE;
-	samplerInfo.maxAnisotropy = 0;
+		.anisotropyEnable = VK_FALSE,
+		.maxAnisotropy = 0,
 
-	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+		.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
 
-	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+		.unnormalizedCoordinates = VK_FALSE,
 
-	samplerInfo.compareEnable = VK_FALSE;
-	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+		.compareEnable = VK_FALSE,
+		.compareOp = VK_COMPARE_OP_ALWAYS,
 
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.mipLodBias = 0;
-	samplerInfo.minLod = 0;
-	samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+		.mipLodBias = 0,
+		.minLod = 0,
+		.maxLod = VK_LOD_CLAMP_NONE,
+	};
 
 	if(vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &result) != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to create sampler");
@@ -329,22 +339,23 @@ void updateTexture(partyRenderer *renderer, pmVkImage *img, uint32_t width, uint
 
 	// start layout change
 
-	VkImageMemoryBarrier imgMemBarrier;
-	imgMemBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	imgMemBarrier.pNext = NULL;
-	imgMemBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	imgMemBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	imgMemBarrier.image = img->image;
-	imgMemBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	imgMemBarrier.subresourceRange.baseMipLevel = 0;
-	imgMemBarrier.subresourceRange.levelCount = 1;
-	imgMemBarrier.subresourceRange.baseArrayLayer = 0;
-	imgMemBarrier.subresourceRange.layerCount = 1;
+	VkImageMemoryBarrier imgMemBarrier = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.pNext = NULL,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = img->image,
+		.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.subresourceRange.baseMipLevel = 0,
+		.subresourceRange.levelCount = 1,
+		.subresourceRange.baseArrayLayer = 0,
+		.subresourceRange.layerCount = 1,
 
-	imgMemBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imgMemBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	imgMemBarrier.srcAccessMask = 0;
-	imgMemBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		.srcAccessMask = 0,
+		.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+	};
 
 	vkCmdPipelineBarrier(cmdbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &imgMemBarrier);
 
@@ -352,23 +363,24 @@ void updateTexture(partyRenderer *renderer, pmVkImage *img, uint32_t width, uint
 
 	// start image copy
 
-	VkBufferImageCopy copyRegion;
-	copyRegion.bufferOffset = 0;
-	copyRegion.bufferRowLength = 0;
-	copyRegion.bufferImageHeight = 0;
+	VkBufferImageCopy copyRegion = {
+		.bufferOffset = 0,
+		.bufferRowLength = 0,
+		.bufferImageHeight = 0,
 
-	copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	copyRegion.imageSubresource.mipLevel = 0;
-	copyRegion.imageSubresource.baseArrayLayer = 0;
-	copyRegion.imageSubresource.layerCount = 1;
+		.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.imageSubresource.mipLevel = 0,
+		.imageSubresource.baseArrayLayer = 0,
+		.imageSubresource.layerCount = 1,
 
-	copyRegion.imageOffset.x = 0;
-	copyRegion.imageOffset.y = 0;
-	copyRegion.imageOffset.z = 0;
+		.imageOffset.x = 0,
+		.imageOffset.y = 0,
+		.imageOffset.z = 0,
 
-	copyRegion.imageExtent.width = width;
-	copyRegion.imageExtent.height = height;
-	copyRegion.imageExtent.depth = 1;
+		.imageExtent.width = width,
+		.imageExtent.height = height,
+		.imageExtent.depth = 1,
+	};
 
 	vkCmdCopyBufferToImage(cmdbuf, transferBuffer.buffer, img->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
@@ -390,9 +402,10 @@ void updateTexture(partyRenderer *renderer, pmVkImage *img, uint32_t width, uint
 	endStagingCommandBuffer(renderer, cmdbuf);
 
 	//destroyBuffer(renderer, &transferBuffer);
-	pendingImageWrite imageWrite;
-	imageWrite.cmdbuf = cmdbuf;
-	imageWrite.transferbuf = transferBuffer;
+	pendingImageWrite imageWrite = {
+		.cmdbuf = cmdbuf,
+		.transferbuf = transferBuffer,
+	};
 
 	sb_push_back(renderer->pendingImageWrites, &imageWrite);
 }

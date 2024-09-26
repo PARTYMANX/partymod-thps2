@@ -14,17 +14,24 @@ void main() {
 	if (ftexture >= 0) {
 		vec4 vertcolor = fcolor;
 		vec4 texcolor = texture(diffuse[ftexture], fuv);
+		float alpha;
+
 		if (texcolor.a == 0.0) {
-			if (texcolor.rgb == vec3(0.0) || fcolor.a == 1.0) {
-				discard;
-			}
+			discard;
+		} else if (texcolor.a == 1.0) {
+			alpha = 1.0;
+		} else {
+			alpha = fcolor.a * (texcolor.a * 2.0);
 		}
 
+		vec4 outcolor;
 		if ((fflags & 1) != 0) {
-			fragColor = vertcolor * texcolor;
+			outcolor = vertcolor * texcolor;
 		} else {
-			fragColor = vertcolor * texcolor * vec4(vec3(2.0), 1.0);
+			outcolor = vertcolor * texcolor * vec4(vec3(2.0), 1.0);
 		}
+
+		fragColor = vec4(outcolor.rgb, alpha);
 	} else {
 		fragColor = fcolor;
 	}

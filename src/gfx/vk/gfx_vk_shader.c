@@ -22,12 +22,13 @@ uint8_t createShaderFromFile(partyRenderer *renderer, char *filename, VkShaderMo
 		if (buffer) {
 			fread(buffer, 1, filesize, f);
 
-			VkShaderModuleCreateInfo shaderInfo;
-			shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-			shaderInfo.pNext = NULL;
-			shaderInfo.flags = 0;
-			shaderInfo.codeSize = filesize;
-			shaderInfo.pCode = buffer;
+			VkShaderModuleCreateInfo shaderInfo = {
+				.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+				.pNext = NULL,
+				.flags = 0,
+				.codeSize = filesize,
+				.pCode = buffer,
+			};
 
 			if (vkCreateShaderModule(renderer->device->device, &shaderInfo, NULL, dst) != VK_SUCCESS) {
 				log_printf(LL_ERROR, "Failed to create shader!\n");
@@ -55,12 +56,13 @@ uint8_t createShaderFromFile(partyRenderer *renderer, char *filename, VkShaderMo
 uint8_t createShader(partyRenderer *renderer, uint8_t *code, uint32_t codeSz, VkShaderModule *dst) {
 	uint8_t result = 0;
 
-	VkShaderModuleCreateInfo shaderInfo;
-	shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	shaderInfo.pNext = NULL;
-	shaderInfo.flags = 0;
-	shaderInfo.codeSize = codeSz;
-	shaderInfo.pCode = code;
+	VkShaderModuleCreateInfo shaderInfo = {
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0,
+		.codeSize = codeSz,
+		.pCode = code,
+	};
 
 	if (vkCreateShaderModule(renderer->device->device, &shaderInfo, NULL, dst) != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to create shader!\n");

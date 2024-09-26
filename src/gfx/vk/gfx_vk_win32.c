@@ -52,12 +52,13 @@ VkResult pmVkCreateWindow(void *windowHandle, struct pmVkWindow **window) {
 		return VK_ERROR_UNKNOWN;
 	}
 
-	VkWin32SurfaceCreateInfoKHR createInfo;
-	createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	createInfo.pNext = NULL;
-	createInfo.flags = 0;
-	createInfo.hinstance = GetModuleHandle(NULL);
-	createInfo.hwnd = *(HWND *)windowHandle;
+	VkWin32SurfaceCreateInfoKHR createInfo = {
+		.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+		.pNext = NULL,
+		.flags = 0,
+		.hinstance = GetModuleHandle(NULL),
+		.hwnd = *(HWND *)windowHandle,
+	};
 
 	VkResult r = vkCreateWin32SurfaceKHR(instance, &createInfo, NULL, &(result->surface));
 	if (r) {

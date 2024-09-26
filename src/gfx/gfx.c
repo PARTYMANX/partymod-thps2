@@ -270,7 +270,7 @@ void renderDXPolyWireframe(int *tag) {
 			buf[outputVert].u = 0.0f;
 			buf[outputVert].v = 0.0f;
 			buf[outputVert].color = fixDXColor(vertices[i].color);
-			buf[outputVert].texture = 0;
+			buf[outputVert].texture = -1;
 			buf[outputVert].flags = 0;
 
 			buf[outputVert + 1].x = vertices[i + 1].x;
@@ -280,7 +280,7 @@ void renderDXPolyWireframe(int *tag) {
 			buf[outputVert + 1].u = 0.0f;
 			buf[outputVert + 1].v = 0.0f;
 			buf[outputVert + 1].color = fixDXColor(vertices[i + 1].color);
-			buf[outputVert + 1].texture = 0;
+			buf[outputVert + 1].texture = -1;
 			buf[outputVert + 1].flags = 0;
 
 			outputVert += 2;
@@ -314,7 +314,7 @@ void renderDXPolyWireframe(int *tag) {
 			buf[outputVert].u = 0.0f;
 			buf[outputVert].v = 0.0f;
 			buf[outputVert].color = fixDXColor(vertices[i].color);
-			buf[outputVert].texture = 0;
+			buf[outputVert].texture = -1;
 			buf[outputVert].flags = 0;
 
 			buf[outputVert + 1].x = vertices[i + 1].x;
@@ -324,7 +324,7 @@ void renderDXPolyWireframe(int *tag) {
 			buf[outputVert + 1].u = 0.0f;
 			buf[outputVert + 1].v = 0.0f;
 			buf[outputVert + 1].color = fixDXColor(vertices[i + 1].color);
-			buf[outputVert + 1].texture = 0;
+			buf[outputVert + 1].texture = -1;
 			buf[outputVert + 1].flags = 0;
 
 			outputVert += 2;
@@ -865,7 +865,7 @@ void renderPolyF4(int *tag) {
 }
 
 void renderPolyFT3(int *tag) {
-	if (*(int *)((uint8_t *)tag + 36)) {
+	if (*(int *)((uint8_t *)tag + 36) && *(uint32_t **)(*(int *)((uint8_t *)tag + 36) + 0x14)) {
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 36) + 0x14);
 
 		uint8_t r = *((uint8_t *)tag + 4);
@@ -910,7 +910,7 @@ void renderPolyFT3(int *tag) {
 }
 
 void renderPolyFT4(int *tag) {
-	if (*(int *)((uint8_t *)tag + 44)) {
+	if (*(int *)((uint8_t *)tag + 44) && *(uint32_t **)(*(int *)((uint8_t *)tag + 44) + 0x14)) {
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 44) + 0x14);
 
 		uint8_t r = *((uint8_t *)tag + 4);
@@ -1034,7 +1034,7 @@ void renderPolyG4(int *tag) {
 }
 
 void renderPolyGT3(int *tag) {
-	if (*(int *)((uint8_t *)tag + 44)) {
+	if (*(int *)((uint8_t *)tag + 44) && *(uint32_t **)(*(int *)((uint8_t *)tag + 44) + 0x14)) {
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 44) + 0x14);
 
 		uint8_t r = *((uint8_t *)tag + 4);
@@ -1063,7 +1063,7 @@ void renderPolyGT3(int *tag) {
 		float z = *(float *)((uint8_t *)tag + 40);
 		z = fixZ(z);
 
-		renderVertex vertices[6];
+		renderVertex vertices[3];
 		vertices[0] = (renderVertex) { (float)x1, (float)y1, z, 1.0f, (float)u1, (float)v1, color1, tex->idx, 0 };
 		vertices[1] = (renderVertex) { (float)x2, (float)y2, z, 1.0f, (float)u2, (float)v2, color2, tex->idx, 0 };
 		vertices[2] = (renderVertex) { (float)x3, (float)y3, z, 1.0f, (float)u3, (float)v3, color3, tex->idx, 0 };
@@ -1080,7 +1080,7 @@ void renderPolyGT3(int *tag) {
 }
 
 void renderPolyGT4(int *tag) {
-	if (*(int *)((uint8_t *)tag + 56)) {
+	if (*(int *)((uint8_t *)tag + 56) && *(uint32_t **)(*(int *)((uint8_t *)tag + 56) + 0x14)) {
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 56) + 0x14);
 
 		uint8_t r = *((uint8_t *)tag + 4);
@@ -1491,7 +1491,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 			//printf("Found!\n");
 		}
 		
-		if (a->palette && (uint16_t*)(a->palette[3]) && *(uint16_t*)(a->palette[3]) == 0) {
+		if (a->palette && (uint16_t*)(((int *)a->palette)[3]) && *(uint16_t*)(((int *)a->palette)[3]) == 0) {
 			a->flags = a->flags | 0x100;
 		}
 	}
@@ -1553,20 +1553,28 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 						a->flags &= ~0x10;
 					}
 
-					uint8_t alpha = ((color >> 15) & 0x0001) * 255;
+					uint8_t semi_trans = ((color >> 15) & 0x0001);
+
+					uint8_t alpha;
+					if (semi_trans) {
+						alpha = 127;
+					} else {
+						alpha = (color == 0) ? 0 : 255;
+					}
+
 					uint8_t r = ((float)((color >> 0) & 0x1f) / 31.0f) * 255.0f;
 					uint8_t g = ((float)((color >> 5) & 0x1f) / 31.0f) * 255.0f;
 					uint8_t b = ((float)((color >> 10) & 0x1f) / 31.0f) * 255.0f;
 
-					// if input was 16 for a channel, force it to 128 to smooth sky texture edge transitions out
+					// if input was 16 for a channel, force it to 127 to smooth sky texture edge transitions out
 					if (r == 131) {
-						r = 128;
+						r = 127;
 					}
 					if (g == 131) {
-						g = 128;
+						g = 127;
 					}
 					if (b == 131) {
-						b = 128;
+						b = 127;
 					}
 
 					buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
@@ -1583,20 +1591,28 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 						a->flags &= ~0x10;
 					}
 
-					uint8_t alpha = ((color >> 15) & 0x0001) * 255;
+					uint8_t semi_trans = ((color >> 15) & 0x0001);
+
+					uint8_t alpha;
+					if (semi_trans) {
+						alpha = 127;
+					} else {
+						alpha = (color == 0) ? 0 : 255;
+					}
+
 					uint8_t r = ((float)((color >> 0) & 0x1f) / 31.0f) * 255.0f;
 					uint8_t g = ((float)((color >> 5) & 0x1f) / 31.0f) * 255.0f;
 					uint8_t b = ((float)((color >> 10) & 0x1f) / 31.0f) * 255.0f;
 
-					// if input was 16 for a channel, force it to 128 to smooth sky texture edge transitions out
+					// if input was 16 for a channel, force it to 127 to smooth sky texture edge transitions out
 					if (r == 131) {
-						r = 128;
+						r = 127;
 					}
 					if (g == 131) {
-						g = 128;
+						g = 127;
 					}
 					if (b == 131) {
-						b = 128;
+						b = 127;
 					}
 
 					buf[(y * a->buf_width) + x] = r << 0 | g << 8 | b << 16 | alpha << 24;
@@ -1636,12 +1652,12 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 			PCread(bmpfile, linebuffer, line_width);
 
 			for (int x = 0; x < header.width; x++) {
-				uint32_t color = 0xFF000000;
+				uint32_t color = 0x7F000000;
 				color |= (uint32_t)linebuffer[(x * bytes_per_pixel) + 0] << 16;
 				color |= (uint32_t)linebuffer[(x * bytes_per_pixel) + 1] << 8;
 				color |= (uint32_t)linebuffer[(x * bytes_per_pixel) + 2] << 0;
 
-				if (color == 0xFFFF00FF) {
+				if (color == 0x7FFF00FF) {
 					color = 0;
 				}
 
@@ -1790,6 +1806,90 @@ void D3DTEX_GrayTexture(struct texture *a) {
 	free(buf);
 }
 
+struct palette *Pal_LoadPalette(uint32_t checksum, uint16_t *data, uint8_t flags, uint8_t remap) {
+	struct palette *(__cdecl *NewPaletteEntry)(uint32_t) = 0x00487c50;
+	uint8_t (__cdecl *GetFree16Slot)() = 0x00487d80;
+	uint8_t (__cdecl *GetFree256Slot)() = 0x00487e80;
+
+	uint8_t *transparentPalette = 0x00568360;
+
+	struct palette *result = NewPaletteEntry(checksum);
+	result->flags = flags;
+
+	// convert to playstation style
+	int size = (flags & 0x01) ? 16 : 256;
+	int isMasked = 0;
+	int maskIdx = -1;
+
+	for (int i = 0; i < size; i++) {
+		uint16_t color = data[i];
+		// if color is magenta, mask out
+		if ((color & 0x7fff) == 0x7c1f) {
+			data[i] = 0;
+			if (!isMasked) {
+				isMasked = 1;
+				maskIdx = i;
+			}
+		} else {
+			if (isMasked || color == 0/* || *transparentPalette*/) {
+				data[i] = color | 0x8000;
+			}
+		}
+	}
+
+	/*
+	// sets a different background for the masked portion.  can't figure out how to access this at texture creation time so i've disabled it.  it didn't seem to be put to very good use anyway
+	if (!remap || !isMasked) {
+		result->remap_idx = 0;
+	} else {
+		if (!isMasked) {
+			maskIdx = 0;
+		}
+
+		result->remap_idx = maskIdx;
+		uint16_t tmp = data[0];
+		data[0] = data[result->remap_idx];
+		data[result->remap_idx] = tmp;
+	}
+	*/
+
+	if (!isMasked) {
+		for (int i = 0; i < size; i++) {
+			data[i] |= 0x8000;
+		}
+	}
+
+	if (size == 16) {
+		uint16_t *pal16x = 0x00568358;
+		uint16_t *pal16y = 0x00568154;
+		uint8_t *hastrans16 = 0x00568158;
+
+		result->slot = GetFree16Slot();
+
+		uint16_t x = *pal16x;
+		uint16_t y = *pal16y + result->slot;
+		result->idx = y * 0x40 | (x >> 4) & 0x3f;
+
+		hastrans16[result->slot] = isMasked;
+	} else {
+		uint16_t *pal256x = 0x0056835c;
+		uint16_t *pal256y = 0x00567f4c;
+		uint8_t *hastrans256 = 0x00568258;
+
+		result->slot = GetFree256Slot();
+
+		uint16_t x = *pal256x;
+		uint16_t y = *pal256y + result->slot;
+		result->idx = y * 0x40 | (x >> 4) & 0x3f;
+
+		hastrans256[result->slot] = isMasked;
+	}
+
+	result->in_vram = 1;
+
+	return result;
+}
+
 // why does this store so many textures
 typedef struct {
 	struct texture *texture;
@@ -1871,14 +1971,19 @@ void __fastcall D3DSprite_Destroy(D3DSprite *sprite) {
 	operator_delete(sprite->texture);
 }
 
-void WINMAIN_SwitchResolution() {
-	//printf("STUB: WINMAIN_SwitchResolution\n");
+void WINMAIN_SwitchResolution(int mode) {
+	//printf("WINMAIN_SwitchResolution: %d\n", mode);
 
 	int *width = 0x029d6fe4;
 	int *height = 0x029d6fe8;
 
-	*width = resolution_x;
-	*height = resolution_y;
+	if (mode == 2) {
+		*width = 512;
+		*height = 240;
+	} else {
+		*width = resolution_x;
+		*height = resolution_y;
+	}
 
 	setRenderResolution(renderer, internal_resolution_x, internal_resolution_y, aspectRatio);
 	setTextureFilter(renderer, textureFilter);
@@ -2015,6 +2120,10 @@ void getGameResolution(int *w, int *h) {
 	*h = resolution_y;
 }
 
+uint8_t isGameMinimized() {
+	return isMinimized;
+}
+
 void MENUPC_DrawMouseCursor() {
 
 }
@@ -2091,6 +2200,7 @@ void installGfxPatches() {
 
 	//patchNop(0x004cde18, 3);
 	//patchNop(0x004cf4c2, 5);	// enabling this makes THPS sign in philadelpha opaque
+	patchByte(0x004cf4c5, 0xeb);	// disable alpha overrides	(maybe should be configurable?)
 
 	// disable palette conversion
 	patchNop(0x004d7887, 1);
@@ -2112,6 +2222,8 @@ void installGfxPatches() {
 	
 
 	// pal_loadpalette - don't mess with alpha
+
+	patchJmp(0x004880d0, Pal_LoadPalette);
 
 	//patchByte(0x00488216, 0xeb);
 	//patchNop(0x00488218, 6);
