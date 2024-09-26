@@ -5,6 +5,18 @@
 
 partyRenderer *renderer;
 
+struct palette {
+	uint16_t idx;
+	uint8_t slot;
+	uint8_t flags;
+	uint16_t usage;
+	uint8_t in_vram;
+	uint8_t remap_idx;
+	uint32_t checksum;
+	struct palette *next;
+	struct palette *prev;
+};
+
 struct texture {
 	uint32_t idx;
 	uint8_t filler1[0x4];
@@ -23,7 +35,7 @@ struct texture {
 	uint16_t unk_height;
 
 	// 0x20
-	int *palette;
+	struct palette *palette;
 
 	uint32_t unk[2];
 };
