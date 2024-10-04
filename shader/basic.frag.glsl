@@ -18,11 +18,21 @@ void main() {
 
 		if (texcolor.a == 0.0) {
 			discard;
-		} else if (texcolor.a == 1.0) {
-			alpha = 1.0;
-		} else {
-			alpha = fcolor.a * (texcolor.a * 2.0);
+		} 
+
+		if ((fflags & 4) != 0) {	// using alpha
+			if ((fflags & 8) != 0) {	// doing semitransparent pass
+				if (texcolor.a > 0.75) {
+					discard;
+				}
+			} else {	// doing opaque pass
+				if (texcolor.a <= 0.75) {
+					discard;
+				}
+			}
 		}
+
+		alpha = fcolor.a * (texcolor.a * 2.0);
 
 		vec4 outcolor;
 		if ((fflags & 1) != 0) {

@@ -239,12 +239,12 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 		},{
 			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
 			.blendEnable = VK_TRUE,
-			.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
-			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
-			.colorBlendOp = VK_BLEND_OP_ADD,
-			.alphaBlendOp = VK_BLEND_OP_ADD,
+			.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+			.dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+			.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT,
+			.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT,
 		},{
 			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
 			.blendEnable = VK_TRUE,
