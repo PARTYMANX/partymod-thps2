@@ -377,7 +377,7 @@ void renderDXPoly(int *tag) {
 			alpha = 0x00000000;
 			// blend mode 4
 			setBlendState(renderer, 4);
-			renderFlags |= 1;
+			//renderFlags |= 1;
 			break;
 		case 0x180:
 			alpha = 0x40000000;
@@ -388,6 +388,8 @@ void renderDXPoly(int *tag) {
 			log_printf(LL_WARN, "unknown blend mode 0x%08x\n", polyflags & 0x40);
 			alpha = 0xff000000;
 		}
+
+		renderFlags |= 0x04;
 
 	} else {
 		alpha = 0xff000000;
@@ -405,6 +407,16 @@ void renderDXPoly(int *tag) {
 			uint8_t r = ((float)((vertices[i].color >> 16) & 0xff) / 31.0f) * 255.0f;
 			uint8_t g = ((float)((vertices[i].color >> 8) & 0xff) / 31.0f) * 255.0f;
 			uint8_t b = ((float)((vertices[i].color >> 0) & 0xff) / 31.0f) * 255.0f;
+
+			if (polyflags & 0x140) {
+				uint32_t tmpr = r * 2;
+				uint32_t tmpg = b * 2;
+				uint32_t tmpb = g * 2;
+
+				r = (tmpr > 0xff) ? 0xff : tmpr;
+				g = (tmpg > 0xff) ? 0xff : tmpg;
+				b = (tmpb > 0xff) ? 0xff : tmpb;
+			}
 
 			//((float)((color >> 11) & 0x1f) / 31.0f) * 255.0f
 
@@ -462,6 +474,8 @@ void renderDXPoly(int *tag) {
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 0x10) + 0x14);
 
+		uint32_t colorPass2[16];	// new color for each vertex
+
 		if (!tex) {
 			return;
 		}
@@ -480,12 +494,15 @@ void renderDXPoly(int *tag) {
 			//((float)((color >> 11) & 0x1f) / 31.0f) * 255.0f
 
 			uint32_t newcolor = r << 16 | g << 8 | b << 0 | alpha;
+			uint32_t newcolor2 = r << 16 | g << 8 | b << 0 | 0xFF000000;
 
 			if (!(*(uint32_t *)((uint8_t *)tag + 8) & 0x80000000)) {
 				newcolor = applyFog(newcolor, vertices[i].w);
+				newcolor2 = applyFog(newcolor2, vertices[i].w);
 			}
 
 			vertices[i].color = newcolor;
+			colorPass2[i] = newcolor2;
 		}
 
 		if (tex->flags & 0x01000000) {
@@ -514,7 +531,6 @@ void renderDXPoly(int *tag) {
 
 		int outputVert = 0;
 		for (int i = 1; i < numVerts - 2 + 1; i++) {
-			
 			buf[outputVert].x = vertices[0].x;
 			buf[outputVert].y = vertices[0].y;
 			buf[outputVert].z = vertices[0].z;
@@ -523,7 +539,7 @@ void renderDXPoly(int *tag) {
 			buf[outputVert].v = vertices[0].v * tex->height / tex->buf_height;
 			buf[outputVert].color = fixDXColor(vertices[0].color);
 			buf[outputVert].texture = tex->idx;
-			buf[outputVert].flags = renderFlags;
+			buf[outputVert].flags = renderFlags | 0x08;
 
 			buf[outputVert + 1].x = vertices[i].x;
 			buf[outputVert + 1].y = vertices[i].y;
@@ -533,7 +549,7 @@ void renderDXPoly(int *tag) {
 			buf[outputVert + 1].v = vertices[i].v * tex->height / tex->buf_height;
 			buf[outputVert + 1].color = fixDXColor(vertices[i].color);
 			buf[outputVert + 1].texture = tex->idx;
-			buf[outputVert + 1].flags = renderFlags;
+			buf[outputVert + 1].flags = renderFlags | 0x08;
 
 			buf[outputVert + 2].x = vertices[i + 1].x;
 			buf[outputVert + 2].y = vertices[i + 1].y;
@@ -543,13 +559,38 @@ void renderDXPoly(int *tag) {
 			buf[outputVert + 2].v = vertices[i + 1].v * tex->height / tex->buf_height;
 			buf[outputVert + 2].color = fixDXColor(vertices[i + 1].color);
 			buf[outputVert + 2].texture = tex->idx;
-			buf[outputVert + 2].flags = renderFlags;
+			buf[outputVert + 2].flags = renderFlags | 0x08;
 
 			outputVert += 3;
 		} 
 
 		transformDXCoords(buf, outputVert);
 		drawVertices(renderer, buf, outputVert);
+
+		if (renderFlags & 0x04) {
+			// second pass for transparent textured stuff, for proper semitransparency handling
+
+			outputVert = 0;
+			for (int i = 1; i < numVerts - 2 + 1; i++) {
+				buf[outputVert].color = fixDXColor(colorPass2[0]);
+				buf[outputVert].texture = tex->idx;
+				buf[outputVert].flags = renderFlags;
+
+				buf[outputVert + 1].color = fixDXColor(colorPass2[i]);
+				buf[outputVert + 1].texture = tex->idx;
+				buf[outputVert + 1].flags = renderFlags;
+
+				buf[outputVert + 2].color = fixDXColor(colorPass2[i + 1]);
+				buf[outputVert + 2].texture = tex->idx;
+				buf[outputVert + 2].flags = renderFlags;
+
+				outputVert += 3;
+			} 
+
+			setDepthState(renderer, 1, 0);
+			setBlendState(renderer, 1);
+			drawVertices(renderer, buf, outputVert);
+		}
 	}
 }
 
@@ -2201,6 +2242,8 @@ void installGfxPatches() {
 	//patchNop(0x004cde18, 3);
 	//patchNop(0x004cf4c2, 5);	// enabling this makes THPS sign in philadelpha opaque
 	patchByte(0x004cf4c5, 0xeb);	// disable alpha overrides	(maybe should be configurable?)
+
+	patchByte(0x004cf0ec, 0xeb);	// don't force subtractive blending colors to be incorrect
 
 	// disable palette conversion
 	patchNop(0x004d7887, 1);
