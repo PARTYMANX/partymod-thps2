@@ -42,6 +42,11 @@ uint32_t badHDTextures[] = {
 	0xaa5b8d26,
 };
 
+uint32_t videoTextureCount = 1;
+uint32_t videoTextures[] = {
+	0x89C3688D,
+};
+
 void handleGfxEvent(SDL_Event *e) {
 	switch (e->type) {
 		case SDL_WINDOWEVENT:
