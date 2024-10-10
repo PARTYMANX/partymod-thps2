@@ -14,6 +14,7 @@
 #include <gfx/gfx_movie.h>
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/gfx_global.h>
+#include <gfx/gfx_videoplayer.h>
 
 int internal_resolution_x = 512;
 int internal_resolution_y = 240;
@@ -46,6 +47,10 @@ uint32_t videoTextureCount = 1;
 uint32_t videoTextures[] = {
 	0x89C3688D,
 };
+
+char videoPath[2048];
+struct videoPlayerState *videoState = NULL;
+struct texture *videoTex = NULL;
 
 void handleGfxEvent(SDL_Event *e) {
 	switch (e->type) {
@@ -87,6 +92,17 @@ void initD3D() {
 	setTextureFilter(renderer, textureFilter);
 
 	registerEventHandler(handleGfxEvent);
+
+	// set up video
+	int usingVideo = getConfigBool("Video", "enabled", 0);
+	if (usingVideo) {
+		getConfigString("Video", "url", videoPath, 2048);
+	
+		printf("Starting video!\n");
+		videoState = start_video(videoPath);
+		printf("Creating video texture!!\n");
+		videoTex = createVideoTexture(videoState, renderer);
+	}
 }
 
 void D3D_ClearBuffers() {
@@ -150,6 +166,11 @@ void D3DPOLY_StartScene(int a, int b) {
 	*startscene = 1;
 
 	updateMovieTexture();	// a bit of a hack: update the movie texture here in the main thread, as the music thread also updates it.  not exactly safe, but it avoids invalid vulkan use
+
+	if (videoState) {
+		advanceVideo(videoState);
+		updateVideoTexture(videoState, renderer, videoTex);
+	}
 
 	*fogThreshold = (float)*DpqMin / (float)*DpqMaxMaybe;
 	if (gShellMode == 1) {
@@ -530,6 +551,22 @@ void renderDXPoly(int *tag) {
 				if (tex->tex_checksum == badHDTextures[i]) {
 					renderFlags |= 1;
 					break;
+				}
+			}
+		}
+
+		if (videoState) {
+			for (int i = 0; i < videoTextureCount; i++) {
+				if (tex->tex_checksum == videoTextures[i]) {
+					/*for (int i = 1; i < numVerts; i++) {
+						float u = vertices[i].u / tex->width;
+						float v = vertices[i].v / tex->height;
+
+						vertices[i].u = u * videoTex->width;
+						vertices[i].v = v * videoTex->height;
+					}*/
+
+					tex = videoTex;
 				}
 			}
 		}

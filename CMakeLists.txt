@@ -10,6 +10,7 @@ set(SOURCE_FILES
 	"${SRC}/patch.c"
 	"${SRC}/gfx/gfx.c"
 	"${SRC}/gfx/gfx_movie.c"
+	"${SRC}/gfx/gfx_videoplayer.c"
 	"${SRC}/window.c"
 	"${SRC}/mem.c"
 	"${SRC}/input.c"
@@ -29,6 +30,7 @@ set(HEADER_FILES
 	"${SRC}/gfx/gfx.h"
 	"${SRC}/gfx/gfx_movie.h"
 	"${SRC}/gfx/gfx_global.h"
+	"${SRC}/gfx/gfx_videoplayer.h"
 	"${SRC}/window.h"
 	"${SRC}/mem.h"
 	"${SRC}/input.h"
@@ -87,6 +89,23 @@ set(SOURCE_FILES
 	"${SRC}/gfx/vk/gfx_vk_shader_data.c"
 )
 
+# add ffmpeg
+find_package(FFMPEG REQUIRED)
+list(APPEND FFMLIBS
+	${FFMPEG_libavformat_LIBRARY}
+	${FFMPEG_libavcodec_LIBRARY}
+	${FFMPEG_libavutil_LIBRARY}
+	${FFMPEG_libswscale_LIBRARY}
+	${FFMPEG_libswresample_LIBRARY}
+)
+list(APPEND FFMINCLUDES 
+	${FFMPEG_libavformat_INCLUDE_DIRS}
+	${FFMPEG_libavcodec_INCLUDE_DIRS}
+	${FFMPEG_libavutil_INCLUDE_DIRS}
+	${FFMPEG_libswscale_INCLUDE_DIRS}
+	${FFMPEG_libswresample_INCLUDE_DIRS}
+)
+
 add_library(partymod SHARED)
 
 target_sources(partymod PRIVATE
@@ -96,12 +115,14 @@ target_sources(partymod PRIVATE
 
 target_link_libraries(partymod PUBLIC 
 	${LIBS}
+	${FFMLIBS}
 	${VKLIBS}
 )
 
 target_include_directories(partymod PUBLIC
 	"${PROJECT_SOURCE_DIR}/src"
 	${VKINCLUDES}
+	${FFMINCLUDES}
 	"${THIRDPARTY}/incbin"
 )
 
