@@ -408,16 +408,6 @@ void renderDXPoly(int *tag) {
 			uint8_t g = ((float)((vertices[i].color >> 8) & 0xff) / 31.0f) * 255.0f;
 			uint8_t b = ((float)((vertices[i].color >> 0) & 0xff) / 31.0f) * 255.0f;
 
-			if (polyflags & 0x140) {
-				uint32_t tmpr = r * 2;
-				uint32_t tmpg = b * 2;
-				uint32_t tmpb = g * 2;
-
-				r = (tmpr > 0xff) ? 0xff : tmpr;
-				g = (tmpg > 0xff) ? 0xff : tmpg;
-				b = (tmpb > 0xff) ? 0xff : tmpb;
-			}
-
 			//((float)((color >> 11) & 0x1f) / 31.0f) * 255.0f
 
 			uint32_t newcolor = (vertices[i].color & 0x00ffffff) | alpha;
