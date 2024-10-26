@@ -1201,6 +1201,8 @@ void renderTile(int *tag) {
 
 	transformCoords(vertices, 6);
 
+
+
 	drawVertices(renderer, vertices, 6);
 }
 
@@ -1271,24 +1273,20 @@ void D3DPOLY_DrawOTag(int *tag) {
 
 	while(tag != NULL) {
 		if (tag[1] != 0) {
-			// hangar heli causes command 226, what's up there?
 			uint8_t cmd = *(uint8_t *)((int)tag + 7);
 			if (!(cmd & 0x80)) {
-				//*nextPSXBlendMode = 0;
+				uint8_t textured = cmd & 4;
 
-				uint8_t blendMode = cmd & 0xfffffffc;
-				uint8_t otherBlendMode = cmd & 4;
-				if (blendMode == 0x40 || blendMode == 0x48 || blendMode == 0x4c || blendMode == 0x50) {
-					otherBlendMode = 0;
-				} else if (!otherBlendMode) {
-					if (!(cmd & 0x04)) {
-					
-					} else {
-					
-					}
-
-				} else {
-					if (!(cmd & 0x10)) {
+				// if line, it cannot be textured. set textured to false
+				uint8_t cmdUpper = cmd & 0xfc;
+				if (cmdUpper == 0x40 || cmdUpper == 0x48 || cmdUpper == 0x4c || cmdUpper == 0x50) {
+					textured = 0;
+				}
+				
+				uint8_t blendMode = 0;
+				if (textured) {
+					// texpage is in different location if using gouraud shading
+					if ((cmd & 0x60) == 0x60 || !(cmd & 0x10)) {
 						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x16));
 					} else {
 						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x1a));
@@ -1296,9 +1294,11 @@ void D3DPOLY_DrawOTag(int *tag) {
 				}
 
 				if (cmd & 0x02) {
+					// semitransparent bit set
 					setDepthState(renderer, 1, 0);
 
-					if (otherBlendMode) {
+					// textured commands have a supplied texpage, so get blend mode from there
+					if (textured) {
 						*nextPSXBlendMode = (blendMode >> 5) & 3;
 					}
 
@@ -1328,7 +1328,6 @@ void D3DPOLY_DrawOTag(int *tag) {
 						log_printf(LL_WARN, "unknown blend mode 0x%08x\n", *nextPSXBlendMode);
 						*alphaBlend = 0xff000000;
 					}
-
 				} else {
 					*alphaBlend = 0xff000000;
 					setDepthState(renderer, 1, 1);
@@ -1390,7 +1389,7 @@ void D3DPOLY_DrawOTag(int *tag) {
 			} else if (cmd == 0xB0) {
 				renderDXPoly(tag);
 			} else if (cmd == 0xE1) {
-				// maybe blend mode
+				// texpage
 				uint32_t blendMode = tag[1];
 				*nextPSXBlendMode = (blendMode >> 5) & 3;
 			} else if (cmd == 0xE3) {
