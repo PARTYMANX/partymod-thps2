@@ -251,6 +251,6 @@ void clear_writes(pmVkDescriptorAllocator *allocator);
 VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height, pmVkImage *result);
 void destroyTexture(partyRenderer *renderer, pmVkImage img);
 void updateTexture(partyRenderer *renderer, pmVkImage *img, uint32_t width, uint32_t height, void *data);
-VkSampler createSampler(partyRenderer *renderer);
+VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter);
 
 #endif
