@@ -3,7 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
+//#include <vulkan/vulkan.h>
 
 #include <gfx/vk/vk.h>
 #include <log.h>
@@ -136,6 +137,8 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 		else if (extent.height > capabilities.maxImageExtent.height)
 			extent.height = capabilities.maxImageExtent.height;
 	}
+
+	log_printf(LL_INFO, "AAAA %d %d\n", extent.width, extent.height);
 
 	// TODO: actually specify the number of images
 	uint32_t imageCount = capabilities.minImageCount + 1;

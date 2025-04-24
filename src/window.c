@@ -27,6 +27,8 @@ void enforceMaxResolution(int *resX, int *resY) {
 		SDL_DisplayMode displayMode;
 		SDL_GetDisplayMode(0, i, &displayMode);
 
+		log_printf(LL_TRACE, "found display mode: %dx%d\n", displayMode.w, displayMode.h);
+
 		if (displayMode.w >= *resX) {
 			isValidX = 1;
 		}

@@ -55,13 +55,22 @@ list(APPEND INCLUDES ${SDL2_INCLUDE_DIRS})
 
 # add vulkan
 find_package(Vulkan REQUIRED)
-list(APPEND VKLIBS ${Vulkan_LIBRARIES})
+#list(APPEND VKLIBS ${Vulkan_LIBRARIES})
 list(APPEND VKINCLUDES ${Vulkan_INCLUDE_DIRS})
+
+# add volk
+set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
+add_library(volk "${PROJECT_SOURCE_DIR}/thirdparty/volk/volk.c")
+# target_link_libraries(volk PUBLIC ${Vulkan_LIBRARIES})
+target_include_directories(volk PUBLIC ${Vulkan_INCLUDE_DIRS})
+list(APPEND VKLIBS volk)
+list(APPEND VKINCLUDES "${PROJECT_SOURCE_DIR}/thirdparty/volk")
 
 # add vk_mem_alloc
 add_library(vk_mem_alloc "${PROJECT_SOURCE_DIR}/thirdparty/VulkanMemoryAllocator/vk_mem_alloc.cpp")
-target_link_libraries(vk_mem_alloc PUBLIC ${Vulkan_LIBRARIES})
-target_include_directories(vk_mem_alloc PUBLIC ${Vulkan_INCLUDE_DIRS})
+# target_link_libraries(vk_mem_alloc PUBLIC ${Vulkan_LIBRARIES})
+# target_link_libraries(vk_mem_alloc PUBLIC volk)
+target_include_directories(vk_mem_alloc PUBLIC ${VKINCLUDES})
 list(APPEND VKLIBS vk_mem_alloc)
 list(APPEND VKINCLUDES "${PROJECT_SOURCE_DIR}/thirdparty/VulkanMemoryAllocator")
 
