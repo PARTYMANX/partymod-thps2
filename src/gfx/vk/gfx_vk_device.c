@@ -2,7 +2,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
+//#include <vulkan/vulkan.h>
 #include <gfx/vk/vk.h>
 #include <log.h>
 
@@ -289,6 +290,8 @@ VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **devic
 
 	*device = result;
 	log_printf(LL_INFO, "Vulkan device created successfully!\n");
+
+	volkLoadDevice(result->device);
 
 	return VK_SUCCESS;
 }

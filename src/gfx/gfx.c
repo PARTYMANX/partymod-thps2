@@ -379,7 +379,7 @@ void renderDXPoly(int *tag) {
 			alpha = 0x00000000;
 			// blend mode 4
 			setBlendState(renderer, 4);
-			renderFlags |= 1;
+			//renderFlags |= 1;
 			break;
 		case 0x180:
 			alpha = 0x40000000;
@@ -390,6 +390,8 @@ void renderDXPoly(int *tag) {
 			log_printf(LL_WARN, "unknown blend mode 0x%08x\n", polyflags & 0x40);
 			alpha = 0xff000000;
 		}
+
+		renderFlags |= 0x04;
 
 	} else {
 		alpha = 0xff000000;
@@ -464,6 +466,8 @@ void renderDXPoly(int *tag) {
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
 		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)tag + 0x10) + 0x14);
 
+		uint32_t colorPass2[16];	// new color for each vertex
+
 		if (!tex) {
 			return;
 		}
@@ -482,12 +486,15 @@ void renderDXPoly(int *tag) {
 			//((float)((color >> 11) & 0x1f) / 31.0f) * 255.0f
 
 			uint32_t newcolor = r << 16 | g << 8 | b << 0 | alpha;
+			uint32_t newcolor2 = r << 16 | g << 8 | b << 0 | 0xFF000000;
 
 			if (!(*(uint32_t *)((uint8_t *)tag + 8) & 0x80000000)) {
 				newcolor = applyFog(newcolor, vertices[i].w);
+				newcolor2 = applyFog(newcolor2, vertices[i].w);
 			}
 
 			vertices[i].color = newcolor;
+			colorPass2[i] = newcolor2;
 		}
 
 		if (tex->flags & 0x01000000) {
@@ -516,7 +523,6 @@ void renderDXPoly(int *tag) {
 
 		int outputVert = 0;
 		for (int i = 1; i < numVerts - 2 + 1; i++) {
-			
 			buf[outputVert].x = vertices[0].x;
 			buf[outputVert].y = vertices[0].y;
 			buf[outputVert].z = vertices[0].z;
@@ -525,7 +531,7 @@ void renderDXPoly(int *tag) {
 			buf[outputVert].v = vertices[0].v * tex->height / tex->buf_height;
 			buf[outputVert].color = fixDXColor(vertices[0].color);
 			buf[outputVert].texture = tex->idx;
-			buf[outputVert].flags = renderFlags;
+			buf[outputVert].flags = renderFlags | 0x08;
 
 			buf[outputVert + 1].x = vertices[i].x;
 			buf[outputVert + 1].y = vertices[i].y;
@@ -535,7 +541,7 @@ void renderDXPoly(int *tag) {
 			buf[outputVert + 1].v = vertices[i].v * tex->height / tex->buf_height;
 			buf[outputVert + 1].color = fixDXColor(vertices[i].color);
 			buf[outputVert + 1].texture = tex->idx;
-			buf[outputVert + 1].flags = renderFlags;
+			buf[outputVert + 1].flags = renderFlags | 0x08;
 
 			buf[outputVert + 2].x = vertices[i + 1].x;
 			buf[outputVert + 2].y = vertices[i + 1].y;
@@ -545,13 +551,38 @@ void renderDXPoly(int *tag) {
 			buf[outputVert + 2].v = vertices[i + 1].v * tex->height / tex->buf_height;
 			buf[outputVert + 2].color = fixDXColor(vertices[i + 1].color);
 			buf[outputVert + 2].texture = tex->idx;
-			buf[outputVert + 2].flags = renderFlags;
+			buf[outputVert + 2].flags = renderFlags | 0x08;
 
 			outputVert += 3;
 		} 
 
 		transformDXCoords(buf, outputVert);
 		drawVertices(renderer, buf, outputVert, !(polyflags & 0x20), (-*zbias));
+
+		if (renderFlags & 0x04) {
+			// second pass for transparent textured stuff, for proper semitransparency handling
+
+			outputVert = 0;
+			for (int i = 1; i < numVerts - 2 + 1; i++) {
+				buf[outputVert].color = fixDXColor(colorPass2[0]);
+				buf[outputVert].texture = tex->idx;
+				buf[outputVert].flags = renderFlags;
+
+				buf[outputVert + 1].color = fixDXColor(colorPass2[i]);
+				buf[outputVert + 1].texture = tex->idx;
+				buf[outputVert + 1].flags = renderFlags;
+
+				buf[outputVert + 2].color = fixDXColor(colorPass2[i + 1]);
+				buf[outputVert + 2].texture = tex->idx;
+				buf[outputVert + 2].flags = renderFlags;
+
+				outputVert += 3;
+			} 
+
+			setDepthState(renderer, 1, 0);
+			setBlendState(renderer, 1);
+			drawVertices(renderer, buf, outputVert, !(polyflags & 0x20), (-*zbias));
+		}
 	}
 }
 
@@ -1292,12 +1323,16 @@ void D3DPOLY_DrawOTag(int *tag) {
 	int *transparentTail = NULL;
 
 	while(tag != NULL) {
+<<<<<<< HEAD
 		int isTransparent = tagIsTransparent(tag);
 
 		if (isTransparent == 1) {
 			if (!transparentHead) {
 				transparentHead = tag;
 				transparentTail = tag;
+=======
+
+>>>>>>> main
 			} else {
 				*transparentTail = tag;
 				transparentTail = tag;
@@ -1346,6 +1381,7 @@ void D3DPOLY_DrawOTag(int *tag) {
 
 	int *tagHead = tag;
 	for (int i = 0; i < 2; i++) {
+		log_printf(LL_INFO, "FUCK!\n");
 		while(tag != NULL) {
 			int isTransparent = tagIsTransparent(tag);
 
@@ -1357,21 +1393,18 @@ void D3DPOLY_DrawOTag(int *tag) {
 			if (tag[1] != 0) {
 				uint8_t cmd = *(uint8_t *)((int)tag + 7);
 				if (!(cmd & 0x80)) {
-					//*nextPSXBlendMode = 0;
+					uint8_t textured = cmd & 4;
 
-					uint8_t blendMode = cmd & 0xfffffffc;
-					uint8_t otherBlendMode = cmd & 4;
-					if (blendMode == 0x40 || blendMode == 0x48 || blendMode == 0x4c || blendMode == 0x50) {
-						otherBlendMode = 0;
-					} else if (!otherBlendMode) {
-						if (!(cmd & 0x04)) {
-					
-						} else {
-					
-						}
-
-					} else {
-						if (!(cmd & 0x10)) {
+					// if line, it cannot be textured. set textured to false
+					uint8_t cmdUpper = cmd & 0xfc;
+					if (cmdUpper == 0x40 || cmdUpper == 0x48 || cmdUpper == 0x4c || cmdUpper == 0x50) {
+						textured = 0;
+					}
+				
+					uint8_t blendMode = 0;
+					if (textured) {
+						// texpage is in different location if using gouraud shading
+						if ((cmd & 0x60) == 0x60 || !(cmd & 0x10)) {
 							blendMode = *(uint16_t *)(((uint8_t *)tag + 0x16));
 						} else {
 							blendMode = *(uint16_t *)(((uint8_t *)tag + 0x1a));
@@ -1379,9 +1412,11 @@ void D3DPOLY_DrawOTag(int *tag) {
 					}
 
 					if (cmd & 0x02) {
+						// semitransparent bit set
 						setDepthState(renderer, 1, 0);
 
-						if (otherBlendMode) {
+						// textured commands have a supplied texpage, so get blend mode from there
+						if (textured) {
 							*nextPSXBlendMode = (blendMode >> 5) & 3;
 						}
 
@@ -1411,7 +1446,6 @@ void D3DPOLY_DrawOTag(int *tag) {
 							log_printf(LL_WARN, "unknown blend mode 0x%08x\n", *nextPSXBlendMode);
 							*alphaBlend = 0xff000000;
 						}
-
 					} else {
 						*alphaBlend = 0xff000000;
 						setDepthState(renderer, 1, 1);
@@ -1473,7 +1507,7 @@ void D3DPOLY_DrawOTag(int *tag) {
 				} else if (cmd == 0xB0) {
 					renderDXPoly(tag);
 				} else if (cmd == 0xE1) {
-					// maybe blend mode
+					// texpage
 					uint32_t blendMode = tag[1];
 					*nextPSXBlendMode = (blendMode >> 5) & 3;
 				} else if (cmd == 0xE3) {
@@ -2426,6 +2460,8 @@ void installGfxPatches() {
 	//patchNop(0x004cde18, 3);
 	//patchNop(0x004cf4c2, 5);	// enabling this makes THPS sign in philadelpha opaque
 	patchByte(0x004cf4c5, 0xeb);	// disable alpha overrides	(maybe should be configurable?)
+
+	patchByte(0x004cf0ec, 0xeb);	// don't force subtractive blending colors to be incorrect
 
 	// disable palette conversion
 	patchNop(0x004d7887, 1);

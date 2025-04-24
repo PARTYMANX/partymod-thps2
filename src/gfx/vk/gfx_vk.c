@@ -5,7 +5,8 @@
 #include <global.h>
 #include <log.h>
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
+//#include <vulkan/vulkan.h>
 
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/vk/vk.h>
@@ -116,6 +117,13 @@ void appendExtensions(uint32_t *dstExtCount, char ***dstExtNames, uint32_t srcEx
 }
 
 VkResult initInstance() {
+	VkResult result = volkInitialize();
+	if (result != VK_SUCCESS) {
+		// error
+		log_printf(LL_ERROR, "ERROR: Failed to load Vulkan!\n");
+		return result;
+	}
+
 	VkApplicationInfo appInfo = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext = NULL,
@@ -168,7 +176,7 @@ VkResult initInstance() {
 	instanceInfo.enabledExtensionCount = extCount;
 	instanceInfo.ppEnabledExtensionNames = extNames;
 
-	VkResult result = vkCreateInstance(&instanceInfo, NULL, &instance);
+	result = vkCreateInstance(&instanceInfo, NULL, &instance);
 
 	if (result != VK_SUCCESS) {
 		// error
@@ -193,6 +201,8 @@ VkResult initInstance() {
 	if (vkpfn_vkCreateDebugUtilsMessengerEXT)
 		createDebugMessenger();
 #endif
+
+	volkLoadInstance(instance);
 
 	return VK_SUCCESS;
 }
