@@ -538,7 +538,7 @@ error_free:
 	free(result);
 error:
 	log_printf(LL_ERROR, "failed to create renderer\n");
-	fatalError("Failed to create Vulkan renderer!");
+	fatalError("Failed to create Vulkan renderer!  Make sure that you have the latest graphics drivers installed.");
 	// todo: translate error
 	return 0;
 }

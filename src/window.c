@@ -116,6 +116,6 @@ void getWindowSize(int *w, int *h) {
 	SDL_GetWindowSize(window, w, h);
 }
 
-void installWindowPatches() {
-	patchCall(0x004f4ff1 + 5, initWindow);
+void installWindowPatches(void *window_offset) {
+	patchCall((uint32_t)window_offset + 5, initWindow);
 }

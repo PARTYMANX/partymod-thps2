@@ -20,5 +20,6 @@ void patchCall(void *addr, void *func);
 void patchJmp(void *addr, void *func);
 void patchThisToCdecl(void *addr, void *func);
 void callFunc(void *addr);
+uint8_t findPattern(char* patternStr, void* startAddr, uint32_t len, uint32_t* addrOut);
 
 #endif

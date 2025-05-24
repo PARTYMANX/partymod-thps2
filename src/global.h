@@ -7,6 +7,9 @@
 
 #define filePathBufLen 1024
 char executableDirectory[filePathBufLen];
+size_t base_addr;
+size_t mod_size;
+
 void quitGame();
 void fatalError(const char *msg);
 
