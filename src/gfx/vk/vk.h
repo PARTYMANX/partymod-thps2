@@ -173,6 +173,7 @@ typedef struct partyRenderer {
 	uint8_t currentDepthWriteState;
 	uint8_t currentBlendState;
 	uint8_t currentLineState;
+	int32_t lastTexture;
 
 	uint32_t lastDraw;
 	uint32_t processedVerts;

@@ -804,6 +804,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	renderer->currentDepthWriteState = 0;
 	renderer->currentBlendState = 0;
 	renderer->currentLineState = 0;
+	renderer->lastTexture = -1;
 
 	renderer->lastDraw = 0;
 	renderer->processedVerts = 0;
@@ -875,6 +876,11 @@ void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vert
 		}
 
 		vertices[i].texture -= 1;
+	}
+
+	if (vertices[0].texture != -1 && vertices[0].texture != renderer->lastTexture) {
+		flushVerts(renderer);
+		renderer->lastTexture = vertices[0].texture;
 	}
 
 	if (renderer->currentLineState) {

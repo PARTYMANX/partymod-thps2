@@ -6,10 +6,7 @@
 #include <volk.h>
 //#include <vulkan/vulkan.h>
 
-#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.3
-#define VMA_STATIC_VULKAN_FUNCTIONS 0
-#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#include <vk_mem_alloc.h>
+#include "vma_usage.h"
 
 #include <gfx/vk/vk.h>
 #include <log.h>
@@ -35,7 +32,7 @@ VkResult pmVkInitMemoryManager(partyRenderer *renderer, struct pmVkMemoryManager
 		.pHeapSizeLimit = NULL,
 		.pVulkanFunctions = NULL,
 		.instance = instance,
-		.vulkanApiVersion = VK_API_VERSION_1_0,
+		.vulkanApiVersion = VK_API_VERSION_1_3,
 		.pTypeExternalMemoryHandleTypes = NULL,
 	};
 

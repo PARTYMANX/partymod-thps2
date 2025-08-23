@@ -138,7 +138,7 @@ VkResult pmVkCreateSwapchain(struct pmVkDevice *device, struct pmVkSwapchain **s
 			extent.height = capabilities.maxImageExtent.height;
 	}
 
-	log_printf(LL_INFO, "AAAA %d %d\n", extent.width, extent.height);
+	log_printf(LL_INFO, "Swapchain extents: %dx%d\n", extent.width, extent.height);
 
 	// TODO: actually specify the number of images
 	uint32_t imageCount = capabilities.minImageCount + 1;

@@ -33,6 +33,23 @@ void configureLogging(int isDebug) {
 	}
 };
 
+char *get_log_level() {
+	switch (currentLevel) {
+	case LL_ERROR:
+		return "LL_ERROR";
+	case LL_WARN:
+		return "LL_WARN";
+	case LL_INFO:
+		return "LL_INFO";
+	case LL_DEBUG:
+		return "LL_DEBUG";
+	case LL_TRACE:
+		return "LL_TRACE";
+	default:
+		return "LL_TRACE but more";
+	}
+}
+
 void log_printf(logLevel level, char *fmt, ...) {
 	va_list args;
 	

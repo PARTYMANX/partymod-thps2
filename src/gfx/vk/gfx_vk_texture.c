@@ -92,14 +92,29 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 		.priority = 0.0f,
 	};
 
-	log_printf(LL_TRACE, "createRenderTargets(): allocate and bind memory\n");
-	vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->depthImage.image, &allocInfo, &renderer->depthImage.allocation, NULL);
+	log_printf(LL_TRACE, "createRenderTargets(): allocate memory for depth image\n");
+	if (vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->depthImage.image, &allocInfo, &renderer->depthImage.allocation, NULL) != VK_SUCCESS) {
+		log_printf(LL_ERROR, "Failed to allocate depth image memory!\n");
+		exit(1);
+	}
 
-	vmaBindImageMemory(renderer->memoryManager->allocator, renderer->depthImage.allocation, renderer->depthImage.image);
+	log_printf(LL_TRACE, "createRenderTargets(): bind memory for depth image\n");
+	if (vmaBindImageMemory(renderer->memoryManager->allocator, renderer->depthImage.allocation, renderer->depthImage.image) != VK_SUCCESS) {
+		log_printf(LL_ERROR, "Failed to bind depth image memory!\n");
+		exit(1);
+	}
 
-	vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->renderImage.image, &allocInfo, &renderer->renderImage.allocation, NULL);
+	log_printf(LL_TRACE, "createRenderTargets(): allocate memory for color image\n");
+	if (vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->renderImage.image, &allocInfo, &renderer->renderImage.allocation, NULL) != VK_SUCCESS) {
+		log_printf(LL_ERROR, "Failed to allocate color image memory!\n");
+		exit(1);
+	}
 
-	vmaBindImageMemory(renderer->memoryManager->allocator, renderer->renderImage.allocation, renderer->renderImage.image);
+	log_printf(LL_TRACE, "createRenderTargets(): bind memory for color image\n");
+	if (vmaBindImageMemory(renderer->memoryManager->allocator, renderer->renderImage.allocation, renderer->renderImage.image) != VK_SUCCESS) {
+		log_printf(LL_ERROR, "Failed to bind color image memory!\n");
+		exit(1);
+	}
 
 	// create image view
 
@@ -215,9 +230,9 @@ VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height,
 
 		.format = result->pixelFormat,
 		.tiling = VK_IMAGE_TILING_OPTIMAL,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,	// FIXME: ? causes issue if when trying to display before update + mipmap generation
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 		.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,	// TODO: (probably) from info??
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 
 		.samples = 1,
 

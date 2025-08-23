@@ -90,6 +90,8 @@ void initPatch() {
 
 	log_printf(LL_INFO, "DIRECTORY: %s\n", executableDirectory);
 
+	log_printf(LL_INFO, "LOG LEVEL: %s\n", get_log_level());
+
 #ifdef MEM_AUDIT
 	initMemAudit();
 #endif
