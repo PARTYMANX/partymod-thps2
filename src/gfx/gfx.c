@@ -471,8 +471,53 @@ void renderDXPoly(int *tag) {
 		}
 
 		if (!(tex->flags & 0x10)) {
-			setDepthState(renderer, 1, 0);
+			// hack for masked textures that have depth issues - draw them with depth write
+			uint8_t write_depth = 0;
+
+			uint32_t *gLevel = 0x005674f8;
+			switch (*gLevel) {
+			case 0: // Hangar
+				if (tex->tex_checksum == 0x9863a474 ||	// wrecked plane wheel
+					tex->tex_checksum == 0x2fdba2c8 ||	// wrecked plane tag
+					tex->tex_checksum == 0x59d9434c ||	// wrecked plane landing gear
+					tex->tex_checksum == 0x4c716d9e) {	// wrecked plane body
+					write_depth = 1;
+				}
+				break;
+			case 1:	// School II
+				if (tex->tex_checksum == 0x8758d767) {	// bike rack
+					write_depth = 1;
+				}
+				break;
+			case 3: // NYC
+				if (tex->tex_checksum == 0x7ae94072 ||	// blue awning
+					tex->tex_checksum == 0xa10d8d59 ||	// green awning
+					tex->tex_checksum == 0x8a321362 ||	// road closed sign
+					tex->tex_checksum == 0x540a6ef2 ||	// bench back rest
+					tex->tex_checksum == 0xd5840538) {	// bench legs
+					write_depth = 1;
+				}
+				break;
+			case 9:	// Skate Heaven
+				if (tex->tex_checksum == 0x94cbeff8) {	// bleachers
+					write_depth = 1;
+				}
+				break;
+			case 10:	// DHJ
+				if (tex->tex_checksum == 0x8358c7e1) {	// truss
+					write_depth = 1;
+				}
+				break;
+			default:
+				break;
+			}
+
+			if (!write_depth) {
+				setDepthState(renderer, 1, 0);
+			}
 		}
+
+		
 
 		// calc final colors
 		for (int i = 0; i < numVerts; i++) {
@@ -1499,6 +1544,84 @@ void *openExternalTextureWrapper(char *a, char *b) {
 	}
 }
 
+#include <direct.h>
+
+void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
+	if (tex->tex_checksum == 0) {
+		return;
+	}
+
+	uint32_t *gLevel = 0x005674f8;
+
+	// check that path exists, and create it if it doesn't
+	char dirpath[1024];
+	sprintf(dirpath, "texturedump/%d/", *gLevel);
+
+	struct stat st = { 0 };
+	if (stat(dirpath, &st) == -1) {
+		mkdir(dirpath);
+	}
+
+	char path[1024];
+	sprintf(path, "texturedump/%d/0x%08x.bmp", *gLevel, tex->tex_checksum);
+
+	log_printf(LL_DEBUG, "Writing texture \"%s\"...\n", path);
+
+	uint32_t bmpoffset = 14 + sizeof(struct bitmapheader);
+	uint32_t imgsize = (sizeof(uint32_t) * tex->buf_width * tex->buf_height);
+	uint32_t bmpsize = bmpoffset + imgsize;
+
+	uint8_t* fbuf = malloc(bmpsize);
+
+	memcpy(fbuf, "BM", 2);
+	memcpy(fbuf + 2, &bmpsize, sizeof(uint32_t));
+	memset(fbuf + 6, 0, 4);
+	memcpy(fbuf + 10, &bmpoffset, sizeof(uint32_t));
+
+	struct bitmapheader *header = fbuf + 14;
+	header->headersize = 40;
+	header->width = tex->buf_width;
+	header->height = tex->buf_height;
+	header->planes = 1;
+	header->bpp = 32;
+	header->compression = 0;
+	header->imgsize = imgsize;
+	header->horizontalres = 1;
+	header->verticalres = 1;
+	header->palettesize = 0;
+	header->importantcolors = 0;
+
+	uint32_t *img_data = fbuf + bmpoffset;
+	uint32_t *img_src = buf;
+	uint32_t pixel_count = tex->buf_width * tex->buf_height;
+	for (int y = 0; y < tex->buf_height; y++) {
+		uint32_t src_row_offset = y * tex->buf_width;
+		uint32_t dst_row_offset = (tex->buf_height - (y + 1)) * tex->buf_width;
+
+		for (int x = 0; x < tex->buf_width; x++) {
+			uint32_t px = img_src[src_row_offset + x];
+			if (px == 0x00000000) {
+				px = 0xffff00ff;	// full transparent -> magenta
+			} else {
+				uint8_t r = (px >> 0) & 0xff;
+				uint8_t g = (px >> 8) & 0xff;
+				uint8_t b = (px >> 16) & 0xff;
+
+				px = (0xff << 24) | (r << 16) | (g << 8) | (b << 0);
+			}
+			img_data[dst_row_offset + x] = px;
+		}
+	}
+
+	FILE *f = fopen(path, "wb");
+
+	fwrite(fbuf, bmpsize, 1, f);
+
+	fclose(f);
+
+	free(fbuf);
+}
+
 void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 	int **palFront = 0x0069d174;
 
@@ -1651,6 +1774,8 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 		} else {
 			
 		}
+
+		//dumpTextureToFile(a, buf);
 			
 	} else {
 		int (__cdecl *PCread)(void *, void *, uint32_t) = 0x004e4ca0;
@@ -2167,6 +2292,134 @@ void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int
 	Font_Draw(font, NULL, a, b, c, d);
 }
 
+int setDepthWrapper(int face, int unk, float bias, float unk2) {
+	// this function is a big hack to disable/enable depth biasing for individual textures
+	int (__cdecl *setDepthOrig)(int, int, float, float) = 0x004cf8c0;
+	uint32_t* gLevel = 0x005674f8;
+	int *faceflags = 0x0058bf5c;
+
+
+	uint8_t modified_tex_flags = 0;
+	uint32_t orig_tex_flags = 0;
+	uint32_t orig_face_flags = *faceflags;
+
+	// make sure poly is textured
+	if (*faceflags & 1) {
+		
+		struct texture* tex = *(uint32_t **)(*(int *)((uint8_t *)unk + 0x10) + 0x14);
+
+		if (tex) {
+			switch (*gLevel) {
+			case 0: // Hangar
+				// do not bias
+				if (tex->tex_checksum == 0xf4b4432d ||	// concrete texture - used on the light beams... weird
+					tex->tex_checksum == 0x9863a474 ||	// wrecked plane wheel
+					tex->tex_checksum == 0x2fdba2c8 ||	// wrecked plane tag
+					tex->tex_checksum == 0x59d9434c ||	// wrecked plane landing gear
+					tex->tex_checksum == 0x4c716d9e) {	// wrecked plane body
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+				break;
+			case 1: // School II
+				// do not bias
+				if (tex->tex_checksum == 0x8758d767) {	// bike rack
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+				}
+				break;
+			case 3:	// NYC
+				// 0x808f40af - coffee awning logo
+				// 0x89d3240f - cleaners awning logo
+
+				// force bias
+				if (tex->tex_checksum == 0xb03f60e7 ||	// street line
+					tex->tex_checksum == 0x3877e2c1 ||	// snack bar sign
+					tex->tex_checksum == 0x89d3240f ||	// blue awning's logo
+					tex->tex_checksum == 0xd4f60d61) {	// illuminated window
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags &= ~0x10;
+				}
+
+				// do not bias
+				if (tex->tex_checksum == 0x7ae94072 ||	// blue awning
+					tex->tex_checksum == 0xa10d8d59 ||	// green awning
+					tex->tex_checksum == 0x540a6ef2 ||	// bench back rest
+					tex->tex_checksum == 0xd5840538 ||	// bench legs
+					tex->tex_checksum == 0x76d0e935 ||	// subway tunnel darkness - concrete texture?
+					tex->tex_checksum == 0xf9656ebd) {	// construction light bulb
+
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+				break;
+			case 9:	// Skate Heaven
+				// do not bias
+				if (tex->tex_checksum == 0x94cbeff8) {	// bleachers
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+				}
+				break;
+			case 10:	// DHJ
+				// do not bias
+				if (tex->tex_checksum == 0x8358c7e1) {	// truss
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+				}
+
+				// force bias
+				if (tex->tex_checksum == 0xd8706aaa) {	// emerica ad
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags &= ~0x10;
+				}
+				break;
+			case 12:	// Warehouse
+				// do not bias
+				if (tex->tex_checksum == 0x221c0004) {	// chainlink
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+				break;
+			default:
+				break;
+			}
+
+		}
+	}
+
+	int result = setDepthOrig(face, unk, bias, unk2);
+
+	// return modified flags to normal
+	if (modified_tex_flags) {
+		if (*faceflags & 1) {
+			struct texture* tex = *(uint32_t**)(*(int*)((uint8_t*)unk + 0x10) + 0x14);
+			tex->flags = orig_tex_flags;
+		}
+		*faceflags = orig_face_flags;
+	}
+
+	return result;
+}
+
 void installGfxPatches() {
 	patchJmp(0x004f5190, initDDraw);
 	patchJmp(0x004f41c0, initD3D);
@@ -2251,6 +2504,8 @@ void installGfxPatches() {
 	//patchDWord(0x004cfaba + 2, &pushbackmult);
 	//patchDWord(0x004cfa5a + 2, &fzero);
 	//patchByte(0x004cfb28 + 1, 0xc1);	// FMUL -> FADD
+
+	patchCall(0x004cf4b4, setDepthWrapper);
 	
 
 	// pal_loadpalette - don't mess with alpha
