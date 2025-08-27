@@ -12,6 +12,7 @@
 #include <input.h>
 #include <config.h>
 #include <gfx/gfx.h>
+#include <sfx.h>
 #include <mem.h>
 #include <event.h>
 #include <window.h>
@@ -158,6 +159,7 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			installInputPatches();
 			installGfxPatches();
 			installMemPatches();
+			installSfxPatches();
 			patchSaveOpen();
 			patchOptionsMenu();
 

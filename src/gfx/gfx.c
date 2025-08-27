@@ -495,6 +495,20 @@ void renderDXPoly(int *tag) {
 					tex->tex_checksum == 0x8a321362 ||	// road closed sign
 					tex->tex_checksum == 0x540a6ef2 ||	// bench back rest
 					tex->tex_checksum == 0xd5840538) {	// bench legs
+					
+					write_depth = 1;
+				}
+				break;
+			case 5:	// Skate Street
+				if (tex->tex_checksum == 0xab803fa8 ||	// chair side
+					tex->tex_checksum == 0xd67c8173 ||	// chair side
+					tex->tex_checksum == 0xfffffd4d ||	// table legs
+					tex->tex_checksum == 0x70ec04da ||	// under cone
+					tex->tex_checksum == 0xa2c2c95a) {	// ramp support
+					write_depth = 1;
+				}
+			case 6:	// Philadelphia
+				if (tex->tex_checksum == 0xc1ff0913) {	// bus side
 					write_depth = 1;
 				}
 				break;
@@ -2146,7 +2160,7 @@ void WINMAIN_SwitchResolution(int mode) {
 
 uint16_t PixelAspectYFov = 0x1000;
 
-void m3dinit_setresolution() {
+void m3dinit_setresolution(uint32_t x, uint32_t y) {
 	int *width = 0x029d6fe4;
 	int *height = 0x029d6fe8;
 
@@ -2154,6 +2168,8 @@ void m3dinit_setresolution() {
 	uint16_t *PixelAspectY = 0x005606d0;
 	uint16_t *ResX = 0x0055ed00;
 	uint16_t *ResY = 0x0055ed18;
+
+	log_printf(LL_DEBUG, "m3dinit_setresolution with %d %d\n", x, y);
 
 	*ResX = *width;
 	*ResY = *height;
@@ -2164,15 +2180,78 @@ void m3dinit_setresolution() {
 	*PixelAspectX = ((*ResY * 0x4000) / (*ResX * 3));
 	*PixelAspectY = 0x1000;
 
-	/*if (*ResY << 2 < *ResX * 3) {
+	if (*ResY * 4 > *ResX * 3) {
 		*PixelAspectX = 0x1000;
-		*PixelAspectY = (*ResX * 0x3000) / (*ResY << 2);
+		*PixelAspectY = (*ResX * 0x3000) / (*ResY * 4);
+	}
+	else {
+		*PixelAspectX = (*ResY * 0x4000) / (*ResX * 3);
+		*PixelAspectY = 0x1000;
+	}
+
+	/*if (*ResY * 4 < *ResX * 3) {
+		*PixelAspectX = 0x1000;
+		*PixelAspectY = (*ResX * 0x3000) / (*ResY * 4);
 	} else {
-		*PixelAspectX = (*ResY << 0xe) / (*ResY << 2);
+		*PixelAspectX = (*ResY * 0x4000) / (*ResX * 3);
 		*PixelAspectY = 0x1000;
 	}*/
 
+	// notes:
+	// adjusting PixelAspectX results in stretch/shrink along Y axis
+	// adjusting PixelAspectY results in stretch/shrink along X axis with FOV expansion
+	// seems like zoom is being used differently/wrong here
+
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = 0x2000;
+
 	//PixelAspectYFov = 4096.0f * (((float)*ResY / (float)*ResX) / (1.0f / aspectRatio));
+}
+
+struct viewport {
+	uint16_t xR;
+	uint16_t yB;
+	uint16_t xL;
+	uint16_t yT;
+	uint16_t Hither;
+	uint16_t Yon;
+	uint16_t TanHalf;
+	uint16_t Zoom;
+	uint16_t xC;
+	uint16_t yC;
+};
+
+void __cdecl m3d_rendersetup_wrapper(uint32_t a, struct viewport *vp, uint32_t c) {
+	void (__cdecl *m3d_rendersetup)(uint32_t, struct viewport *, uint32_t) = 0x0045e870;
+
+	uint16_t* PixelAspectX = 0x005606cc;
+	uint16_t* PixelAspectY = 0x005606d0;
+
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = 0x1000;
+	
+	log_printf(LL_DEBUG, "lrtb: %d, %d, %d, %d tanhalf: %d\n", vp->xL, vp->xR, vp->yT, vp->yB, vp->TanHalf);
+
+	//vp->TanHalf = SDL_tanf(90.0 / 2.0f) * 4096.0f;
+
+	m3d_rendersetup(a, vp, c);
+
+	log_printf(LL_DEBUG, "zoom: %d, xC: %d, yC: %d\n", vp->Zoom, vp->xC, vp->yC);
+
+	uint32_t *reg_screen = 0x006a0a50;
+	uint32_t *reg_x = 0x006a0b38;
+	uint32_t *reg_y = 0x006a0b3c;
+
+	//*reg_x <<= 10;
+	//*reg_y <<= 10;
+
+	//*reg_screen = 384;
+	//vp->Zoom = 304;
+
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = 0x0800;
+
+	//vp->Zoom /= 2;
 }
 
 #define GRAPHICS_SECTION "Graphics"
@@ -2292,11 +2371,14 @@ void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int
 	Font_Draw(font, NULL, a, b, c, d);
 }
 
+uint8_t should_call_out = 0;
+
 int setDepthWrapper(int face, int unk, float bias, float unk2) {
 	// this function is a big hack to disable/enable depth biasing for individual textures
 	int (__cdecl *setDepthOrig)(int, int, float, float) = 0x004cf8c0;
-	uint32_t* gLevel = 0x005674f8;
+	uint32_t *gLevel = 0x005674f8;
 	int *faceflags = 0x0058bf5c;
+	uint32_t *renderModelFlags = 0x0057b4d4;
 
 
 	uint8_t modified_tex_flags = 0;
@@ -2353,7 +2435,6 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					tex->tex_checksum == 0xa10d8d59 ||	// green awning
 					tex->tex_checksum == 0x540a6ef2 ||	// bench back rest
 					tex->tex_checksum == 0xd5840538 ||	// bench legs
-					tex->tex_checksum == 0x76d0e935 ||	// subway tunnel darkness - concrete texture?
 					tex->tex_checksum == 0xf9656ebd) {	// construction light bulb
 
 					modified_tex_flags = 1;
@@ -2362,6 +2443,86 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					tex->flags |= 0x10;
 					*faceflags &= ~0x40;
 				}
+
+				// extremely targeted one for subway darkness - do not bias
+				if (tex->tex_checksum == 0x76d0e935) { // subway tunnel darkness - concrete texture?
+					uint32_t* model_id = 0x005606d8;
+
+					//log_printf(LL_DEBUG, "FOUND CONCRETE ON MODEL ID %d\n", *model_id)
+
+					if (*model_id >= 83 && *model_id <= 86) {
+						modified_tex_flags = 1;
+						orig_tex_flags = tex->flags;
+
+						tex->flags |= 0x10;
+						*faceflags &= ~0x40;
+					}
+				}
+
+				if (tex->tex_checksum == 0x2ca8bffd) {
+					should_call_out = 1;
+					//log_printf(LL_DEBUG, "SPOTTED HYDRANT - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+
+				if (tex->tex_checksum == 0xf9656ebd) {
+					should_call_out = 1;
+					//log_printf(LL_DEBUG, "SPOTTED BULB    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+
+				if (tex->tex_checksum == 0xf1413a62) {
+					should_call_out = 1;
+					//log_printf(LL_DEBUG, "SPOTTED BUSH    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+
+				if (tex->tex_checksum == 0xfccc3004) {
+					should_call_out = 2;
+					//log_printf(LL_DEBUG, "SPOTTED WINDOW  - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+				break;
+			case 4:	// Venice Beach
+				// do not bias
+				if (tex->tex_checksum == 0xfc0fe079) {	// roof window
+
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+
+				if (tex->tex_checksum == 0xc627cb78) {
+					should_call_out = 1;
+					//log_printf(LL_DEBUG, "SPOTTED PALM    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+
+				if (tex->tex_checksum == 0x9059dfff) {
+					should_call_out = 2;
+					//log_printf(LL_DEBUG, "SPOTTED JOE     - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+				break;
+			case 5:	// Skate Street
+				// do not bias
+				if (tex->tex_checksum == 0xab803fa8 ||	// chair side
+					tex->tex_checksum == 0xd67c8173 ||	// chair back
+					tex->tex_checksum == 0xfffffd4d ||	// table legs
+					tex->tex_checksum == 0x70ec04da ||	// under cone
+					tex->tex_checksum == 0xa2c2c95a) {	// ramp support
+
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+				break;
+			case 6:	// Philadelphia
+				// force bias
+				/*if (tex->tex_checksum == 0x390b37d9) {	// street line
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags &= ~0x10;
+				}*/
 				break;
 			case 9:	// Skate Heaven
 				// do not bias
@@ -2420,6 +2581,60 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 	return result;
 }
 
+void D3DModel_Render_Wrapper(uint32_t a, uint32_t b) {
+	int (__cdecl *D3DModel_Render)(uint32_t, uint32_t) = 0x004ce6e0;
+
+	D3DModel_Render(a, b);
+
+	if (should_call_out) {
+		//log_printf(LL_DEBUG, "PASSED TO D3DMODEL_RENDER: 0x%08x\n", b);
+		should_call_out = 0;
+	}
+}
+
+void D3DModel_Render_Wrapper_NoRotate(uint32_t a, uint32_t b) {
+	int(__cdecl * D3DModel_Render)(uint32_t, uint32_t) = 0x004ce6e0;
+
+	D3DModel_Render(a, b);
+
+	if (should_call_out) {
+		//log_printf(LL_DEBUG, "PASSED TO D3DMODEL_RENDER (NON ROTATED): 0x%08x\n", b);
+		//should_call_out = 0;
+	}
+}
+
+void RenderModelNonRotatedDummy(uint32_t a, uint32_t b) {
+	int(__cdecl * RenderModelNonRotated)(uint32_t, uint32_t) = 0x00461b00;
+
+	uint8_t modifiedFlags = 0;
+	uint8_t origFlags = 0;
+	if (*((uint8_t*)a + 1) & 1) {
+		modifiedFlags = 1;
+		origFlags = *((uint8_t*)a + 1);
+		*((uint8_t*)a + 1) &= ~1;
+		
+		//patchNop(0x004cea5f, 5);
+
+		//log_printf(LL_DEBUG, "!!!! FOUND FACING !!!!\n");
+	}
+
+	//if (!*((uint8_t*)a + 1) & 1) {
+		RenderModelNonRotated(a, b);
+	//}
+
+	if (modifiedFlags) {
+		*((uint8_t*)a + 1) = origFlags;
+		//patchCall(0x004cea5f, 0x004cfbf0);
+		//log_printf(LL_DEBUG, "!!!! RESTORED FACING !!!!\n");
+	}
+
+	if (should_call_out && origFlags & 1) {
+		//log_printf(LL_DEBUG, "!!!! FOUND FACING !!!!\n");
+	}
+
+	should_call_out = 0;
+}
+
 void installGfxPatches() {
 	patchJmp(0x004f5190, initDDraw);
 	patchJmp(0x004f41c0, initD3D);
@@ -2470,9 +2685,52 @@ void installGfxPatches() {
 	patchJmp(0x004cc510, SaveVidConfig);
 
 	patchJmp(0x00464620, m3dinit_setresolution);
-	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
+	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov); // TODO: pay attention to this, it's interesting
+	//patchDWord(0x0045eb0a + 3, &PixelAspectYFov); // TODO: pay attention to this, it's interesting
 	//patchNop(0x0045ef62, 6);
 	//patchDWord(0x0045ef62 + 2, &testthing);
+
+	// removing current resolution from viewport calcs
+	/*patchNop(0x0045e90f, 3);
+	patchNop(0x0045e915, 6);
+	patchNop(0x0045e92d, 11);
+	patchNop(0x0045e942, 9);
+	patchNop(0x0045e95b, 11);*/
+
+	// restore original viewport calculations
+
+
+	//setup
+	/*patchNop(0x0045ea82, 5);
+	//29 cd
+	patchByte(0x0045ea8c, 0x29);
+	patchByte(0x0045ea8c + 1, 0xc3);
+
+	patchNop(0x0045eb11, 5);
+	//29 cd
+	patchByte(0x0045eb18, 0x29);
+	patchByte(0x0045eb18 + 1, 0xd3);
+
+	//setup camera
+	patchNop(0x0045efd8, 3);
+	patchNop(0x0045efdb, 2);
+	//29 cd
+	patchByte(0x0045efe3, 0x29);
+	patchByte(0x0045efe3 + 1, 0xcd);
+
+	patchNop(0x0045f06c, 5);
+	//29 cd
+	patchByte(0x0045f077, 0x29);
+	patchByte(0x0045f077 + 1, 0xd5);*/
+
+	
+
+	//patchCall(0x00467c97, m3d_rendersetup_wrapper);
+
+	//patchNop(0x00467cef, 5);	// remove bit_display
+
+	//patchNop(0x0045ee45, 10);
+	//patchNop(0x0045ee5f, 10);
 
 	//patchByte(0x004ced21, 0xEB);
 	patchNop(0x004ced21, 2);	// don't brighten sky dome in nyc
@@ -2498,6 +2756,11 @@ void installGfxPatches() {
 	patchCall(0x0045dfee, fixChecklistFont);
 	patchCall(0x00415ed5, fixChecklistFont);
 
+	// maybe fix stats menu font size
+
+	patchDWord(0x004b5336 + 6, 0x1000);	// font 1
+	patchDWord(0x004b541a + 6, 0x1000);	// font 2
+
 	// pushback stuff
 	
 	//patchDWord(0x004cfaa7 + 2, &pushbackmult);
@@ -2506,7 +2769,23 @@ void installGfxPatches() {
 	//patchByte(0x004cfb28 + 1, 0xc1);	// FMUL -> FADD
 
 	patchCall(0x004cf4b4, setDepthWrapper);
+
+	// hack to detect billboards
+	/*patchCall(0x00461b62, D3DModel_Render_Wrapper);
+	patchCall(0x00461b1f, D3DModel_Render_Wrapper_NoRotate);
+	patchCall(0x00461af3, D3DModel_Render_Wrapper);
+	patchCall(0x00461acd, D3DModel_Render_Wrapper);
+	patchCall(0x00461a82, D3DModel_Render_Wrapper);
+	patchCall(0x00461a3f, D3DModel_Render_Wrapper);
+	patchCall(0x004619ff, D3DModel_Render_Wrapper);
 	
+	patchCall(0x00460386, RenderModelNonRotatedDummy);
+	patchCall(0x00460338, RenderModelNonRotatedDummy);*/
+
+	
+
+	//patchNop(0x004ce7a5, 1);
+	//patchByte(0x004ce9f1, 0xeb);
 
 	// pal_loadpalette - don't mess with alpha
 
