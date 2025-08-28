@@ -34,8 +34,8 @@ struct CVector {
 	int32_t z;
 };
 
-struct stretchyBuffer* car_sounds = NULL;
-struct stretchyBuffer* car_sound_emitters = NULL;
+struct stretchyBuffer *car_sounds = NULL;
+struct stretchyBuffer *car_sound_emitters = NULL;
 
 uint32_t currentEmitterSerial;
 
@@ -44,7 +44,7 @@ uint32_t getSoundDist(struct CVector *pos) {
 
 	// get camera position
 	uint32_t current_camera = *((uint32_t *)0x0055c69c);
-	struct CVector* camera_pos = 0x0055c42c + (current_camera * 0x29);
+	struct CVector *camera_pos = 0x0055c42c + (current_camera * 0x29);
 
 	struct CVector tmp = *camera_pos;
 	tmp.x <<= 0xc;
@@ -226,11 +226,11 @@ void __fastcall BaddyDeleteWrapper(int self) {
 }
 
 void SFX_ModifyVol_Wrapper(uint32_t id, uint32_t l, uint32_t r) {
-	void(__cdecl * SFX_ModifyVol)(uint32_t, uint32_t, uint32_t) = 0x004ab230;
+	void (__cdecl *SFX_ModifyVol)(uint32_t, uint32_t, uint32_t) = 0x004ab230;
 
 	// get emitter ref
 	uint32_t self_idx = 0;
-	struct SoundEmitterRef* p_emitter = NULL;
+	struct SoundEmitterRef *p_emitter = NULL;
 	for (int i = 0; i < car_sound_emitters->count; i++) {
 		struct SoundEmitterRef *emitter = ((struct SoundEmitterRef *)car_sound_emitters->data) + i;
 		if (emitter->id == id) {
