@@ -39,11 +39,11 @@ struct stretchyBuffer* car_sound_emitters = NULL;
 
 uint32_t currentEmitterSerial;
 
-uint32_t getSoundDist(struct CVector* pos) {
-	int32_t(__cdecl * Utils_CrapDist)(struct CVector*, struct CVector*) = 0x004c6880;
+uint32_t getSoundDist(struct CVector *pos) {
+	int32_t (__cdecl *Utils_CrapDist)(struct CVector *, struct CVector *) = 0x004c6880;
 
 	// get camera position
-	uint32_t current_camera = *((uint32_t*)0x0055c69c);
+	uint32_t current_camera = *((uint32_t *)0x0055c69c);
 	struct CVector* camera_pos = 0x0055c42c + (current_camera * 0x29);
 
 	struct CVector tmp = *camera_pos;
@@ -54,8 +54,8 @@ uint32_t getSoundDist(struct CVector* pos) {
 	return Utils_CrapDist(pos, &tmp);
 }
 
-uint32_t SFX_PlayPos_Wrapper(uint32_t sound_id, struct CVector* pos, uint32_t pitch_offset) {
-	uint32_t(__cdecl * SFX_PlayPos)(uint32_t, struct CVector*, uint32_t) = 0x004ab0b0;
+uint32_t SFX_PlayPos_Wrapper(uint32_t sound_id, struct CVector *pos, uint32_t pitch_offset) {
+	uint32_t (__cdecl *SFX_PlayPos)(uint32_t, struct CVector *, uint32_t) = 0x004ab0b0;
 
 	// create lists if they don't exist yet
 	if (!car_sounds) {
@@ -69,7 +69,7 @@ uint32_t SFX_PlayPos_Wrapper(uint32_t sound_id, struct CVector* pos, uint32_t pi
 	// find sound id
 	int32_t found_sound = -1;
 	for (int i = 0; i < car_sounds->count; i++) {
-		struct SoundRef* sound = ((struct SoundRef*)car_sounds->data) + i;
+		struct SoundRef *sound = ((struct SoundRef *)car_sounds->data) + i;
 		if (sound->id == sound_id) {
 			found_sound = i;
 			break;
@@ -92,7 +92,7 @@ uint32_t SFX_PlayPos_Wrapper(uint32_t sound_id, struct CVector* pos, uint32_t pi
 		sb_push_back(car_sounds, &newref);
 	}
 
-	struct SoundRef* p_found_sound = ((struct SoundRef*)car_sounds->data) + found_sound;
+	struct SoundRef *p_found_sound = ((struct SoundRef *)car_sounds->data) + found_sound;
 
 	// create entry for our new emitter
 	struct SoundEmitterRef newemitter = {
@@ -115,7 +115,7 @@ uint32_t SFX_PlayPos_Wrapper(uint32_t sound_id, struct CVector* pos, uint32_t pi
 	}
 	else {
 		// set this as active emitter if it's closer than current active
-		struct SoundEmitterRef* current_active = ((struct SoundEmitterRef*)car_sound_emitters->data) + p_found_sound->active_emitter;
+		struct SoundEmitterRef *current_active = ((struct SoundEmitterRef *)car_sound_emitters->data) + p_found_sound->active_emitter;
 		if (current_active->dist > newemitter.dist) {
 			p_found_sound->active_emitter = emitter_idx;
 		}
@@ -126,14 +126,14 @@ uint32_t SFX_PlayPos_Wrapper(uint32_t sound_id, struct CVector* pos, uint32_t pi
 	return newemitter.id;
 }
 
-void __cdecl SFX_ModifyPos_Wrapper(uint32_t id, struct CVector* pos, uint32_t delta_dist) {
-	uint32_t(__cdecl * SFX_ModifyPos)(uint32_t, struct CVector*, uint32_t) = 0x004ab190;
+void __cdecl SFX_ModifyPos_Wrapper(uint32_t id, struct CVector *pos, uint32_t delta_dist) {
+	uint32_t (__cdecl *SFX_ModifyPos)(uint32_t, struct CVector *, uint32_t) = 0x004ab190;
 
 	// get emitter ref
 	uint32_t self_idx = 0;
-	struct SoundEmitterRef* p_emitter = NULL;
+	struct SoundEmitterRef *p_emitter = NULL;
 	for (int i = 0; i < car_sound_emitters->count; i++) {
-		struct SoundEmitterRef* emitter = ((struct SoundEmitterRef*)car_sound_emitters->data) + i;
+		struct SoundEmitterRef *emitter = ((struct SoundEmitterRef *)car_sound_emitters->data) + i;
 		if (emitter->id == id) {
 			self_idx = i;
 			p_emitter = emitter;
@@ -145,14 +145,14 @@ void __cdecl SFX_ModifyPos_Wrapper(uint32_t id, struct CVector* pos, uint32_t de
 		return;
 	}
 
-	struct SoundRef* p_sound = ((struct SoundRef*)car_sounds->data) + p_emitter->sound;
+	struct SoundRef *p_sound = ((struct SoundRef *)car_sounds->data) + p_emitter->sound;
 
 	// update distance
 	p_emitter->dist = getSoundDist(pos);
 
 	// if this sound is not active but now closer, make it active
 	if (p_sound->active_emitter != self_idx) {
-		struct SoundEmitterRef* active_emitter = ((struct SoundEmitterRef*)car_sound_emitters->data) + p_sound->active_emitter;
+		struct SoundEmitterRef *active_emitter = ((struct SoundEmitterRef *)car_sound_emitters->data) + p_sound->active_emitter;
 		if (active_emitter->dist > p_emitter->dist) {
 			p_sound->active_emitter = self_idx;
 		}
@@ -164,19 +164,19 @@ void __cdecl SFX_ModifyPos_Wrapper(uint32_t id, struct CVector* pos, uint32_t de
 }
 
 void __fastcall BaddyDeleteWrapper(int self) {
-	void(__fastcall * BaddyDeleteWrapper)(int) = 0x004128c0;
+	void (__fastcall *BaddyDeleteWrapper)(int) = 0x004128c0;
 
 	// find our sound, if it exists
-	uint32_t emitter_id = *(uint32_t*)(self + 0x1d0);
+	uint32_t emitter_id = *(uint32_t *)(self + 0x1d0);
 
 	if (emitter_id) {
-		*(uint32_t*)(self + 0x1d0) = -1;	// make our sound handle invalid so it doesn't delete a sound used by another emitter
+		*(uint32_t *)(self + 0x1d0) = -1;	// make our sound handle invalid so it doesn't delete a sound used by another emitter
 
 		// find sound in list
 		uint32_t self_idx = 0;
-		struct SoundEmitterRef* p_emitter = NULL;
+		struct SoundEmitterRef *p_emitter = NULL;
 		for (int i = 0; i < car_sound_emitters->count; i++) {
-			struct SoundEmitterRef* emitter = ((struct SoundEmitterRef*)car_sound_emitters->data) + i;
+			struct SoundEmitterRef *emitter = ((struct SoundEmitterRef *)car_sound_emitters->data) + i;
 			if (emitter->id == emitter_id) {
 				self_idx = i;
 				p_emitter = emitter;
@@ -186,7 +186,7 @@ void __fastcall BaddyDeleteWrapper(int self) {
 
 		// if any active sounds have a higher index, decrement those to account for deletion
 		for (int i = 0; i < car_sounds->count; i++) {
-			struct SoundRef* sound = ((struct SoundRef*)car_sounds->data) + i;
+			struct SoundRef *sound = ((struct SoundRef *)car_sounds->data) + i;
 			if (sound->active_emitter > self_idx) {
 				sound->active_emitter--;
 			}
@@ -194,11 +194,11 @@ void __fastcall BaddyDeleteWrapper(int self) {
 
 		// before deletion, get sound index
 		uint32_t self_sound_idx = p_emitter->sound;
-		struct SoundRef* p_self_sound = ((struct SoundRef*)car_sounds->data) + self_sound_idx;
+		struct SoundRef *p_self_sound = ((struct SoundRef *)car_sounds->data) + self_sound_idx;
 		uint32_t self_sound_id = p_self_sound->id;
 
 		// shift other emitters, deleting ourself
-		memmove(((struct SoundEmitterRef*)car_sound_emitters->data) + self_idx, ((struct SoundEmitterRef*)car_sound_emitters->data) + self_idx + 1, car_sound_emitters->count - self_idx);
+		memmove(((struct SoundEmitterRef *)car_sound_emitters->data) + self_idx, ((struct SoundEmitterRef *)car_sound_emitters->data) + self_idx + 1, car_sound_emitters->count - self_idx);
 		car_sound_emitters->count--;
 
 		// now decrement the sound's count and delete if needed
@@ -210,14 +210,14 @@ void __fastcall BaddyDeleteWrapper(int self) {
 
 			// if any active sounds refer to a higher sound index, decrement those to account for deletion
 			for (int i = 0; i < car_sound_emitters->count; i++) {
-				struct SoundEmitterRef* emitter = ((struct SoundEmitterRef*)car_sound_emitters->data) + i;
+				struct SoundEmitterRef *emitter = ((struct SoundEmitterRef *)car_sound_emitters->data) + i;
 				if (emitter->sound > self_sound_idx) {
 					emitter->sound--;
 				}
 			}
 
 			// shift other sounds, deleting our sound
-			memmove(((struct SoundRef*)car_sounds->data) + self_sound_idx, ((struct SoundRef*)car_sounds->data) + self_sound_idx + 1, car_sounds->count - self_sound_idx);
+			memmove(((struct SoundRef *)car_sounds->data) + self_sound_idx, ((struct SoundRef *)car_sounds->data) + self_sound_idx + 1, car_sounds->count - self_sound_idx);
 			car_sounds->count--;
 		}
 	}
@@ -232,7 +232,7 @@ void SFX_ModifyVol_Wrapper(uint32_t id, uint32_t l, uint32_t r) {
 	uint32_t self_idx = 0;
 	struct SoundEmitterRef* p_emitter = NULL;
 	for (int i = 0; i < car_sound_emitters->count; i++) {
-		struct SoundEmitterRef* emitter = ((struct SoundEmitterRef*)car_sound_emitters->data) + i;
+		struct SoundEmitterRef *emitter = ((struct SoundEmitterRef *)car_sound_emitters->data) + i;
 		if (emitter->id == id) {
 			self_idx = i;
 			p_emitter = emitter;
@@ -245,7 +245,7 @@ void SFX_ModifyVol_Wrapper(uint32_t id, uint32_t l, uint32_t r) {
 		return;
 	}
 
-	struct SoundRef* p_sound = ((struct SoundRef*)car_sounds->data) + p_emitter->sound;
+	struct SoundRef *p_sound = ((struct SoundRef *)car_sounds->data) + p_emitter->sound;
 
 	SFX_ModifyVol(p_sound->sound_handle, l, r);
 }
