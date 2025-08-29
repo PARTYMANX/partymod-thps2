@@ -870,10 +870,6 @@ struct settings {
 	int fog_distance;
 	int texture_filter;
 	int internal_resolution;
-
-	int autokick;
-
-	int enable_vibration;
 };
 
 struct keybinds {
@@ -1019,10 +1015,6 @@ void defaultSettings() {
 	settings.fog_distance = 150;
 	settings.texture_filter = 0;
 	settings.internal_resolution = 0;
-	
-	settings.autokick = 1;
-
-	settings.enable_vibration = 1;
 
 	keybinds.ollie = SDL_SCANCODE_KP_2;
 	keybinds.grab = SDL_SCANCODE_KP_6;
@@ -1093,9 +1085,7 @@ void loadSettings() {
 	settings.texture_filter = GetPrivateProfileInt("Graphics", "TextureFilter", 0, configFile);
 	settings.internal_resolution = GetPrivateProfileInt("Graphics", "InternalResolution", 0, configFile);
 
-	settings.autokick = getIniBool("Miscellaneous", "Autokick", 1, configFile);
-
-	settings.enable_vibration = getIniBool("Gamepad", "EnableVibration", 1, configFile);
+	//settings.autokick = getIniBool("Miscellaneous", "Autokick", 1, configFile);
 
 	keybinds.ollie = GetPrivateProfileInt("Keybinds", "Ollie", SDL_SCANCODE_KP_2, configFile);
 	keybinds.grab = GetPrivateProfileInt("Keybinds", "Grab", SDL_SCANCODE_KP_6, configFile);
@@ -1155,7 +1145,7 @@ void saveSettings() {
 	writeIniInt("Graphics", "TextureFilter", settings.texture_filter, configFile);
 	writeIniInt("Graphics", "InternalResolution", settings.internal_resolution, configFile);
 
-	writeIniBool("Miscellaneous", "Autokick", settings.autokick, configFile);
+	//writeIniBool("Miscellaneous", "Autokick", settings.autokick, configFile);
 
 	writeIniInt("Keybinds", "Ollie", keybinds.ollie, configFile);
 	writeIniInt("Keybinds", "Grab", keybinds.grab, configFile);
@@ -1193,8 +1183,6 @@ void saveSettings() {
 	writeIniInt("Gamepad", "Down", padbinds.down, configFile);
 
 	writeIniInt("Gamepad", "MovementStick", padbinds.movement, configFile);
-
-	writeIniBool("Gamepad", "EnableVibration", settings.enable_vibration, configFile);
 }
 
 // SDL stuff - for keybinds
@@ -1333,7 +1321,6 @@ struct gamepad_page {
 	pgui_control *movement_stick;
 
 	pgui_control *view_toggle;
-	pgui_control *enable_vibration;
 };
 
 struct gamepad_page gamepad_page;
@@ -1521,9 +1508,6 @@ void build_gamepad_page(pgui_control *parent) {
 
 	pgui_label_create(8, 16 + label_offset + (camera_v_spacing), 96, 16, "View Toggle:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
 	gamepad_page.view_toggle = build_button_combobox(skater_groupbox->w - 8 - box_width, 16 + (camera_v_spacing), box_width, 20, camera_groupbox, &(padbinds.cameraToggle));
-
-	gamepad_page.enable_vibration = pgui_checkbox_create(8, 16 + label_offset + (camera_v_spacing * 2), 96, 16, "Enable Vibration", camera_groupbox);
-	pgui_checkbox_set_on_toggle(gamepad_page.enable_vibration, do_setting_checkbox, &(settings.enable_vibration));
 }
 
 void setAllPadBindText() {
@@ -1544,7 +1528,6 @@ void setAllPadBindText() {
 	setStickBindBox(gamepad_page.movement_stick, padbinds.movement);
 
 	setButtonBindBox(gamepad_page.view_toggle, padbinds.cameraToggle);
-	pgui_checkbox_set_checked(gamepad_page.enable_vibration, settings.enable_vibration);
 }
 
 struct keyboard_page {
@@ -1688,8 +1671,6 @@ struct general_page {
 	pgui_control *texture_filtering;
 	pgui_control *internal_resolution_label;
 	pgui_control *internal_resolution;
-
-	pgui_control *autokick;
 };
 
 struct general_page general_page;
@@ -1809,7 +1790,7 @@ void build_general_page(pgui_control *parent) {
 	general_page.internal_resolution = pgui_combobox_create(8, 16 + 24 + (40 * 2) + 16, 128, 24, internal_resolution_options, 3, graphics_groupbox);
 
 	// miscellaneous options
-	general_page.autokick = pgui_checkbox_create(8, 16, 128, 24, "Autokick", misc_groupbox);
+	//general_page.autokick = pgui_checkbox_create(8, 16, 128, 24, "Autokick", misc_groupbox);
 
 	pgui_checkbox_set_on_toggle(general_page.windowed, do_setting_checkbox, &(settings.windowed));
 	pgui_checkbox_set_on_toggle(general_page.borderless, do_setting_checkbox, &(settings.borderless));
@@ -1819,7 +1800,7 @@ void build_general_page(pgui_control *parent) {
 	pgui_combobox_set_on_select(general_page.texture_filtering, do_setting_combobox, &(settings.texture_filter));
 	pgui_combobox_set_on_select(general_page.internal_resolution, do_setting_combobox, &(settings.internal_resolution));
 
-	pgui_checkbox_set_on_toggle(general_page.autokick, do_setting_checkbox, &(settings.autokick));
+	//pgui_checkbox_set_on_toggle(general_page.autokick, do_setting_checkbox, &(settings.autokick));
 
 	pgui_combobox_set_on_select(general_page.resolution_combobox, set_display_mode, NULL);
 	pgui_checkbox_set_on_toggle(general_page.custom_resolution, check_custom_resolution, NULL);
@@ -1891,8 +1872,6 @@ void update_general_page() {
 	
 	pgui_combobox_set_selection(general_page.texture_filtering, settings.texture_filter);
 	pgui_combobox_set_selection(general_page.internal_resolution, settings.internal_resolution);
-
-	pgui_checkbox_set_checked(general_page.autokick, settings.autokick);
 }
 
 void callback_ok(pgui_control *control, void *data) {

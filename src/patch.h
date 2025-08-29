@@ -14,6 +14,7 @@ enum instruction {
 void patchNop(void *addr, size_t size);
 void patchInst(void *addr, enum instruction inst);
 void patchByte(void *addr, uint8_t val);
+void patchBytes(void* addr, uint8_t* b, size_t sz);
 void patchDWord(void *addr, uint32_t val);
 void patchFloat(void *addr, float val);
 void patchCall(void *addr, void *func);

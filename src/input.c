@@ -100,7 +100,6 @@ uint8_t isCursorActive = 1;
 uint8_t isUsingKeyboard = 1;
 uint8_t isUsingHardCodeControls = 1;
 uint8_t anyButtonPressed = 0;
-uint8_t isVibrationActive = 1;
 
 void setUsingKeyboard(uint8_t usingKeyboard) {
 	isUsingKeyboard = usingKeyboard;
@@ -554,8 +553,6 @@ void processInputEvent(SDL_Event *e) {
 #define GAMEPAD_SECTION "Gamepad"
 
 void configureControls() {
-	isVibrationActive = getConfigBool(GAMEPAD_SECTION, "EnableVibration", 1);
-
 	// Keyboard
 	keybinds.menu = getConfigInt(KEYBIND_SECTION, "Pause", SDL_SCANCODE_P);
 	keybinds.cameraToggle = getConfigInt(KEYBIND_SECTION, "ViewToggle", SDL_SCANCODE_O);
@@ -634,7 +631,7 @@ void PCINPUT_ActuatorOn(uint32_t controllerIdx, uint32_t duration, uint32_t moto
 	// turns out most of the parameters don't matter.  the ps1 release only seems to respond to grinds, with full strength high frequency vibration
 	// pc release only responds with half-strength on both motors.  i think that's the preferred behavior here
 	//str = (uint16_t)(((float)str / 255.0f) * 65535.0f);
-	if (isVibrationActive && activeController >= 0) {
+	if (activeController >= 0) {
 		duration *= 66;
 
 		if (motor == 0) {

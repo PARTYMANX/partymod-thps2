@@ -1,6 +1,8 @@
 #include <patch.h>
 
+#include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <windows.h>
 
 void patchNop(void *addr, size_t size) {
@@ -25,6 +27,14 @@ void patchByte(void* addr, uint8_t val) {
     VirtualProtect(addr, 1, PAGE_EXECUTE_READWRITE, &oldProtect);
     *(uint8_t *)addr = val;
     VirtualProtect(addr, 1, oldProtect, &oldProtect);
+}
+
+void patchBytes(void* addr, uint8_t *b, size_t sz) {
+    DWORD oldProtect;
+
+    VirtualProtect(addr, sz, PAGE_EXECUTE_READWRITE, &oldProtect);
+    memcpy(addr, b, sz);
+    VirtualProtect(addr, sz, oldProtect, &oldProtect);
 }
 
 void patchDWord(void *addr, uint32_t val) {
