@@ -788,6 +788,14 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, VK_FALSE);
 	vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, VK_FALSE);
 
+	float lineWidth = 1.0f;
+
+	if (renderer->renderHeight > 480) {
+		lineWidth = ((float)renderer->renderHeight) / 480.0f;
+	}
+
+	vkCmdSetLineWidth(renderer->renderCommandBuffer, lineWidth);
+
 	VkDescriptorSet descSet = allocate_descriptor_set(renderer, renderer->descriptorAllocator, renderer->renderDescriptorLayout);
 	writeTextureDescriptors(renderer);
 	update_set(renderer, renderer->descriptorAllocator, descSet);

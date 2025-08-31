@@ -7,6 +7,8 @@
 
 #include <SDL2/SDL.h>
 
+// TODO: call showwindow after creating any control
+
 // configuration application for PARTYMOD
 
 // gui library
@@ -162,6 +164,8 @@ pgui_control *pgui_create_control(int x, int y, int w, int h, pgui_control *pare
 	result->w = w;
 	result->h = h;
 
+	pgui_control_set_hidden(result, parent->hidden);
+
 	return result;
 }
 
@@ -180,6 +184,52 @@ pgui_control *findControl(pgui_control *control, HWND target) {
 	}
 
 	return NULL;
+}
+
+void scaleControl(pgui_control* control, float scale) {
+	int x = control->x;
+	int y = control->y;
+
+	pgui_get_hierarchy_position(control, &x, &y);
+
+	SetWindowPos(control->hwnd,
+		NULL,
+		x * scale,
+		y * scale,
+		control->w * scale,
+		control->h * scale,
+		SWP_NOZORDER | SWP_NOACTIVATE);
+
+	// if this is a tab, destroy the background brush so that will be recreated
+	if (control->type == PGUI_CONTROL_TYPE_TABS) {
+		DeleteObject(control->tabs.brush);
+		control->tabs.brush = NULL;
+	}
+
+	// kind of bad practice considering the function name, but we know the font 
+	// has changed now (and we don't want to traverse the tree again...).
+	// set the font again
+	SendMessage(control->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
+
+	for (int i = 0; i < control->num_children; i++) {
+		scaleControl(control->children[i], scale);
+	}
+}
+
+void updateFontForDPI(UINT dpi) {
+	NONCLIENTMETRICSW ncm = {
+			.cbSize = sizeof(NONCLIENTMETRICSW),
+	};
+	BOOL result = SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0, dpi);
+
+	LOGFONTW lf = ncm.lfMessageFont;
+	//GetObject (GetStockObject(DEFAULT_GUI_FONT), sizeof(LOGFONT), &lf); 
+	DeleteObject(hfont);
+	hfont = CreateFontW(lf.lfHeight, lf.lfWidth,
+		lf.lfEscapement, lf.lfOrientation, lf.lfWeight,
+		lf.lfItalic, lf.lfUnderline, lf.lfStrikeOut, lf.lfCharSet,
+		lf.lfOutPrecision, lf.lfClipPrecision, lf.lfQuality,
+		lf.lfPitchAndFamily, lf.lfFaceName);
 }
 
 LRESULT CALLBACK pgui_wndproc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -213,16 +263,42 @@ LRESULT CALLBACK pgui_wndproc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			return 0;
 		}
+		case WM_DPICHANGED: {
+			WORD dpi = HIWORD(wParam);
+
+			RECT* const suggested_size = (RECT*)lParam;
+			SetWindowPos(self->hwnd,
+				NULL,
+				suggested_size->left,
+				suggested_size->top,
+				suggested_size->right - suggested_size->left,
+				suggested_size->bottom - suggested_size->top,
+				SWP_NOZORDER | SWP_NOACTIVATE);
+
+			updateFontForDPI(dpi);
+
+			SendMessage(self->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
+
+			FLOAT scale = (float)dpi / USER_DEFAULT_SCREEN_DPI;
+			for (int i = 0; i < self->num_children; i++) {
+				scaleControl(self->children[i], scale);
+			}
+
+			// force a repaint now that everything has been moved
+			InvalidateRect(hwnd, 0, TRUE);
+
+			return 0;
+		}
 		case WM_CTLCOLOR:
 		case WM_CTLCOLORBTN:
 		case WM_CTLCOLORSTATIC: {
 			if (self) {
 				// find this control
-				pgui_control *child_control = findControl(self, (HWND)lParam);
-				
+				pgui_control* child_control = findControl(self, (HWND)lParam);
+
 				if (child_control) {
 					// find parent tab if it exists
-					pgui_control *parent_tab = child_control->parent;
+					pgui_control* parent_tab = child_control->parent;
 					while (parent_tab && parent_tab->type != PGUI_CONTROL_TYPE_TABS) {
 						parent_tab = parent_tab->parent;
 					}
@@ -262,6 +338,7 @@ LRESULT CALLBACK pgui_wndproc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				}
 			}
 		}
+		break;
 	}
 
 	if (self) {
@@ -271,7 +348,7 @@ LRESULT CALLBACK pgui_wndproc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: window styling
+pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: sizing for high dpi
 	pgui_control *result = malloc(sizeof(pgui_control));
 	result->type = PGUI_CONTROL_TYPE_WINDOW;
 	result->id = 0;
@@ -283,6 +360,7 @@ pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: 
 	result->y = 0;
 	result->w = width;
 	result->h = height;
+	result->hidden = 0;
 
 	HINSTANCE hinst = GetModuleHandle(NULL);
 
@@ -294,9 +372,13 @@ pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: 
 		icex.dwICC = ICC_TAB_CLASSES;
 		InitCommonControlsEx(&icex);
 
-		LOGFONT lf;
-		GetObject (GetStockObject(DEFAULT_GUI_FONT), sizeof(LOGFONT), &lf); 
-		hfont = CreateFont (lf.lfHeight, lf.lfWidth, 
+		NONCLIENTMETRICSW ncm = {
+			.cbSize = sizeof(NONCLIENTMETRICSW),
+		};
+		SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0);
+
+		LOGFONTW lf = ncm.lfMessageFont;
+		hfont = CreateFontW(lf.lfHeight, lf.lfWidth, 
 			lf.lfEscapement, lf.lfOrientation, lf.lfWeight, 
 			lf.lfItalic, lf.lfUnderline, lf.lfStrikeOut, lf.lfCharSet, 
 			lf.lfOutPrecision, lf.lfClipPrecision, lf.lfQuality, 
@@ -328,7 +410,6 @@ pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: 
 	  pt_diff.y = (rc_window.bottom - rc_window.top) - rc_client.bottom;
 	  MoveWindow(result->hwnd, rc_window.left, rc_window.top, width + pt_diff.x, height + pt_diff.y, TRUE);
 
-	// todo: add window to window list, return window
 	if (!window_list) {
 		window_list = malloc(sizeof(pgui_control *));
 
@@ -349,7 +430,7 @@ void pgui_window_show(pgui_control *control) {
 	ShowWindow(control->hwnd, SW_NORMAL);
 }
 
-pgui_control *pgui_empty_create(int x, int y, int w, int h, pgui_control *parent) {	// TODO: window styling
+pgui_control *pgui_empty_create(int x, int y, int w, int h, pgui_control *parent) {
 	pgui_control *result = pgui_create_control(x, y, w, h, parent);
 	result->type = PGUI_CONTROL_TYPE_EMPTY;
 
@@ -1891,6 +1972,8 @@ void callback_default(pgui_control *control, void *data) {
 }
 
 int main(int argc, char **argv) {
+	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
 	cursedSDLSetup();
 	loadSettings();
 
@@ -1911,6 +1994,8 @@ int main(int argc, char **argv) {
 	};
 
 	pgui_control *tabs = pgui_tabs_create(8, 8, window->w - 16, window->h - 8 - 32 - 8, tab_names, 3, window);
+
+	printf("1 %d 2 %d 3 %d\n", tabs->children[0]->hidden, tabs->children[1]->hidden, tabs->children[2]->hidden);
 
 	build_general_page(tabs->children[0]);
 	build_keyboard_page(tabs->children[1]);

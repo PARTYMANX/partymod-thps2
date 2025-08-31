@@ -65,6 +65,8 @@ void configWindow() {
 HWND initWindow() {
 	log_printf(LL_INFO, "Creating window\n");
 
+	
+
 	configWindow();
 
 	SDL_Init(SDL_INIT_VIDEO);
@@ -93,6 +95,8 @@ HWND initWindow() {
 
 	SDL_DisplayMode displayMode;
 	SDL_GetDesktopDisplayMode(0, &displayMode);
+
+	flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 
 	window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowResX, windowResY, SDL_WINDOW_SHOWN | flags);
 

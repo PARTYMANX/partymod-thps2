@@ -25,6 +25,8 @@ void patchSaveOpen() {
 }
 
 void initPatch() {
+	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
 	GetModuleFileName(NULL, &executableDirectory, filePathBufLen);
 
 	// find last slash
