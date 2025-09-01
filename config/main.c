@@ -2059,14 +2059,9 @@ int main(int argc, char **argv) {
 
 	pgui_control *tabs = pgui_tabs_create(8, 8, window->w - 16, window->h - 8 - 32 - 8, tab_names, 3, window);
 
-	printf("1 %d 2 %d 3 %d\n", tabs->children[0]->hidden, tabs->children[1]->hidden, tabs->children[2]->hidden);
-
 	build_general_page(tabs->children[0]);
 	build_keyboard_page(tabs->children[1]);
 	build_gamepad_page(tabs->children[2]);
-
-	//pgui_control_set_hidden(tabs->children[1], 1);	// bug workaround: controls don't check that the hierarchy is hidden when created, so let's just re-hide it
-	//pgui_control_set_hidden(tabs->children[2], 1);	// bug workaround: controls don't check that the hierarchy is hidden when created, so let's just re-hide it
 
 	update_general_page();
 	setAllBindText();
