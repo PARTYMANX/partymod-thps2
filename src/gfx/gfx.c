@@ -1342,13 +1342,13 @@ void D3DPOLY_DrawOTag(int *tag) {
 					textured = 0;
 				}
 				
-				uint8_t blendMode = 0;
+				uint8_t texpage = 0;
 				if (textured) {
 					// texpage is in different location if using gouraud shading
 					if ((cmd & 0x60) == 0x60 || !(cmd & 0x10)) {
-						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x16));
+						texpage = *(uint16_t *)(((uint8_t *)tag + 0x16));
 					} else {
-						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x1a));
+						texpage = *(uint16_t *)(((uint8_t *)tag + 0x1a));
 					}
 				}
 
@@ -1357,12 +1357,15 @@ void D3DPOLY_DrawOTag(int *tag) {
 					setDepthState(renderer, 1, 0);
 
 					// textured commands have a supplied texpage, so get blend mode from there
+					uint32_t blend_mode = 0;
 					if (textured) {
-						*nextPSXBlendMode = (blendMode >> 5) & 3;
+						blend_mode = (texpage >> 5) & 3;
+					} else {
+						blend_mode = *nextPSXBlendMode;
 					}
 
 					// alpha blending
-					switch(*nextPSXBlendMode) {
+					switch(blend_mode) {
 					case 0:
 						*alphaBlend = 0x80000000;
 						// blend mode 1
@@ -1458,6 +1461,206 @@ void D3DPOLY_DrawOTag(int *tag) {
 				//printf("UNKNOWN RENDER COMMAND: %d\n", cmd);
 			}
 		}
+		tag = *tag;
+	}
+}
+
+// original version of this function doesn't handle semitransparent primitives due to a mistake
+// this version correctly masks out those bits
+void flipPrimitives() {
+	uint32_t (__cdecl *Db_OTSize)() = 0x0042fc30;
+	int *screen_width = 0x029d6fe4;
+
+	uint32_t ot_size = Db_OTSize();
+
+	int *tag = ((*(uint32_t *)((*(uint32_t *)0x0055dc34) + 0x84)) + (ot_size * 8) - 8);
+	while (tag != NULL) {
+		//log_printf(LL_DEBUG, "STILL GOIN\n");
+		if (tag[1] != 0) {
+			uint8_t cmd = *(uint8_t*)((int)tag + 7);
+
+			//log_printf(LL_DEBUG, "TAG: 0x%02x\n", cmd);
+
+			switch (cmd & ~0x03) {
+			// polygons
+			
+			// F3
+			case 0x20: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// FT3
+			case 0x24: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// F4
+			case 0x28: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 20);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// FT4
+			case 0x2c: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 32);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// G3
+			case 0x30: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// GT3
+			case 0x34: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 20);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 32);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// G4
+			case 0x38: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 32);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// GT4
+			case 0x3c: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 20);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 32);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 44);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+
+			// lines
+			// F2
+			case 0x40: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+				}
+				break;
+			// F3
+			case 0x48: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// F4
+			case 0x4c: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 20);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// G2
+			case 0x50: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+				}
+				break;
+
+			// tiles
+			case 0x60:
+			case 0x68:
+			case 0x70:
+			case 0x78: {
+					int16_t *x = (int16_t *)((uint8_t *)tag + 8);
+
+					*x = *screen_width - *x;
+				}
+				break;
+
+			// DXPOLY
+			case 0xb0: {
+					if (!*(uint32_t *)((uint8_t *)tag + 0x10)) {
+						struct dxpoly *vertices = ((uint8_t *)tag + 0x18);
+						uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+
+						for (int i = 0; i < numVerts; i++) {
+							vertices[i].x = *screen_width - vertices[i].x;
+						}
+					} else {
+						struct dxpolytextured *vertices = ((uint8_t *)tag + 0x18);
+						uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+
+						for (int i = 0; i < numVerts; i++) {
+							vertices[i].x = *screen_width - vertices[i].x;
+						}
+					}
+				}
+				break;
+
+			default:
+				break;
+			}
+		}
+
 		tag = *tag;
 	}
 }
@@ -2727,7 +2930,10 @@ void installGfxPatches() {
 
 	//patchCall(0x00467c97, m3d_rendersetup_wrapper);
 
-	//patchNop(0x00467cef, 5);	// remove bit_display
+	//patchNop(0x00468168, 5);	// remove bit_display
+	//patchNop(0x00467cef, 5);	// remove envirolist display
+
+	
 
 	//patchNop(0x0045ee45, 10);
 	//patchNop(0x0045ee5f, 10);
@@ -2769,6 +2975,8 @@ void installGfxPatches() {
 	//patchByte(0x004cfb28 + 1, 0xc1);	// FMUL -> FADD
 
 	patchCall(0x004cf4b4, setDepthWrapper);
+
+	patchJmp(0x004675a0, flipPrimitives);	// use fixed flipPrimitives
 
 	// hack to detect billboards
 	/*patchCall(0x00461b62, D3DModel_Render_Wrapper);
