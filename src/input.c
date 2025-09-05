@@ -483,6 +483,9 @@ void __cdecl processController() {
 
 	uint16_t *pControlData = 0x006a0b6c;
 
+	pControlData[0] = 0;
+	pControlData[1] = 0;
+
 	if (*gShellMode == 0) {
 		int32_t *netPlayer = 0x006a0978;
 
@@ -716,6 +719,10 @@ int getSkipInput() {
 	}
 }
 
+int is_esc_pressed_maybe() {
+	return 0;
+}
+
 void installInputPatches() {
 	patchJmp(0x004e1860, InitDirectInput);
 	patchJmp(0x004e1c60, ReadDirectInput);
@@ -725,6 +732,7 @@ void installInputPatches() {
 	patchJmp(0x004e2630, PCINPUT_Save);
 	patchJmp(0x004e1430, getSkipInput);
 	patchJmp(0x004e1390, getSomethingIdk);
+	patchJmp(0x004e1370, is_esc_pressed_maybe);
 
 	// remove windows event handling in movie player
 	patchByte(0x004e3104, 0xeb);
