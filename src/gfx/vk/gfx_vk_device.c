@@ -2,7 +2,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
+//#include <vulkan/vulkan.h>
 #include <gfx/vk/vk.h>
 #include <log.h>
 
@@ -127,7 +128,13 @@ uint8_t deviceSupportsSwapchain(VkPhysicalDevice phDevice, VkSurfaceKHR surface)
 		return 0;
 	}
 
-	return formatCount > 0 && presentModeCount > 0;
+	uint8_t result = formatCount > 0 && presentModeCount > 0;
+
+	if (!result) {
+		log_printf(LL_DEBUG, "Device doesn't support swapchain!");
+	}
+
+	return result;
 }
 
 VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice *physicalDevice) {
@@ -150,9 +157,7 @@ VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice 
 		return r;
 	}
 
-#ifdef DEBUG
-	printf("Physical Device Count: %d\n", phDeviceCount);
-#endif
+	log_printf(LL_DEBUG, "Physical Device Count: %d\n", phDeviceCount);
 
 	if (phDeviceCount == 0) {
 		log_printf(LL_ERROR, "ERROR: Cannot find GPU supporting Vulkan!\n");
@@ -177,6 +182,13 @@ VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice 
 		vkGetPhysicalDeviceFeatures(*i, &phDeviceFeatures);
 
 		uint32_t queueFamilyIdxs[QUEUE_FAMILY_COUNT];
+		log_printf(LL_DEBUG, "Testing device %s (API version %d.%d.%d.%d)\n", 
+			phDeviceProperties.deviceName, 
+			(phDeviceProperties.apiVersion >> 29) & 0x00000007,
+			(phDeviceProperties.apiVersion >> 22) & 0x0000007F, 
+			(phDeviceProperties.apiVersion >> 12) & 0x000003FF, 
+			phDeviceProperties.apiVersion & 0x00000FFF);
+
 		if (!isDiscrete && 
 			phDeviceProperties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0) && 
 			getQueueFamilies(*i, result.queueFamilyIdxs, surface) && 
@@ -184,9 +196,11 @@ VkResult getPhysicalDevice(struct pmVkWindow *window, struct pmVkPhysicalDevice 
 			deviceSupportsSwapchain(*i, surface) && phDeviceFeatures.samplerAnisotropy) {	// FIXME: error checking
 			result.device = *i;
 
-			log_printf(LL_DEBUG, "TESTING DEVICE: %s\n", phDeviceProperties.deviceName);
+			log_printf(LL_DEBUG, "Device passed\n");
 
 			isDiscrete = phDeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+		} else {
+			log_printf(LL_DEBUG, "Device unsupported\n");
 		}
 
 		if (isDiscrete)
@@ -225,7 +239,12 @@ VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **devic
 	if (r || result->physicalDevice.device == VK_NULL_HANDLE) {
 		log_printf(LL_ERROR, "Failed to get physical device!\n");
 		free(result);
-		return r;
+		if (result->physicalDevice.device == VK_NULL_HANDLE) {
+			return VK_ERROR_INITIALIZATION_FAILED;	// this is a bit of a bad idea since it's not our error, but it'll work
+		} else {
+			return r;
+		}
+		
 	}
 
 	result->window = window;
@@ -289,6 +308,8 @@ VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **devic
 
 	*device = result;
 	log_printf(LL_INFO, "Vulkan device created successfully!\n");
+
+	volkLoadDevice(result->device);
 
 	return VK_SUCCESS;
 }

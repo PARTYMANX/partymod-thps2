@@ -27,6 +27,8 @@ void enforceMaxResolution(int *resX, int *resY) {
 		SDL_DisplayMode displayMode;
 		SDL_GetDisplayMode(0, i, &displayMode);
 
+		log_printf(LL_TRACE, "found display mode: %dx%d\n", displayMode.w, displayMode.h);
+
 		if (displayMode.w >= *resX) {
 			isValidX = 1;
 		}
@@ -63,6 +65,8 @@ void configWindow() {
 HWND initWindow() {
 	log_printf(LL_INFO, "Creating window\n");
 
+	
+
 	configWindow();
 
 	SDL_Init(SDL_INIT_VIDEO);
@@ -91,6 +95,8 @@ HWND initWindow() {
 
 	SDL_DisplayMode displayMode;
 	SDL_GetDesktopDisplayMode(0, &displayMode);
+
+	flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 
 	window = SDL_CreateWindow("THPS2 - PARTYMOD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowResX, windowResY, SDL_WINDOW_SHOWN | flags);
 

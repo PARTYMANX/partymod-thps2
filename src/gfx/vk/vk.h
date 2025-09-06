@@ -3,7 +3,12 @@
 
 #include <util/sb.h>
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
+//#include <vulkan/vulkan.h>
+
+#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.3
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #include <vk_mem_alloc.h>
 #include <gfx/vk/gfx_vk.h>
 
@@ -168,6 +173,7 @@ typedef struct partyRenderer {
 	uint8_t currentDepthWriteState;
 	uint8_t currentBlendState;
 	uint8_t currentLineState;
+	int32_t lastTexture;
 
 	uint32_t lastDraw;
 	uint32_t processedVerts;
@@ -251,6 +257,6 @@ void clear_writes(pmVkDescriptorAllocator *allocator);
 VkResult createTexture(partyRenderer *renderer, uint32_t width, uint32_t height, pmVkImage *result);
 void destroyTexture(partyRenderer *renderer, pmVkImage img);
 void updateTexture(partyRenderer *renderer, pmVkImage *img, uint32_t width, uint32_t height, void *data);
-VkSampler createSampler(partyRenderer *renderer);
+VkSampler createSampler(partyRenderer *renderer, VkFilter minMagFilter);
 
 #endif

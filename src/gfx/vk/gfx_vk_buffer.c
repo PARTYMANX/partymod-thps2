@@ -2,8 +2,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
+#include <volk.h>
+//#include <vulkan/vulkan.h>
+
+#include "vma_usage.h"
 
 #include <gfx/vk/vk.h>
 #include <log.h>

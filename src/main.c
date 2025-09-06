@@ -12,56 +12,22 @@
 #include <input.h>
 #include <config.h>
 #include <gfx/gfx.h>
+#include <sfx.h>
+#include <options.h>
 #include <mem.h>
 #include <event.h>
 #include <window.h>
 #include <log.h>
 #include <thps1.h>
 
-// disable the options menu entries for control and display options as they're no longer relevant
-void __fastcall OptionsMenuConstructorWrapper(uint8_t **optionsMenu) {
-	//void (__fastcall *OptionsMenuConstructor)(uint8_t **) = 0x0048185d;
-	void (__fastcall *OptionsMenuConstructor)(uint8_t **) = 0x0047eb00;
-
-	OptionsMenuConstructor(optionsMenu);
-
-	//optionsMenu[0xd9][0xc] = 0;
-	//optionsMenu[0xda][0xc] = 0;
-}
-
-void patchOptionsMenu() {
-
-	patchCall(0x0048185d, OptionsMenuConstructorWrapper);
-	// get rid of player controls menu
-	patchNop(0x0047f1f0, 5);
-	patchByte(0x0047f203, 0xeb);
-
-	// get rid of display controls menu
-	patchNop(0x0047f22d, 5);
-	patchByte(0x0047f240, 0xeb);
-}
-
 // load file patch
 void patchSaveOpen() {
 	patchByte(0x004e6249 + 1, 0);	// change file open for loading saves/replays to read instead of read and write
 }
 
-// bad autokick patch - not very graceful but it works until we can integrate it back into the menus
-uint32_t autokickSetting = 1;
-
-void handleAutokickOverride() {
-	uint32_t *autokickstate = 0x00567038;
-	uint32_t *autokickstate2 = 0x0055c88c;
-
-	*autokickstate = autokickSetting;
-	*autokickstate2 = autokickSetting;
-}
-
-void loadAutokickSetting() {
-	autokickSetting = getConfigBool("Miscellaneous", "Autokick", 1);
-}
-
 void initPatch() {
+	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
 	GetModuleFileName(NULL, &executableDirectory, filePathBufLen);
 
 	// find last slash
@@ -91,13 +57,13 @@ void initPatch() {
 
 	log_printf(LL_INFO, "DIRECTORY: %s\n", executableDirectory);
 
+	log_printf(LL_INFO, "LOG LEVEL: %s\n", get_log_level());
+
 #ifdef MEM_AUDIT
 	initMemAudit();
 #endif
 
 	initEvents();
-
-	loadAutokickSetting();
 
 	log_printf(LL_INFO, "Patch Initialized\n");
 }
@@ -127,9 +93,6 @@ void quitGame() {
 int WinYield() {
 	int result = 0x75;
 
-	// this gets called every frame, so hack in autokick override here (dumb but it works)
-	handleAutokickOverride();
-
 	handleEvents();
 
 	return result;
@@ -157,8 +120,9 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			installInputPatches();
 			installGfxPatches();
 			installMemPatches();
+			installSfxPatches();
+			installOptionsPatches();
 			patchSaveOpen();
-			patchOptionsMenu();
 
 			patchTHPS1Career();
 

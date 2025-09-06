@@ -408,16 +408,6 @@ void renderDXPoly(int *tag) {
 			uint8_t g = ((float)((vertices[i].color >> 8) & 0xff) / 31.0f) * 255.0f;
 			uint8_t b = ((float)((vertices[i].color >> 0) & 0xff) / 31.0f) * 255.0f;
 
-			if (polyflags & 0x140) {
-				uint32_t tmpr = r * 2;
-				uint32_t tmpg = b * 2;
-				uint32_t tmpb = g * 2;
-
-				r = (tmpr > 0xff) ? 0xff : tmpr;
-				g = (tmpg > 0xff) ? 0xff : tmpg;
-				b = (tmpb > 0xff) ? 0xff : tmpb;
-			}
-
 			//((float)((color >> 11) & 0x1f) / 31.0f) * 255.0f
 
 			uint32_t newcolor = (vertices[i].color & 0x00ffffff) | alpha;
@@ -481,8 +471,67 @@ void renderDXPoly(int *tag) {
 		}
 
 		if (!(tex->flags & 0x10)) {
-			setDepthState(renderer, 1, 0);
+			// hack for masked textures that have depth issues - draw them with depth write
+			uint8_t write_depth = 0;
+
+			uint32_t *gLevel = 0x005674f8;
+			switch (*gLevel) {
+			case 0: // Hangar
+				if (tex->tex_checksum == 0x9863a474 ||	// wrecked plane wheel
+					tex->tex_checksum == 0x2fdba2c8 ||	// wrecked plane tag
+					tex->tex_checksum == 0x59d9434c ||	// wrecked plane landing gear
+					tex->tex_checksum == 0x4c716d9e) {	// wrecked plane body
+					write_depth = 1;
+				}
+				break;
+			case 1:	// School II
+				if (tex->tex_checksum == 0x8758d767) {	// bike rack
+					write_depth = 1;
+				}
+				break;
+			case 3: // NYC
+				if (tex->tex_checksum == 0x7ae94072 ||	// blue awning
+					tex->tex_checksum == 0xa10d8d59 ||	// green awning
+					tex->tex_checksum == 0x8a321362 ||	// road closed sign
+					tex->tex_checksum == 0x540a6ef2 ||	// bench back rest
+					tex->tex_checksum == 0xd5840538) {	// bench legs
+					
+					write_depth = 1;
+				}
+				break;
+			case 5:	// Skate Street
+				if (tex->tex_checksum == 0xab803fa8 ||	// chair side
+					tex->tex_checksum == 0xd67c8173 ||	// chair side
+					tex->tex_checksum == 0xfffffd4d ||	// table legs
+					tex->tex_checksum == 0x70ec04da ||	// under cone
+					tex->tex_checksum == 0xa2c2c95a) {	// ramp support
+					write_depth = 1;
+				}
+			case 6:	// Philadelphia
+				if (tex->tex_checksum == 0xc1ff0913) {	// bus side
+					write_depth = 1;
+				}
+				break;
+			case 9:	// Skate Heaven
+				if (tex->tex_checksum == 0x94cbeff8) {	// bleachers
+					write_depth = 1;
+				}
+				break;
+			case 10:	// DHJ
+				if (tex->tex_checksum == 0x8358c7e1) {	// truss
+					write_depth = 1;
+				}
+				break;
+			default:
+				break;
+			}
+
+			if (!write_depth) {
+				setDepthState(renderer, 1, 0);
+			}
 		}
+
+		
 
 		// calc final colors
 		for (int i = 0; i < numVerts; i++) {
@@ -1211,6 +1260,8 @@ void renderTile(int *tag) {
 
 	transformCoords(vertices, 6);
 
+
+
 	drawVertices(renderer, vertices, 6);
 }
 
@@ -1281,39 +1332,40 @@ void D3DPOLY_DrawOTag(int *tag) {
 
 	while(tag != NULL) {
 		if (tag[1] != 0) {
-			// hangar heli causes command 226, what's up there?
 			uint8_t cmd = *(uint8_t *)((int)tag + 7);
 			if (!(cmd & 0x80)) {
-				//*nextPSXBlendMode = 0;
+				uint8_t textured = cmd & 4;
 
-				uint8_t blendMode = cmd & 0xfffffffc;
-				uint8_t otherBlendMode = cmd & 4;
-				if (blendMode == 0x40 || blendMode == 0x48 || blendMode == 0x4c || blendMode == 0x50) {
-					otherBlendMode = 0;
-				} else if (!otherBlendMode) {
-					if (!(cmd & 0x04)) {
-					
+				// if line, it cannot be textured. set textured to false
+				uint8_t cmdUpper = cmd & 0xfc;
+				if (cmdUpper == 0x40 || cmdUpper == 0x48 || cmdUpper == 0x4c || cmdUpper == 0x50) {
+					textured = 0;
+				}
+				
+				uint8_t texpage = 0;
+				if (textured) {
+					// texpage is in different location if using gouraud shading
+					if ((cmd & 0x60) == 0x60 || !(cmd & 0x10)) {
+						texpage = *(uint16_t *)(((uint8_t *)tag + 0x16));
 					} else {
-					
-					}
-
-				} else {
-					if (!(cmd & 0x10)) {
-						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x16));
-					} else {
-						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x1a));
+						texpage = *(uint16_t *)(((uint8_t *)tag + 0x1a));
 					}
 				}
 
 				if (cmd & 0x02) {
+					// semitransparent bit set
 					setDepthState(renderer, 1, 0);
 
-					if (otherBlendMode) {
-						*nextPSXBlendMode = (blendMode >> 5) & 3;
+					// textured commands have a supplied texpage, so get blend mode from there
+					uint32_t blend_mode = 0;
+					if (textured) {
+						blend_mode = (texpage >> 5) & 3;
+					} else {
+						blend_mode = *nextPSXBlendMode;
 					}
 
 					// alpha blending
-					switch(*nextPSXBlendMode) {
+					switch(blend_mode) {
 					case 0:
 						*alphaBlend = 0x80000000;
 						// blend mode 1
@@ -1338,7 +1390,6 @@ void D3DPOLY_DrawOTag(int *tag) {
 						log_printf(LL_WARN, "unknown blend mode 0x%08x\n", *nextPSXBlendMode);
 						*alphaBlend = 0xff000000;
 					}
-
 				} else {
 					*alphaBlend = 0xff000000;
 					setDepthState(renderer, 1, 1);
@@ -1400,7 +1451,7 @@ void D3DPOLY_DrawOTag(int *tag) {
 			} else if (cmd == 0xB0) {
 				renderDXPoly(tag);
 			} else if (cmd == 0xE1) {
-				// maybe blend mode
+				// texpage
 				uint32_t blendMode = tag[1];
 				*nextPSXBlendMode = (blendMode >> 5) & 3;
 			} else if (cmd == 0xE3) {
@@ -1410,6 +1461,203 @@ void D3DPOLY_DrawOTag(int *tag) {
 				//printf("UNKNOWN RENDER COMMAND: %d\n", cmd);
 			}
 		}
+		tag = *tag;
+	}
+}
+
+// original version of this function doesn't handle semitransparent primitives due to a mistake
+// this version correctly masks out those bits
+void flipPrimitives() {
+	uint32_t (__cdecl *Db_OTSize)() = 0x0042fc30;
+	int *screen_width = 0x029d6fe4;
+
+	uint32_t ot_size = Db_OTSize();
+
+	int *tag = ((*(uint32_t *)((*(uint32_t *)0x0055dc34) + 0x84)) + (ot_size * 8) - 8);
+	while (tag != NULL) {
+		if (tag[1] != 0) {
+			uint8_t cmd = *(uint8_t*)((int)tag + 7);
+
+			switch (cmd & ~0x03) {
+			// polygons
+			
+			// F3
+			case 0x20: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// FT3
+			case 0x24: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// F4
+			case 0x28: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 20);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// FT4
+			case 0x2c: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 32);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// G3
+			case 0x30: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// GT3
+			case 0x34: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 20);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 32);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// G4
+			case 0x38: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 32);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// GT4
+			case 0x3c: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 20);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 32);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 44);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+
+			// lines
+			// F2
+			case 0x40: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+				}
+				break;
+			// F3
+			case 0x48: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// F4
+			case 0x4c: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 20);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// G2
+			case 0x50: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+				}
+				break;
+
+			// tiles
+			case 0x60:
+			case 0x68:
+			case 0x70:
+			case 0x78: {
+					int16_t *x = (int16_t *)((uint8_t *)tag + 8);
+
+					*x = *screen_width - *x;
+				}
+				break;
+
+			// DXPOLY
+			case 0xb0: {
+					if (!*(uint32_t *)((uint8_t *)tag + 0x10)) {
+						struct dxpoly *vertices = ((uint8_t *)tag + 0x18);
+						uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+
+						for (int i = 0; i < numVerts; i++) {
+							vertices[i].x = *screen_width - vertices[i].x;
+						}
+					} else {
+						struct dxpolytextured *vertices = ((uint8_t *)tag + 0x18);
+						uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+
+						for (int i = 0; i < numVerts; i++) {
+							vertices[i].x = *screen_width - vertices[i].x;
+						}
+					}
+				}
+				break;
+
+			default:
+				break;
+			}
+		}
+
 		tag = *tag;
 	}
 }
@@ -1508,6 +1756,84 @@ void *openExternalTextureWrapper(char *a, char *b) {
 	} else {
 		return -1;
 	}
+}
+
+#include <direct.h>
+
+void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
+	if (tex->tex_checksum == 0) {
+		return;
+	}
+
+	uint32_t *gLevel = 0x005674f8;
+
+	// check that path exists, and create it if it doesn't
+	char dirpath[1024];
+	sprintf(dirpath, "texturedump/%d/", *gLevel);
+
+	struct stat st = { 0 };
+	if (stat(dirpath, &st) == -1) {
+		mkdir(dirpath);
+	}
+
+	char path[1024];
+	sprintf(path, "texturedump/%d/0x%08x.bmp", *gLevel, tex->tex_checksum);
+
+	log_printf(LL_DEBUG, "Writing texture \"%s\"...\n", path);
+
+	uint32_t bmpoffset = 14 + sizeof(struct bitmapheader);
+	uint32_t imgsize = (sizeof(uint32_t) * tex->width * tex->height);
+	uint32_t bmpsize = bmpoffset + imgsize;
+
+	uint8_t* fbuf = malloc(bmpsize);
+
+	memcpy(fbuf, "BM", 2);
+	memcpy(fbuf + 2, &bmpsize, sizeof(uint32_t));
+	memset(fbuf + 6, 0, 4);
+	memcpy(fbuf + 10, &bmpoffset, sizeof(uint32_t));
+
+	struct bitmapheader *header = fbuf + 14;
+	header->headersize = 40;
+	header->width = tex->width;
+	header->height = tex->height;
+	header->planes = 1;
+	header->bpp = 32;
+	header->compression = 0;
+	header->imgsize = imgsize;
+	header->horizontalres = 1;
+	header->verticalres = 1;
+	header->palettesize = 0;
+	header->importantcolors = 0;
+
+	uint32_t *img_data = fbuf + bmpoffset;
+	uint32_t *img_src = buf;
+	uint32_t pixel_count = tex->buf_width * tex->buf_height;
+	for (int y = 0; y < tex->height; y++) {
+		uint32_t src_row_offset = y * tex->buf_width;
+		uint32_t dst_row_offset = (tex->height - (y + 1)) * tex->width;
+
+		for (int x = 0; x < tex->width; x++) {
+			uint32_t px = img_src[src_row_offset + x];
+			if (px == 0x00000000) {
+				px = 0xffff00ff;	// full transparent -> magenta
+			} else {
+				uint8_t r = (px >> 0) & 0xff;
+				uint8_t g = (px >> 8) & 0xff;
+				uint8_t b = (px >> 16) & 0xff;
+
+				px = (0xff << 24) | (r << 16) | (g << 8) | (b << 0);
+			}
+			img_data[dst_row_offset + x] = px;
+		}
+	}
+
+	FILE *f = fopen(path, "wb");
+
+	fwrite(fbuf, bmpsize, 1, f);
+
+	fclose(f);
+
+	free(fbuf);
 }
 
 void makeTextureListEntry(struct texture *a, int b, int c, int d) {
@@ -1662,6 +1988,8 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 		} else {
 			
 		}
+
+		//dumpTextureToFile(a, buf);
 			
 	} else {
 		int (__cdecl *PCread)(void *, void *, uint32_t) = 0x004e4ca0;
@@ -2032,7 +2360,7 @@ void WINMAIN_SwitchResolution(int mode) {
 
 uint16_t PixelAspectYFov = 0x1000;
 
-void m3dinit_setresolution() {
+void m3dinit_setresolution(uint32_t x, uint32_t y) {
 	int *width = 0x029d6fe4;
 	int *height = 0x029d6fe8;
 
@@ -2040,6 +2368,8 @@ void m3dinit_setresolution() {
 	uint16_t *PixelAspectY = 0x005606d0;
 	uint16_t *ResX = 0x0055ed00;
 	uint16_t *ResY = 0x0055ed18;
+
+	//log_printf(LL_DEBUG, "m3dinit_setresolution with %d %d\n", x, y);
 
 	*ResX = *width;
 	*ResY = *height;
@@ -2050,15 +2380,78 @@ void m3dinit_setresolution() {
 	*PixelAspectX = ((*ResY * 0x4000) / (*ResX * 3));
 	*PixelAspectY = 0x1000;
 
-	/*if (*ResY << 2 < *ResX * 3) {
+	if (*ResY * 4 > *ResX * 3) {
 		*PixelAspectX = 0x1000;
-		*PixelAspectY = (*ResX * 0x3000) / (*ResY << 2);
+		*PixelAspectY = (*ResX * 0x3000) / (*ResY * 4);
+	}
+	else {
+		*PixelAspectX = (*ResY * 0x4000) / (*ResX * 3);
+		*PixelAspectY = 0x1000;
+	}
+
+	/*if (*ResY * 4 < *ResX * 3) {
+		*PixelAspectX = 0x1000;
+		*PixelAspectY = (*ResX * 0x3000) / (*ResY * 4);
 	} else {
-		*PixelAspectX = (*ResY << 0xe) / (*ResY << 2);
+		*PixelAspectX = (*ResY * 0x4000) / (*ResX * 3);
 		*PixelAspectY = 0x1000;
 	}*/
 
+	// notes:
+	// adjusting PixelAspectX results in stretch/shrink along Y axis
+	// adjusting PixelAspectY results in stretch/shrink along X axis with FOV expansion
+	// seems like zoom is being used differently/wrong here
+
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = 0x2000;
+
 	//PixelAspectYFov = 4096.0f * (((float)*ResY / (float)*ResX) / (1.0f / aspectRatio));
+}
+
+struct viewport {
+	uint16_t xR;
+	uint16_t yB;
+	uint16_t xL;
+	uint16_t yT;
+	uint16_t Hither;
+	uint16_t Yon;
+	uint16_t TanHalf;
+	uint16_t Zoom;
+	uint16_t xC;
+	uint16_t yC;
+};
+
+void __cdecl m3d_rendersetup_wrapper(uint32_t a, struct viewport *vp, uint32_t c) {
+	void (__cdecl *m3d_rendersetup)(uint32_t, struct viewport *, uint32_t) = 0x0045e870;
+
+	uint16_t* PixelAspectX = 0x005606cc;
+	uint16_t* PixelAspectY = 0x005606d0;
+
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = 0x1000;
+	
+	log_printf(LL_DEBUG, "lrtb: %d, %d, %d, %d tanhalf: %d\n", vp->xL, vp->xR, vp->yT, vp->yB, vp->TanHalf);
+
+	//vp->TanHalf = SDL_tanf(90.0 / 2.0f) * 4096.0f;
+
+	m3d_rendersetup(a, vp, c);
+
+	log_printf(LL_DEBUG, "zoom: %d, xC: %d, yC: %d\n", vp->Zoom, vp->xC, vp->yC);
+
+	uint32_t *reg_screen = 0x006a0a50;
+	uint32_t *reg_x = 0x006a0b38;
+	uint32_t *reg_y = 0x006a0b3c;
+
+	//*reg_x <<= 10;
+	//*reg_y <<= 10;
+
+	//*reg_screen = 384;
+	//vp->Zoom = 304;
+
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = 0x0800;
+
+	//vp->Zoom /= 2;
 }
 
 #define GRAPHICS_SECTION "Graphics"
@@ -2178,6 +2571,270 @@ void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int
 	Font_Draw(font, NULL, a, b, c, d);
 }
 
+uint8_t should_call_out = 0;
+
+int setDepthWrapper(int face, int unk, float bias, float unk2) {
+	// this function is a big hack to disable/enable depth biasing for individual textures
+	int (__cdecl *setDepthOrig)(int, int, float, float) = 0x004cf8c0;
+	uint32_t *gLevel = 0x005674f8;
+	int *faceflags = 0x0058bf5c;
+	uint32_t *renderModelFlags = 0x0057b4d4;
+
+
+	uint8_t modified_tex_flags = 0;
+	uint32_t orig_tex_flags = 0;
+	uint32_t orig_face_flags = *faceflags;
+
+	// make sure poly is textured
+	if (*faceflags & 1) {
+		
+		struct texture* tex = *(uint32_t **)(*(int *)((uint8_t *)unk + 0x10) + 0x14);
+
+		if (tex) {
+			switch (*gLevel) {
+			case 0: // Hangar
+				// do not bias
+				if (tex->tex_checksum == 0xf4b4432d ||	// concrete texture - used on the light beams... weird
+					tex->tex_checksum == 0x9863a474 ||	// wrecked plane wheel
+					tex->tex_checksum == 0x2fdba2c8 ||	// wrecked plane tag
+					tex->tex_checksum == 0x59d9434c ||	// wrecked plane landing gear
+					tex->tex_checksum == 0x4c716d9e) {	// wrecked plane body
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+				break;
+			case 1: // School II
+				// do not bias
+				if (tex->tex_checksum == 0x8758d767) {	// bike rack
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+				}
+				break;
+			case 3:	// NYC
+				// 0x808f40af - coffee awning logo
+				// 0x89d3240f - cleaners awning logo
+
+				// force bias
+				if (tex->tex_checksum == 0xb03f60e7 ||	// street line
+					tex->tex_checksum == 0x3877e2c1 ||	// snack bar sign
+					tex->tex_checksum == 0x89d3240f ||	// blue awning's logo
+					tex->tex_checksum == 0xd4f60d61) {	// illuminated window
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags &= ~0x10;
+				}
+
+				// do not bias
+				if (tex->tex_checksum == 0x7ae94072 ||	// blue awning
+					tex->tex_checksum == 0xa10d8d59 ||	// green awning
+					tex->tex_checksum == 0x540a6ef2 ||	// bench back rest
+					tex->tex_checksum == 0xd5840538 ||	// bench legs
+					tex->tex_checksum == 0xf9656ebd) {	// construction light bulb
+
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+
+				// extremely targeted one for subway darkness - do not bias
+				if (tex->tex_checksum == 0x76d0e935) { // subway tunnel darkness - concrete texture?
+					uint32_t* model_id = 0x005606d8;
+
+					//log_printf(LL_DEBUG, "FOUND CONCRETE ON MODEL ID %d\n", *model_id)
+
+					if (*model_id >= 83 && *model_id <= 86) {
+						modified_tex_flags = 1;
+						orig_tex_flags = tex->flags;
+
+						tex->flags |= 0x10;
+						*faceflags &= ~0x40;
+					}
+				}
+
+				if (tex->tex_checksum == 0x2ca8bffd) {
+					should_call_out = 1;
+					//log_printf(LL_DEBUG, "SPOTTED HYDRANT - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+
+				if (tex->tex_checksum == 0xf9656ebd) {
+					should_call_out = 1;
+					//log_printf(LL_DEBUG, "SPOTTED BULB    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+
+				if (tex->tex_checksum == 0xf1413a62) {
+					should_call_out = 1;
+					//log_printf(LL_DEBUG, "SPOTTED BUSH    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+
+				if (tex->tex_checksum == 0xfccc3004) {
+					should_call_out = 2;
+					//log_printf(LL_DEBUG, "SPOTTED WINDOW  - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+				break;
+			case 4:	// Venice Beach
+				// do not bias
+				if (tex->tex_checksum == 0xfc0fe079) {	// roof window
+
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+
+				if (tex->tex_checksum == 0xc627cb78) {
+					should_call_out = 1;
+					//log_printf(LL_DEBUG, "SPOTTED PALM    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+
+				if (tex->tex_checksum == 0x9059dfff) {
+					should_call_out = 2;
+					//log_printf(LL_DEBUG, "SPOTTED JOE     - FACE FLAGS: 0x%08x\n", *renderModelFlags);
+				}
+				break;
+			case 5:	// Skate Street
+				// do not bias
+				if (tex->tex_checksum == 0xab803fa8 ||	// chair side
+					tex->tex_checksum == 0xd67c8173 ||	// chair back
+					tex->tex_checksum == 0xfffffd4d ||	// table legs
+					tex->tex_checksum == 0x70ec04da ||	// under cone
+					tex->tex_checksum == 0xa2c2c95a) {	// ramp support
+
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+				break;
+			case 6:	// Philadelphia
+				// force bias
+				/*if (tex->tex_checksum == 0x390b37d9) {	// street line
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags &= ~0x10;
+				}*/
+				break;
+			case 9:	// Skate Heaven
+				// do not bias
+				if (tex->tex_checksum == 0x94cbeff8) {	// bleachers
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+				}
+				break;
+			case 10:	// DHJ
+				// do not bias
+				if (tex->tex_checksum == 0x8358c7e1) {	// truss
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+				}
+
+				// force bias
+				if (tex->tex_checksum == 0xd8706aaa) {	// emerica ad
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags &= ~0x10;
+				}
+				break;
+			case 12:	// Warehouse
+				// do not bias
+				if (tex->tex_checksum == 0x221c0004) {	// chainlink
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+				break;
+			default:
+				break;
+			}
+
+		}
+	}
+
+	int result = setDepthOrig(face, unk, bias, unk2);
+
+	// return modified flags to normal
+	if (modified_tex_flags) {
+		if (*faceflags & 1) {
+			struct texture* tex = *(uint32_t**)(*(int*)((uint8_t*)unk + 0x10) + 0x14);
+			tex->flags = orig_tex_flags;
+		}
+		*faceflags = orig_face_flags;
+	}
+
+	return result;
+}
+
+void D3DModel_Render_Wrapper(uint32_t a, uint32_t b) {
+	int (__cdecl *D3DModel_Render)(uint32_t, uint32_t) = 0x004ce6e0;
+
+	D3DModel_Render(a, b);
+
+	if (should_call_out) {
+		//log_printf(LL_DEBUG, "PASSED TO D3DMODEL_RENDER: 0x%08x\n", b);
+		should_call_out = 0;
+	}
+}
+
+void D3DModel_Render_Wrapper_NoRotate(uint32_t a, uint32_t b) {
+	int(__cdecl * D3DModel_Render)(uint32_t, uint32_t) = 0x004ce6e0;
+
+	D3DModel_Render(a, b);
+
+	if (should_call_out) {
+		//log_printf(LL_DEBUG, "PASSED TO D3DMODEL_RENDER (NON ROTATED): 0x%08x\n", b);
+		//should_call_out = 0;
+	}
+}
+
+void RenderModelNonRotatedDummy(uint32_t a, uint32_t b) {
+	int(__cdecl * RenderModelNonRotated)(uint32_t, uint32_t) = 0x00461b00;
+
+	uint8_t modifiedFlags = 0;
+	uint8_t origFlags = 0;
+	if (*((uint8_t*)a + 1) & 1) {
+		modifiedFlags = 1;
+		origFlags = *((uint8_t*)a + 1);
+		*((uint8_t*)a + 1) &= ~1;
+		
+		//patchNop(0x004cea5f, 5);
+
+		//log_printf(LL_DEBUG, "!!!! FOUND FACING !!!!\n");
+	}
+
+	//if (!*((uint8_t*)a + 1) & 1) {
+		RenderModelNonRotated(a, b);
+	//}
+
+	if (modifiedFlags) {
+		*((uint8_t*)a + 1) = origFlags;
+		//patchCall(0x004cea5f, 0x004cfbf0);
+		//log_printf(LL_DEBUG, "!!!! RESTORED FACING !!!!\n");
+	}
+
+	if (should_call_out && origFlags & 1) {
+		//log_printf(LL_DEBUG, "!!!! FOUND FACING !!!!\n");
+	}
+
+	should_call_out = 0;
+}
+
 void installGfxPatches() {
 	patchJmp(0x004f5190, initDDraw);
 	patchJmp(0x004f41c0, initD3D);
@@ -2228,9 +2885,55 @@ void installGfxPatches() {
 	patchJmp(0x004cc510, SaveVidConfig);
 
 	patchJmp(0x00464620, m3dinit_setresolution);
-	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
+	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov); // TODO: pay attention to this, it's interesting
+	//patchDWord(0x0045eb0a + 3, &PixelAspectYFov); // TODO: pay attention to this, it's interesting
 	//patchNop(0x0045ef62, 6);
 	//patchDWord(0x0045ef62 + 2, &testthing);
+
+	// removing current resolution from viewport calcs
+	/*patchNop(0x0045e90f, 3);
+	patchNop(0x0045e915, 6);
+	patchNop(0x0045e92d, 11);
+	patchNop(0x0045e942, 9);
+	patchNop(0x0045e95b, 11);*/
+
+	// restore original viewport calculations
+
+
+	//setup
+	/*patchNop(0x0045ea82, 5);
+	//29 cd
+	patchByte(0x0045ea8c, 0x29);
+	patchByte(0x0045ea8c + 1, 0xc3);
+
+	patchNop(0x0045eb11, 5);
+	//29 cd
+	patchByte(0x0045eb18, 0x29);
+	patchByte(0x0045eb18 + 1, 0xd3);
+
+	//setup camera
+	patchNop(0x0045efd8, 3);
+	patchNop(0x0045efdb, 2);
+	//29 cd
+	patchByte(0x0045efe3, 0x29);
+	patchByte(0x0045efe3 + 1, 0xcd);
+
+	patchNop(0x0045f06c, 5);
+	//29 cd
+	patchByte(0x0045f077, 0x29);
+	patchByte(0x0045f077 + 1, 0xd5);*/
+
+	
+
+	//patchCall(0x00467c97, m3d_rendersetup_wrapper);
+
+	//patchNop(0x00468168, 5);	// remove bit_display
+	//patchNop(0x00467cef, 5);	// remove envirolist display
+
+	
+
+	//patchNop(0x0045ee45, 10);
+	//patchNop(0x0045ee5f, 10);
 
 	//patchByte(0x004ced21, 0xEB);
 	patchNop(0x004ced21, 2);	// don't brighten sky dome in nyc
@@ -2256,13 +2959,38 @@ void installGfxPatches() {
 	patchCall(0x0045dfee, fixChecklistFont);
 	patchCall(0x00415ed5, fixChecklistFont);
 
+	// fix stats menu font size
+
+	patchDWord(0x004b5336 + 6, 0x1000);	// font 1
+	patchDWord(0x004b541a + 6, 0x1000);	// font 2
+
 	// pushback stuff
 	
 	//patchDWord(0x004cfaa7 + 2, &pushbackmult);
 	//patchDWord(0x004cfaba + 2, &pushbackmult);
 	//patchDWord(0x004cfa5a + 2, &fzero);
 	//patchByte(0x004cfb28 + 1, 0xc1);	// FMUL -> FADD
+
+	patchCall(0x004cf4b4, setDepthWrapper);
+
+	patchJmp(0x004675a0, flipPrimitives);	// use fixed flipPrimitives
+
+	// hack to detect billboards
+	/*patchCall(0x00461b62, D3DModel_Render_Wrapper);
+	patchCall(0x00461b1f, D3DModel_Render_Wrapper_NoRotate);
+	patchCall(0x00461af3, D3DModel_Render_Wrapper);
+	patchCall(0x00461acd, D3DModel_Render_Wrapper);
+	patchCall(0x00461a82, D3DModel_Render_Wrapper);
+	patchCall(0x00461a3f, D3DModel_Render_Wrapper);
+	patchCall(0x004619ff, D3DModel_Render_Wrapper);
 	
+	patchCall(0x00460386, RenderModelNonRotatedDummy);
+	patchCall(0x00460338, RenderModelNonRotatedDummy);*/
+
+	
+
+	//patchNop(0x004ce7a5, 1);
+	//patchByte(0x004ce9f1, 0xeb);
 
 	// pal_loadpalette - don't mess with alpha
 

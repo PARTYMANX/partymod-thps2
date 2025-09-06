@@ -7,6 +7,8 @@
 
 #include <SDL2/SDL.h>
 
+// TODO: call showwindow after creating any control
+
 // configuration application for PARTYMOD
 
 // gui library
@@ -162,6 +164,8 @@ pgui_control *pgui_create_control(int x, int y, int w, int h, pgui_control *pare
 	result->w = w;
 	result->h = h;
 
+	result->hidden = 0;
+
 	return result;
 }
 
@@ -180,6 +184,78 @@ pgui_control *findControl(pgui_control *control, HWND target) {
 	}
 
 	return NULL;
+}
+
+void scaleControl(pgui_control* control, float scale) {
+	int x = control->x;
+	int y = control->y;
+
+	pgui_get_hierarchy_position(control, &x, &y);
+
+	SetWindowPos(control->hwnd,
+		NULL,
+		x * scale,
+		y * scale,
+		control->w * scale,
+		control->h * scale,
+		SWP_NOZORDER | SWP_NOACTIVATE);
+
+	// if this is a tab, destroy the background brush so that will be recreated
+	if (control->type == PGUI_CONTROL_TYPE_TABS) {
+		DeleteObject(control->tabs.brush);
+		control->tabs.brush = NULL;
+	}
+
+	// kind of bad practice considering the function name, but we know the font 
+	// has changed now (and we don't want to traverse the tree again...).
+	// set the font again
+	SendMessage(control->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
+
+	for (int i = 0; i < control->num_children; i++) {
+		scaleControl(control->children[i], scale);
+	}
+}
+
+uint8_t isParentHidden(pgui_control *control) {
+	while (control != NULL) {
+		if (control->hidden) {
+			return 1;
+		}
+		
+		control = control->parent;
+	}
+
+	return 0;
+}
+
+float getScaleFactor(pgui_control *control) {
+	// get root window
+	while (control->parent) {
+		control = control->parent;
+	}
+
+	UINT dpi = GetDpiForWindow(control->hwnd);
+	float scale_factor = (float)dpi / USER_DEFAULT_SCREEN_DPI;
+
+	printf("WHY: %f\n", scale_factor);
+
+	return scale_factor;
+}
+
+void updateFontForDPI(UINT dpi) {
+	NONCLIENTMETRICSW ncm = {
+			.cbSize = sizeof(NONCLIENTMETRICSW),
+	};
+	BOOL result = SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0, dpi);
+
+	LOGFONTW lf = ncm.lfMessageFont;
+	//GetObject (GetStockObject(DEFAULT_GUI_FONT), sizeof(LOGFONT), &lf); 
+	DeleteObject(hfont);
+	hfont = CreateFontW(lf.lfHeight, lf.lfWidth,
+		lf.lfEscapement, lf.lfOrientation, lf.lfWeight,
+		lf.lfItalic, lf.lfUnderline, lf.lfStrikeOut, lf.lfCharSet,
+		lf.lfOutPrecision, lf.lfClipPrecision, lf.lfQuality,
+		lf.lfPitchAndFamily, lf.lfFaceName);
 }
 
 LRESULT CALLBACK pgui_wndproc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -213,16 +289,42 @@ LRESULT CALLBACK pgui_wndproc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			return 0;
 		}
+		case WM_DPICHANGED: {
+			WORD dpi = HIWORD(wParam);
+
+			RECT* const suggested_size = (RECT*)lParam;
+			SetWindowPos(self->hwnd,
+				NULL,
+				suggested_size->left,
+				suggested_size->top,
+				suggested_size->right - suggested_size->left,
+				suggested_size->bottom - suggested_size->top,
+				SWP_NOZORDER | SWP_NOACTIVATE);
+
+			updateFontForDPI(dpi);
+
+			SendMessage(self->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
+
+			FLOAT scale = (float)dpi / USER_DEFAULT_SCREEN_DPI;
+			for (int i = 0; i < self->num_children; i++) {
+				scaleControl(self->children[i], scale);
+			}
+
+			// force a repaint now that everything has been moved
+			InvalidateRect(hwnd, 0, TRUE);
+
+			return 0;
+		}
 		case WM_CTLCOLOR:
 		case WM_CTLCOLORBTN:
 		case WM_CTLCOLORSTATIC: {
 			if (self) {
 				// find this control
-				pgui_control *child_control = findControl(self, (HWND)lParam);
-				
+				pgui_control* child_control = findControl(self, (HWND)lParam);
+
 				if (child_control) {
 					// find parent tab if it exists
-					pgui_control *parent_tab = child_control->parent;
+					pgui_control* parent_tab = child_control->parent;
 					while (parent_tab && parent_tab->type != PGUI_CONTROL_TYPE_TABS) {
 						parent_tab = parent_tab->parent;
 					}
@@ -262,6 +364,7 @@ LRESULT CALLBACK pgui_wndproc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				}
 			}
 		}
+		break;
 	}
 
 	if (self) {
@@ -271,7 +374,7 @@ LRESULT CALLBACK pgui_wndproc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: window styling
+pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: sizing for high dpi
 	pgui_control *result = malloc(sizeof(pgui_control));
 	result->type = PGUI_CONTROL_TYPE_WINDOW;
 	result->id = 0;
@@ -283,6 +386,7 @@ pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: 
 	result->y = 0;
 	result->w = width;
 	result->h = height;
+	result->hidden = 0;
 
 	HINSTANCE hinst = GetModuleHandle(NULL);
 
@@ -294,9 +398,13 @@ pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: 
 		icex.dwICC = ICC_TAB_CLASSES;
 		InitCommonControlsEx(&icex);
 
-		LOGFONT lf;
-		GetObject (GetStockObject(DEFAULT_GUI_FONT), sizeof(LOGFONT), &lf); 
-		hfont = CreateFont (lf.lfHeight, lf.lfWidth, 
+		NONCLIENTMETRICSW ncm = {
+			.cbSize = sizeof(NONCLIENTMETRICSW),
+		};
+		SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0);
+
+		LOGFONTW lf = ncm.lfMessageFont;
+		hfont = CreateFontW(lf.lfHeight, lf.lfWidth, 
 			lf.lfEscapement, lf.lfOrientation, lf.lfWeight, 
 			lf.lfItalic, lf.lfUnderline, lf.lfStrikeOut, lf.lfCharSet, 
 			lf.lfOutPrecision, lf.lfClipPrecision, lf.lfQuality, 
@@ -320,15 +428,16 @@ pgui_control *pgui_window_create(int width, int height, char *title) {	// TODO: 
 	result->hwnd = CreateWindow(CLASS_NAME, title, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, width, height, NULL, NULL, hinst, NULL);
 	SendMessage(result->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
 
-	  RECT rc_client, rc_window;
-	  POINT pt_diff;
-	  GetClientRect(result->hwnd, &rc_client);
-	  GetWindowRect(result->hwnd, &rc_window);
-	  pt_diff.x = (rc_window.right - rc_window.left) - rc_client.right;
-	  pt_diff.y = (rc_window.bottom - rc_window.top) - rc_client.bottom;
-	  MoveWindow(result->hwnd, rc_window.left, rc_window.top, width + pt_diff.x, height + pt_diff.y, TRUE);
+	float scale_factor = getScaleFactor(result);
 
-	// todo: add window to window list, return window
+	RECT rc_client, rc_window;
+	POINT pt_diff;
+	GetClientRect(result->hwnd, &rc_client);
+	GetWindowRect(result->hwnd, &rc_window);
+	pt_diff.x = (rc_window.right - rc_window.left) - rc_client.right;
+	pt_diff.y = (rc_window.bottom - rc_window.top) - rc_client.bottom;
+	MoveWindow(result->hwnd, rc_window.left, rc_window.top, (width * scale_factor) + pt_diff.x, (height * scale_factor) + pt_diff.y, TRUE);
+
 	if (!window_list) {
 		window_list = malloc(sizeof(pgui_control *));
 
@@ -349,7 +458,7 @@ void pgui_window_show(pgui_control *control) {
 	ShowWindow(control->hwnd, SW_NORMAL);
 }
 
-pgui_control *pgui_empty_create(int x, int y, int w, int h, pgui_control *parent) {	// TODO: window styling
+pgui_control *pgui_empty_create(int x, int y, int w, int h, pgui_control *parent) {
 	pgui_control *result = pgui_create_control(x, y, w, h, parent);
 	result->type = PGUI_CONTROL_TYPE_EMPTY;
 
@@ -402,12 +511,17 @@ pgui_control *pgui_button_create(int x, int y, int w, int h, char *label, pgui_c
 
 	result->id = node->window.current_id;
 
-	result->hwnd = CreateWindow(WC_BUTTON, label, WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, x, y, w, h, node->hwnd, node->window.current_id, hinst, NULL);
+	float scale_factor = getScaleFactor(result);
+	result->hwnd = CreateWindow(WC_BUTTON, label, WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, x * scale_factor, y * scale_factor, w * scale_factor, h * scale_factor, node->hwnd, node->window.current_id, hinst, NULL);
 	SendMessage(result->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
 
 	// reorder parent(s) probably?  need to remember how win32 orders things
 
 	node->window.current_id += 1;
+
+	if (isParentHidden(result)) {
+		pgui_control_hide(result, 1);
+	}
 
 	return result;
 }
@@ -463,12 +577,17 @@ pgui_control *pgui_checkbox_create(int x, int y, int w, int h, char *label, pgui
 
 	result->id = node->window.current_id;
 
-	result->hwnd = CreateWindow(WC_BUTTON, label, WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_CHECKBOX, x, y, w, h, node->hwnd, node->window.current_id, hinst, NULL);
+	float scale_factor = getScaleFactor(result);
+	result->hwnd = CreateWindow(WC_BUTTON, label, WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_CHECKBOX, x * scale_factor, y * scale_factor, w * scale_factor, h * scale_factor, node->hwnd, node->window.current_id, hinst, NULL);
 	SendMessage(result->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
 
 	// reorder parent(s) probably?  need to remember how win32 orders things
 
 	node->window.current_id += 1;
+
+	if (isParentHidden(result)) {
+		pgui_control_hide(result, 1);
+	}
 
 	return result;
 }
@@ -507,10 +626,15 @@ pgui_control *pgui_label_create(int x, int y, int w, int h, char *label, pgui_la
 		justify_flag = SS_CENTER;
 	}
 
-	result->hwnd = CreateWindow(WC_STATIC, label, WS_CHILD | WS_VISIBLE | justify_flag, x, y, w, h, node->hwnd, NULL, hinst, NULL);
+	float scale_factor = getScaleFactor(result);
+	result->hwnd = CreateWindow(WC_STATIC, label, WS_CHILD | WS_VISIBLE | justify_flag, x * scale_factor, y * scale_factor, w * scale_factor, h * scale_factor, node->hwnd, NULL, hinst, NULL);
 	SendMessage(result->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
 
 	// reorder parent(s) probably?  need to remember how win32 orders things
+
+	if (isParentHidden(result)) {
+		pgui_control_hide(result, 1);
+	}
 
 	return result;
 }
@@ -531,10 +655,15 @@ pgui_control *pgui_groupbox_create(int x, int y, int w, int h, char *label, pgui
 		node = node->parent;
 	}
 
-	result->hwnd = CreateWindow(WC_BUTTON, label, WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_GROUPBOX, x, y, w, h, node->hwnd, NULL, hinst, NULL);
+	float scale_factor = getScaleFactor(result);
+	result->hwnd = CreateWindow(WC_BUTTON, label, WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_GROUPBOX, x * scale_factor, y * scale_factor, w * scale_factor, h * scale_factor, node->hwnd, NULL, hinst, NULL);
 	SendMessage(result->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
 
 	// reorder parent(s) probably?  need to remember how win32 orders things
+
+	if (isParentHidden(result)) {
+		pgui_control_hide(result, 1);
+	}
 
 	return result;
 }
@@ -558,12 +687,17 @@ pgui_control *pgui_textbox_create(int x, int y, int w, int h, char *text, pgui_c
 
 	result->id = node->window.current_id;
 
-	result->hwnd = CreateWindowEx(WS_EX_CLIENTEDGE, WC_EDIT, text, WS_CHILD | WS_VISIBLE, x, y, w, h, node->hwnd, (HMENU)node->window.current_id, hinst, NULL);
+	float scale_factor = getScaleFactor(result);
+	result->hwnd = CreateWindowEx(WS_EX_CLIENTEDGE, WC_EDIT, text, WS_CHILD | WS_VISIBLE, x * scale_factor, y * scale_factor, w * scale_factor, h * scale_factor, node->hwnd, (HMENU)node->window.current_id, hinst, NULL);
 	SendMessage(result->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
 
 	// reorder parent(s) probably?  need to remember how win32 orders things
 
 	node->window.current_id += 1;
+
+	if (isParentHidden(result)) {
+		pgui_control_hide(result, 1);
+	}
 
 	return result;
 }
@@ -631,7 +765,8 @@ pgui_control *pgui_combobox_create(int x, int y, int w, int h, char **options, s
 
 	result->id = node->window.current_id;
 
-	result->hwnd = CreateWindow(WC_COMBOBOX, "", WS_TABSTOP | WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST, x, y, w, h, node->hwnd, node->window.current_id, hinst, NULL);
+	float scale_factor = getScaleFactor(result);
+	result->hwnd = CreateWindow(WC_COMBOBOX, "", WS_TABSTOP | WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST, x * scale_factor, y * scale_factor, w * scale_factor, h * scale_factor, node->hwnd, node->window.current_id, hinst, NULL);
 	SendMessage(result->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
 
 	for (int i = 0; i < num_options; i++) {
@@ -643,6 +778,10 @@ pgui_control *pgui_combobox_create(int x, int y, int w, int h, char **options, s
 	// reorder parent(s) probably?  need to remember how win32 orders things
 
 	node->window.current_id += 1;
+
+	if (isParentHidden(result)) {
+		pgui_control_hide(result, 1);
+	}
 
 	return result;
 }
@@ -702,7 +841,9 @@ pgui_control *pgui_tabs_create(int x, int y, int w, int h, char **options, size_
 
 	result->id = node->window.current_id;
 
-	result->hwnd = CreateWindow(WC_TABCONTROL, "", WS_CHILD | WS_VISIBLE, x, y, w, h, node->hwnd, node->window.current_id, hinst, NULL);
+	// remember that the scale must be reversed when we get the tab childen's size!
+	float scale_factor = getScaleFactor(result);
+	result->hwnd = CreateWindow(WC_TABCONTROL, "", WS_CHILD | WS_VISIBLE, x * scale_factor, y * scale_factor, w * scale_factor, h * scale_factor, node->hwnd, node->window.current_id, hinst, NULL);
 	SendMessage(result->hwnd, WM_SETFONT, (WPARAM)hfont, TRUE);
 
 	for (int i = 0; i < num_options; i++) {
@@ -723,7 +864,7 @@ pgui_control *pgui_tabs_create(int x, int y, int w, int h, char **options, size_
 	// reorder parent(s) probably?  need to remember how win32 orders things
 
 	for (int i = 0; i < num_options; i++) {
-		pgui_empty_create(tabRect.left, tabRect.top, tabRect.right - tabRect.left, tabRect.bottom - tabRect.top, result);
+		pgui_empty_create(tabRect.left / scale_factor, tabRect.top / scale_factor, (tabRect.right - tabRect.left) / scale_factor, (tabRect.bottom - tabRect.top) / scale_factor, result);
 	}
 
 	for (int i = 1; i < num_options; i++) {
@@ -731,6 +872,10 @@ pgui_control *pgui_tabs_create(int x, int y, int w, int h, char **options, size_
 	}
 
 	node->window.current_id += 1;
+
+	if (isParentHidden(result)) {
+		pgui_control_hide(result, 1);
+	}
 
 	return result;
 }
@@ -870,10 +1015,6 @@ struct settings {
 	int fog_distance;
 	int texture_filter;
 	int internal_resolution;
-
-	int autokick;
-
-	int enable_vibration;
 };
 
 struct keybinds {
@@ -1019,10 +1160,6 @@ void defaultSettings() {
 	settings.fog_distance = 150;
 	settings.texture_filter = 0;
 	settings.internal_resolution = 0;
-	
-	settings.autokick = 1;
-
-	settings.enable_vibration = 1;
 
 	keybinds.ollie = SDL_SCANCODE_KP_2;
 	keybinds.grab = SDL_SCANCODE_KP_6;
@@ -1093,9 +1230,7 @@ void loadSettings() {
 	settings.texture_filter = GetPrivateProfileInt("Graphics", "TextureFilter", 0, configFile);
 	settings.internal_resolution = GetPrivateProfileInt("Graphics", "InternalResolution", 0, configFile);
 
-	settings.autokick = getIniBool("Miscellaneous", "Autokick", 1, configFile);
-
-	settings.enable_vibration = getIniBool("Gamepad", "EnableVibration", 1, configFile);
+	//settings.autokick = getIniBool("Miscellaneous", "Autokick", 1, configFile);
 
 	keybinds.ollie = GetPrivateProfileInt("Keybinds", "Ollie", SDL_SCANCODE_KP_2, configFile);
 	keybinds.grab = GetPrivateProfileInt("Keybinds", "Grab", SDL_SCANCODE_KP_6, configFile);
@@ -1155,7 +1290,7 @@ void saveSettings() {
 	writeIniInt("Graphics", "TextureFilter", settings.texture_filter, configFile);
 	writeIniInt("Graphics", "InternalResolution", settings.internal_resolution, configFile);
 
-	writeIniBool("Miscellaneous", "Autokick", settings.autokick, configFile);
+	//writeIniBool("Miscellaneous", "Autokick", settings.autokick, configFile);
 
 	writeIniInt("Keybinds", "Ollie", keybinds.ollie, configFile);
 	writeIniInt("Keybinds", "Grab", keybinds.grab, configFile);
@@ -1193,8 +1328,6 @@ void saveSettings() {
 	writeIniInt("Gamepad", "Down", padbinds.down, configFile);
 
 	writeIniInt("Gamepad", "MovementStick", padbinds.movement, configFile);
-
-	writeIniBool("Gamepad", "EnableVibration", settings.enable_vibration, configFile);
 }
 
 // SDL stuff - for keybinds
@@ -1333,7 +1466,6 @@ struct gamepad_page {
 	pgui_control *movement_stick;
 
 	pgui_control *view_toggle;
-	pgui_control *enable_vibration;
 };
 
 struct gamepad_page gamepad_page;
@@ -1521,9 +1653,6 @@ void build_gamepad_page(pgui_control *parent) {
 
 	pgui_label_create(8, 16 + label_offset + (camera_v_spacing), 96, 16, "View Toggle:", PGUI_LABEL_JUSTIFY_LEFT, camera_groupbox);
 	gamepad_page.view_toggle = build_button_combobox(skater_groupbox->w - 8 - box_width, 16 + (camera_v_spacing), box_width, 20, camera_groupbox, &(padbinds.cameraToggle));
-
-	gamepad_page.enable_vibration = pgui_checkbox_create(8, 16 + label_offset + (camera_v_spacing * 2), 96, 16, "Enable Vibration", camera_groupbox);
-	pgui_checkbox_set_on_toggle(gamepad_page.enable_vibration, do_setting_checkbox, &(settings.enable_vibration));
 }
 
 void setAllPadBindText() {
@@ -1544,7 +1673,6 @@ void setAllPadBindText() {
 	setStickBindBox(gamepad_page.movement_stick, padbinds.movement);
 
 	setButtonBindBox(gamepad_page.view_toggle, padbinds.cameraToggle);
-	pgui_checkbox_set_checked(gamepad_page.enable_vibration, settings.enable_vibration);
 }
 
 struct keyboard_page {
@@ -1688,8 +1816,6 @@ struct general_page {
 	pgui_control *texture_filtering;
 	pgui_control *internal_resolution_label;
 	pgui_control *internal_resolution;
-
-	pgui_control *autokick;
 };
 
 struct general_page general_page;
@@ -1809,7 +1935,7 @@ void build_general_page(pgui_control *parent) {
 	general_page.internal_resolution = pgui_combobox_create(8, 16 + 24 + (40 * 2) + 16, 128, 24, internal_resolution_options, 3, graphics_groupbox);
 
 	// miscellaneous options
-	general_page.autokick = pgui_checkbox_create(8, 16, 128, 24, "Autokick", misc_groupbox);
+	//general_page.autokick = pgui_checkbox_create(8, 16, 128, 24, "Autokick", misc_groupbox);
 
 	pgui_checkbox_set_on_toggle(general_page.windowed, do_setting_checkbox, &(settings.windowed));
 	pgui_checkbox_set_on_toggle(general_page.borderless, do_setting_checkbox, &(settings.borderless));
@@ -1819,7 +1945,7 @@ void build_general_page(pgui_control *parent) {
 	pgui_combobox_set_on_select(general_page.texture_filtering, do_setting_combobox, &(settings.texture_filter));
 	pgui_combobox_set_on_select(general_page.internal_resolution, do_setting_combobox, &(settings.internal_resolution));
 
-	pgui_checkbox_set_on_toggle(general_page.autokick, do_setting_checkbox, &(settings.autokick));
+	//pgui_checkbox_set_on_toggle(general_page.autokick, do_setting_checkbox, &(settings.autokick));
 
 	pgui_combobox_set_on_select(general_page.resolution_combobox, set_display_mode, NULL);
 	pgui_checkbox_set_on_toggle(general_page.custom_resolution, check_custom_resolution, NULL);
@@ -1891,8 +2017,6 @@ void update_general_page() {
 	
 	pgui_combobox_set_selection(general_page.texture_filtering, settings.texture_filter);
 	pgui_combobox_set_selection(general_page.internal_resolution, settings.internal_resolution);
-
-	pgui_checkbox_set_checked(general_page.autokick, settings.autokick);
 }
 
 void callback_ok(pgui_control *control, void *data) {
@@ -1912,6 +2036,8 @@ void callback_default(pgui_control *control, void *data) {
 }
 
 int main(int argc, char **argv) {
+	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
 	cursedSDLSetup();
 	loadSettings();
 
@@ -1936,9 +2062,6 @@ int main(int argc, char **argv) {
 	build_general_page(tabs->children[0]);
 	build_keyboard_page(tabs->children[1]);
 	build_gamepad_page(tabs->children[2]);
-
-	pgui_control_set_hidden(tabs->children[1], 1);	// bug workaround: controls don't check that the hierarchy is hidden when created, so let's just re-hide it
-	pgui_control_set_hidden(tabs->children[2], 1);	// bug workaround: controls don't check that the hierarchy is hidden when created, so let's just re-hide it
 
 	update_general_page();
 	setAllBindText();

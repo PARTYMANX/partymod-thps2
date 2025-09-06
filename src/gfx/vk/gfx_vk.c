@@ -5,7 +5,8 @@
 #include <global.h>
 #include <log.h>
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
+//#include <vulkan/vulkan.h>
 
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/vk/vk.h>
@@ -116,6 +117,13 @@ void appendExtensions(uint32_t *dstExtCount, char ***dstExtNames, uint32_t srcEx
 }
 
 VkResult initInstance() {
+	VkResult result = volkInitialize();
+	if (result != VK_SUCCESS) {
+		// error
+		log_printf(LL_ERROR, "ERROR: Failed to load Vulkan!\n");
+		return result;
+	}
+
 	VkApplicationInfo appInfo = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext = NULL,
@@ -168,7 +176,7 @@ VkResult initInstance() {
 	instanceInfo.enabledExtensionCount = extCount;
 	instanceInfo.ppEnabledExtensionNames = extNames;
 
-	VkResult result = vkCreateInstance(&instanceInfo, NULL, &instance);
+	result = vkCreateInstance(&instanceInfo, NULL, &instance);
 
 	if (result != VK_SUCCESS) {
 		// error
@@ -193,6 +201,8 @@ VkResult initInstance() {
 	if (vkpfn_vkCreateDebugUtilsMessengerEXT)
 		createDebugMessenger();
 #endif
+
+	volkLoadInstance(instance);
 
 	return VK_SUCCESS;
 }
@@ -778,6 +788,14 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	vkCmdSetDepthTestEnable(renderer->renderCommandBuffer, VK_FALSE);
 	vkCmdSetDepthWriteEnable(renderer->renderCommandBuffer, VK_FALSE);
 
+	float lineWidth = 1.0f;
+
+	if (renderer->renderHeight > 480) {
+		lineWidth = ((float)renderer->renderHeight) / 480.0f;
+	}
+
+	vkCmdSetLineWidth(renderer->renderCommandBuffer, lineWidth);
+
 	VkDescriptorSet descSet = allocate_descriptor_set(renderer, renderer->descriptorAllocator, renderer->renderDescriptorLayout);
 	writeTextureDescriptors(renderer);
 	update_set(renderer, renderer->descriptorAllocator, descSet);
@@ -794,6 +812,7 @@ void startRender(partyRenderer *renderer, uint32_t clearCol) {
 	renderer->currentDepthWriteState = 0;
 	renderer->currentBlendState = 0;
 	renderer->currentLineState = 0;
+	renderer->lastTexture = -1;
 
 	renderer->lastDraw = 0;
 	renderer->processedVerts = 0;
@@ -865,6 +884,11 @@ void drawVertices(partyRenderer *renderer, renderVertex *vertices, uint32_t vert
 		}
 
 		vertices[i].texture -= 1;
+	}
+
+	if (vertices[0].texture != -1 && vertices[0].texture != renderer->lastTexture) {
+		flushVerts(renderer);
+		renderer->lastTexture = vertices[0].texture;
 	}
 
 	if (renderer->currentLineState) {

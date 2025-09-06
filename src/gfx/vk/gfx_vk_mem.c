@@ -3,8 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
+#include <volk.h>
+//#include <vulkan/vulkan.h>
+
+#include "vma_usage.h"
 
 #include <gfx/vk/vk.h>
 #include <log.h>
@@ -34,7 +36,17 @@ VkResult pmVkInitMemoryManager(partyRenderer *renderer, struct pmVkMemoryManager
 		.pTypeExternalMemoryHandleTypes = NULL,
 	};
 
-	VkResult r = vmaCreateAllocator(&info, &(result->allocator));
+	VmaVulkanFunctions vk_funcs;
+
+	VkResult r = vmaImportVulkanFunctionsFromVolk(&info, &vk_funcs);
+	if (r) {
+		free(result);
+		return r;
+	}
+
+	info.pVulkanFunctions = &vk_funcs;
+
+	r = vmaCreateAllocator(&info, &(result->allocator));
 
 	if (r) {
 		free(result);

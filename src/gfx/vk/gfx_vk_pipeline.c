@@ -2,7 +2,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
+//#include <vulkan/vulkan.h>
 
 #include <gfx/vk/vk.h>
 #include <log.h>
@@ -138,6 +139,8 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 	};
 
 	// rasterizer
+
+	// calculate line width
 
 	VkPipelineRasterizationStateCreateInfo rasterizerInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -332,13 +335,14 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 		//VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY,
 		//VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT,
 		//VK_DYNAMIC_STATE_POLYGON_MODE_EXT, 
+		VK_DYNAMIC_STATE_LINE_WIDTH,
 	};
 
 	VkPipelineDynamicStateCreateInfo dynamicStateInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
 		.pNext = NULL,
 		.flags = 0,
-		.dynamicStateCount = 4,
+		.dynamicStateCount = 5,
 		.pDynamicStates = &dynamicState,
 	};
 

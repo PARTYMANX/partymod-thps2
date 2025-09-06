@@ -1,5 +1,7 @@
 // cpp file to include the Vulkan Memory Allocator implementation
 
+#include <volk.h>
+
 #define VMA_IMPLEMENTATION
 
-#include "vk_mem_alloc.h"
+#include "vma_usage.h"

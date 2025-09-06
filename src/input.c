@@ -100,7 +100,6 @@ uint8_t isCursorActive = 1;
 uint8_t isUsingKeyboard = 1;
 uint8_t isUsingHardCodeControls = 1;
 uint8_t anyButtonPressed = 0;
-uint8_t isVibrationActive = 1;
 
 void setUsingKeyboard(uint8_t usingKeyboard) {
 	isUsingKeyboard = usingKeyboard;
@@ -328,6 +327,47 @@ uint16_t pollController(SDL_GameController *controller) {
 	return result;
 }
 
+// global store for which hardcoded keys are overriden by user binds
+struct keyOverrides {
+	uint8_t menu;
+	uint8_t accept;
+	uint8_t up;
+	uint8_t down;
+	uint8_t left;
+	uint8_t right;
+} keyOverrides;
+
+void setKeyOverrides() {
+	// initialize overrides to all false
+	memset(&keyOverrides, 0, sizeof(keyOverrides));
+
+	// pretty gnarly code, but iterate through all keybinds and mark any overriden keys
+	for (SDL_Scancode* i = &keybinds; i < &keybinds + (sizeof(keybinds) / sizeof(SDL_Scancode)); i++) {
+		switch (*i) {
+		case SDL_SCANCODE_ESCAPE:
+			keyOverrides.menu = 1;
+			break;
+		case SDL_SCANCODE_RETURN:
+			keyOverrides.accept = 1;
+			break;
+		case SDL_SCANCODE_UP:
+			keyOverrides.up = 1;
+			break;
+		case SDL_SCANCODE_DOWN:
+			keyOverrides.down = 1;
+			break;
+		case SDL_SCANCODE_LEFT:
+			keyOverrides.left = 1;
+			break;
+		case SDL_SCANCODE_RIGHT:
+			keyOverrides.right = 1;
+			break;
+		default:
+			break;
+		}
+	}
+}
+
 uint32_t escState = 0;
 
 uint16_t pollKeyboard() {
@@ -351,7 +391,7 @@ uint16_t pollKeyboard() {
 	// slight deviation from original behavior: esc goes back in pause/end run menu
 	// to prevent esc double-pressing on menu transitions, process its state here.  
 	// escState = 1 means esc was pressed in menu, 2 means pressed out of menu, 0 is unpressed
-	if (keyboardState[SDL_SCANCODE_ESCAPE] && !escState) {
+	if ((keyboardState[SDL_SCANCODE_ESCAPE] && !keyOverrides.menu) && !escState) {
 		escState = (*isMenuOpen) ? 1 : 2;
 	} else if (!keyboardState[SDL_SCANCODE_ESCAPE]) {
 		escState = 0;
@@ -371,7 +411,7 @@ uint16_t pollKeyboard() {
 	if (keyboardState[keybinds.grab]) {
 		result |= 0x01 << 5;
 	}
-	if (keyboardState[keybinds.ollie] || keyboardState[SDL_SCANCODE_RETURN]) {
+	if (keyboardState[keybinds.ollie] || (keyboardState[SDL_SCANCODE_RETURN] && !keyOverrides.accept)) {
 		result |= 0x01 << 6;
 	}
 	if (keyboardState[keybinds.kick]) {
@@ -393,16 +433,16 @@ uint16_t pollKeyboard() {
 	}
 		
 	// d-pad
-	if (keyboardState[keybinds.up] || keyboardState[SDL_SCANCODE_UP]) {
+	if (keyboardState[keybinds.up] || (keyboardState[SDL_SCANCODE_UP] && !keyOverrides.up)) {
 		result |= 0x01 << 12;
 	}
-	if (keyboardState[keybinds.right] || keyboardState[SDL_SCANCODE_RIGHT]) {
+	if (keyboardState[keybinds.right] || (keyboardState[SDL_SCANCODE_RIGHT] && !keyOverrides.right)) {
 		result |= 0x01 << 13;
 	}
-	if (keyboardState[keybinds.down] || keyboardState[SDL_SCANCODE_DOWN]) {
+	if (keyboardState[keybinds.down] || (keyboardState[SDL_SCANCODE_DOWN] && !keyOverrides.down)) {
 		result |= 0x01 << 14;
 	}
-	if (keyboardState[keybinds.left] || keyboardState[SDL_SCANCODE_LEFT]) {
+	if (keyboardState[keybinds.left] || (keyboardState[SDL_SCANCODE_LEFT] && !keyOverrides.left)) {
 		result |= 0x01 << 15;
 	}
 
@@ -442,6 +482,9 @@ void __cdecl processController() {
 	}
 
 	uint16_t *pControlData = 0x006a0b6c;
+
+	pControlData[0] = 0;
+	pControlData[1] = 0;
 
 	if (*gShellMode == 0) {
 		int32_t *netPlayer = 0x006a0978;
@@ -554,8 +597,6 @@ void processInputEvent(SDL_Event *e) {
 #define GAMEPAD_SECTION "Gamepad"
 
 void configureControls() {
-	isVibrationActive = getConfigBool(GAMEPAD_SECTION, "EnableVibration", 1);
-
 	// Keyboard
 	keybinds.menu = getConfigInt(KEYBIND_SECTION, "Pause", SDL_SCANCODE_P);
 	keybinds.cameraToggle = getConfigInt(KEYBIND_SECTION, "ViewToggle", SDL_SCANCODE_O);
@@ -595,6 +636,8 @@ void configureControls() {
 	padbinds.down = getConfigInt(GAMEPAD_SECTION, "Down", CONTROLLER_BUTTON_DPAD_DOWN);
 
 	padbinds.movement = getConfigInt(GAMEPAD_SECTION, "MovementStick", CONTROLLER_STICK_LEFT);
+
+	setKeyOverrides();
 }
 
 void InitDirectInput(void *hwnd, void *hinstance) {
@@ -634,7 +677,7 @@ void PCINPUT_ActuatorOn(uint32_t controllerIdx, uint32_t duration, uint32_t moto
 	// turns out most of the parameters don't matter.  the ps1 release only seems to respond to grinds, with full strength high frequency vibration
 	// pc release only responds with half-strength on both motors.  i think that's the preferred behavior here
 	//str = (uint16_t)(((float)str / 255.0f) * 65535.0f);
-	if (isVibrationActive && activeController >= 0) {
+	if (activeController >= 0) {
 		duration *= 66;
 
 		if (motor == 0) {
