@@ -1475,11 +1475,8 @@ void flipPrimitives() {
 
 	int *tag = ((*(uint32_t *)((*(uint32_t *)0x0055dc34) + 0x84)) + (ot_size * 8) - 8);
 	while (tag != NULL) {
-		//log_printf(LL_DEBUG, "STILL GOIN\n");
 		if (tag[1] != 0) {
 			uint8_t cmd = *(uint8_t*)((int)tag + 7);
-
-			//log_printf(LL_DEBUG, "TAG: 0x%02x\n", cmd);
 
 			switch (cmd & ~0x03) {
 			// polygons
@@ -1785,7 +1782,7 @@ void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
 	log_printf(LL_DEBUG, "Writing texture \"%s\"...\n", path);
 
 	uint32_t bmpoffset = 14 + sizeof(struct bitmapheader);
-	uint32_t imgsize = (sizeof(uint32_t) * tex->buf_width * tex->buf_height);
+	uint32_t imgsize = (sizeof(uint32_t) * tex->width * tex->height);
 	uint32_t bmpsize = bmpoffset + imgsize;
 
 	uint8_t* fbuf = malloc(bmpsize);
@@ -1797,8 +1794,8 @@ void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
 
 	struct bitmapheader *header = fbuf + 14;
 	header->headersize = 40;
-	header->width = tex->buf_width;
-	header->height = tex->buf_height;
+	header->width = tex->width;
+	header->height = tex->height;
 	header->planes = 1;
 	header->bpp = 32;
 	header->compression = 0;
@@ -1811,11 +1808,11 @@ void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
 	uint32_t *img_data = fbuf + bmpoffset;
 	uint32_t *img_src = buf;
 	uint32_t pixel_count = tex->buf_width * tex->buf_height;
-	for (int y = 0; y < tex->buf_height; y++) {
+	for (int y = 0; y < tex->height; y++) {
 		uint32_t src_row_offset = y * tex->buf_width;
-		uint32_t dst_row_offset = (tex->buf_height - (y + 1)) * tex->buf_width;
+		uint32_t dst_row_offset = (tex->height - (y + 1)) * tex->width;
 
-		for (int x = 0; x < tex->buf_width; x++) {
+		for (int x = 0; x < tex->width; x++) {
 			uint32_t px = img_src[src_row_offset + x];
 			if (px == 0x00000000) {
 				px = 0xffff00ff;	// full transparent -> magenta
@@ -2372,7 +2369,7 @@ void m3dinit_setresolution(uint32_t x, uint32_t y) {
 	uint16_t *ResX = 0x0055ed00;
 	uint16_t *ResY = 0x0055ed18;
 
-	log_printf(LL_DEBUG, "m3dinit_setresolution with %d %d\n", x, y);
+	//log_printf(LL_DEBUG, "m3dinit_setresolution with %d %d\n", x, y);
 
 	*ResX = *width;
 	*ResY = *height;
@@ -2962,7 +2959,7 @@ void installGfxPatches() {
 	patchCall(0x0045dfee, fixChecklistFont);
 	patchCall(0x00415ed5, fixChecklistFont);
 
-	// maybe fix stats menu font size
+	// fix stats menu font size
 
 	patchDWord(0x004b5336 + 6, 0x1000);	// font 1
 	patchDWord(0x004b541a + 6, 0x1000);	// font 2
