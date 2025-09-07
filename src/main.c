@@ -18,7 +18,7 @@
 #include <event.h>
 #include <window.h>
 #include <log.h>
-#include <thps1.h>
+#include <thps1/thps1.h>
 
 // load file patch
 void patchSaveOpen() {
@@ -67,7 +67,14 @@ void initPatch() {
 
 	log_printf(LL_INFO, "Patch Initialized\n");
 
-	dumpAudioBanks();
+	//dumpAudioBanks();
+
+	if (getConfigBool("Miscellaneous", "THPS1Career", 0)) {
+		log_printf(LL_INFO, "THPS1 Career Enabled!");
+		patchTHPS1Career();
+	} else {
+		patchTHPS1LevelFixes();
+	}
 }
 
 void fatalError(const char *msg) {
@@ -131,8 +138,6 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			patchSaveOpen();
 
 			patchDebugLog();
-
-			patchTHPS1Career();
 
 			//installAltMemManager();
 

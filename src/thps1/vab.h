@@ -1,5 +1,5 @@
-#ifndef _VAB_H_
-#define _VAB_H_
+#ifndef _THPS1_VAB_H_
+#define _THPS1_VAB_H_
 
 #include <stdint.h>
 
