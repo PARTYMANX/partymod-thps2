@@ -4,6 +4,10 @@
 
 #include <string.h>
 
+#include <log.h>
+
+#include <thps1/vab.h>
+
 // 0049bde2 = maybe timer?
 
 typedef struct {
@@ -206,7 +210,7 @@ const SLevel warehouse = {
 const SLevel school = {
     .levelName = "School",
     .pCityName = "Miami",
-    .pVab = "school2",
+    .pVab = "school",
     .isCompetition = 0,
     .pTRGName = "SkSchl_T",
     .GoldScore = 0,
@@ -330,7 +334,7 @@ const SLevel school = {
 const SLevel mall = {
     .levelName = "Mall",
     .pCityName = "New York",
-    .pVab = "school2",
+    .pVab = "mall",
     .isCompetition = 0,
     .pTRGName = "SkMall_T",
     .GoldScore = 0,
@@ -578,7 +582,7 @@ const SLevel vans = {
 const SLevel downtown = {
     .levelName = "Downtown",
     .pCityName = "Minneapolis",
-    .pVab = "ny",
+    .pVab = "downtown",
     .isCompetition = 0,
     .pTRGName = "SkDown_T",
     .GoldScore = 0,
@@ -826,7 +830,7 @@ const SLevel jam = {
 const SLevel burnside = {
     .levelName = "Burnside",
     .pCityName = "Portland",
-    .pVab = "ware",
+    .pVab = "comp",
     .isCompetition = 1,
     .pTRGName = "SkBurn_T",
     .GoldScore = 40000,
@@ -950,7 +954,7 @@ const SLevel burnside = {
 const SLevel sf = {
     .levelName = "Streets",
     .pCityName = "San Francisco",
-    .pVab = "school2",
+    .pVab = "sf",
     .isCompetition = 0,
     .pTRGName = "SkSF_T",
     .GoldScore = 0,
@@ -1074,7 +1078,7 @@ const SLevel sf = {
 const SLevel roswell = {
     .levelName = "Roswell",
     .pCityName = "New Mexico",
-    .pVab = "ware",
+    .pVab = "roswell",
     .isCompetition = 1,
     .pTRGName = "SkRos_T",
     .GoldScore = 40000,
@@ -1278,6 +1282,47 @@ void __cdecl updateSkaterThenPlayAway() {
     updateSkaterStats();
 }
 
+// AUDIO STUFF
+
+void dumpAudioBanks() {
+    struct vab_bank *VABLookup = 0x00549730;
+
+    log_printf(LL_DEBUG, "BEGIN AUDIO DUMP\n\n\n\n\n");
+
+    log_printf(LL_DEBUG, "struct vab_bank VABLookup[19] = {\n");
+
+    for (int i = 0; i < 18; i++) {
+        log_printf(LL_DEBUG, "\t{\n\t\t// bank %d\n\t\t.sounds = {\n", i);
+
+        for (int j = 0; j < 66; j++) {
+            log_printf(LL_DEBUG, "\t\t\t{ .index = %d, .vol = %ff, .unk2 = 0x%08x, .name = \"%s\", .loop = %d, .unk4 = 0x%08x },\n",
+                VABLookup[i].sounds[j].index, 
+                VABLookup[i].sounds[j].vol,
+                VABLookup[i].sounds[j].tuning,
+                VABLookup[i].sounds[j].name,
+                VABLookup[i].sounds[j].loop,
+                VABLookup[i].sounds[j].unk4);
+        }
+
+        log_printf(LL_DEBUG, "\t\t},\n\t},\n");
+    }
+
+    log_printf(LL_DEBUG, "};\n");
+
+    log_printf(LL_DEBUG, "\n\n\n\nEND AUDIO DUMP\n");
+}
+
+uint32_t SFX_PlayPos_Wrapper_Bounds(uint32_t sound_id, struct CVector* pos, uint32_t pitch_offset) {
+    uint32_t(__cdecl * SFX_PlayPos)(uint32_t, struct CVector*, uint32_t) = 0x004ab0b0;
+
+    // the streets sliding door gives a 16-bit -1 for the sound, so treat that like you'd treat 32-bit -1
+    if (sound_id == 65535) {
+        return -1;
+    }
+
+    SFX_PlayPos(sound_id, pos, pitch_offset);
+}
+
 char *c_van = "c_van";
 
 // TODOS:
@@ -1299,6 +1344,12 @@ void patchTHPS1Career() {
     patchDWord(0x00453a41 + 1, 0xe1);
 
     patchNop(0x004a95b6, 2);    // disable ambient stream
+    patchByte(0x004a962c, 0xeb);    // disable ambient stream
+    patchNop(0x004a97cc, 2);    // disable ambient stream
+
+    // disable gap checks
+    patchNop(0x00414c5a, 2);
+    patchJmp(0x00414c5f, 0x00414d85);
 
     patchByte(0x0045d968 + 2, 3);   // fix first comp check
 
@@ -1312,6 +1363,10 @@ void patchTHPS1Career() {
     patchCpy(0x00538ff8 + (sizeof(SLevel) * 7), &sf, sizeof(SLevel));
     patchCpy(0x00538ff8 + (sizeof(SLevel) * 8), &roswell, sizeof(SLevel));
 
+    // change save names for thps1 mode
+    patchByte(0x0052fa30 + 4, '1'); // THPS2 CAREER -> THPS1 CAREER
+    patchByte(0x0052fa20 + 4, '1'); // THPS2 REPLAY -> THPS1 REPLAY
+
     patchDWord(0x004126df + 1, c_van);  // fix loading streets
 
     patchJmp(0x004cffb0, fixPushbacks); // remove z biases meant for the thps2 levels
@@ -1319,4 +1374,7 @@ void patchTHPS1Career() {
 
     patchCall(0x0046ad11, updateSkaterThenPlayAway);    // hook to update stuff on level start
 
+    patchCall(0x0049e7e1, SFX_PlayPos_Wrapper_Bounds);  // fix for sliding door in streets
+
+    writeTHPS1VabData();
 }

@@ -66,6 +66,8 @@ void initPatch() {
 	initEvents();
 
 	log_printf(LL_INFO, "Patch Initialized\n");
+
+	dumpAudioBanks();
 }
 
 void fatalError(const char *msg) {
@@ -98,6 +100,10 @@ int WinYield() {
 	return result;
 }
 
+void patchDebugLog() {
+	patchJmp(0x004cca60, log_debug_printf);
+}
+
 void patchWindowAndInit() {
 	patchNop(0x004f4ff1, 47);
 	patchCall(0x004f4ff1, initPatch);
@@ -123,6 +129,8 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			installSfxPatches();
 			installOptionsPatches();
 			patchSaveOpen();
+
+			patchDebugLog();
 
 			patchTHPS1Career();
 
