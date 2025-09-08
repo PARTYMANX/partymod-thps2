@@ -6,6 +6,8 @@
 
 #include <log.h>
 
+#include <thps1/level.h>
+#include <thps1/gap.h>
 #include <thps1/vab.h>
 
 // 0049bde2 = maybe timer?
@@ -41,6 +43,9 @@ void updateSkaterStats() {
 
     uint32_t *goalcount = skaterprof + 4;
     uint8_t *cur_stats = skaterprof + 56;
+    uint32_t *cur_decks = skaterprof + 52;
+
+    *cur_decks |= 0x02;
 
     uint8_t *orig_stats = 0x005372fc + ((*skater_id) * 368);
 
@@ -59,6 +64,11 @@ void updateSkaterStats() {
         level = 2;
     } else if (*goalcount >= 3) {
         level = 1;
+    }
+
+    // unlock a deck for each level
+    for (int i = 0; i < level; i++) {
+        *cur_decks |= 0x01 << (2 + i);
     }
 
     //printf("LEVEL %d (%d tapes)\n", level, *goalcount);
@@ -91,6 +101,20 @@ void __cdecl updateSkaterThenPlayAway() {
     PlayAway();
 
     updateSkaterStats();
+}
+
+void career_init_wrapper() {
+    void(__cdecl * career_init)() = 0x004138f0;
+
+    career_init();
+
+    uint32_t* skatermanager = 0x005656cc;
+    for (int i = 0; i < 0x11; i++) {
+        uint32_t skaterprof = 0x005656cc + (i * 0x104);
+
+        uint32_t* cur_decks = skaterprof + 52;
+        *cur_decks |= 0x02;
+    }
 }
 
 // AUDIO STUFF
@@ -134,6 +158,33 @@ uint32_t SFX_PlayPos_Wrapper_Bounds(uint32_t sound_id, struct CVector* pos, uint
     SFX_PlayPos(sound_id, pos, pitch_offset);
 }
 
+uint32_t CountLevelGoalsWrapper(uint32_t a, uint32_t level) {
+    int (__cdecl *CountLevelGoals)(uint32_t, uint32_t) = 0x00414130;
+
+    uint32_t result = CountLevelGoals(a, level) * 2;   // double the goals so 5 goals would be 10 goals complete, also results in more accurate percentages
+
+    if (result > 10) {
+        result = 10;
+    }
+
+    return result;
+}
+
+// hides score bonus powerups
+uint32_t *__fastcall create_powerup_wrapper(uint32_t *obj, void *pad, uint16_t a, void *b, void *c, uint8_t d, uint16_t e, uint16_t f) {
+    uint32_t *(__fastcall *create_powerup)(uint32_t *, void *, uint16_t, void *, void *, uint8_t, uint16_t, uint16_t) = 0x004a5530;
+    void (__fastcall *maybe_destroy_model)(uint32_t *) = 0x004a5b30;
+
+    uint32_t *result = create_powerup(obj, pad, a, b, c, d, e, f);
+
+    if (a == 21 || a == 22 || a == 23) {
+        maybe_destroy_model(obj);
+        *(uint8_t *)((uint32_t)obj + 0x6a) |= 0x40;
+    }
+
+    return result;
+}
+
 char *c_van = "c_van";
 
 // TODOS:
@@ -174,9 +225,73 @@ void patchTHPS1Career() {
 
     patchCall(0x0046ad11, updateSkaterThenPlayAway);    // hook to update stuff on level start
 
+    // hook to unlock initial decks and stuff when starting a new career
+    patchCall(0x00416612, career_init_wrapper);
+    patchCall(0x00416667, career_init_wrapper);
+    patchCall(0x00417eb8, career_init_wrapper);
+    patchCall(0x00458794, career_init_wrapper);
+    patchCall(0x0046c312, career_init_wrapper);
+
     patchCall(0x0049e7e1, SFX_PlayPos_Wrapper_Bounds);  // fix for sliding door in streets
 
+    // only handle 6 (goals + 100%) goals
+    // load screen checklist
+    patchDWord(0x0045e0c0 + 2, 0x9c);
+    patchDWord(0x00415fa7 + 2, 0x9c);
+
+    // don't display cash on checklist
+    patchNop(0x0045e0a8, 17);
+    patchNop(0x00415f8f, 17);
+
+    // post-play goals display
+    patchNop(0x00450544, 5);    // don't display cash
+    //patchDWord(0x00450565 + 1, 0x9c);    // don't display extra goals
+
+    // award 100% goals after 5 goals complete (actually 10, but we multiplied it by 2)
+    patchByte(0x0041463c + 2, 0x0a);
+
+    // only check first five goals of a level for completion (checks the last goals first so not useful)
+    //patchByte(0x00414192 + 2, 0x05);
+
+    // double goal completion for purposes of percentage and detecting 100% completion
+    patchCall(0x004141b8, CountLevelGoalsWrapper);
+    patchCall(0x00459cbd, CountLevelGoalsWrapper);
+
+    // change comp medal percentages
+    patchDWord(0x00459cac + 1, 33);
+    patchDWord(0x00459c98 + 1, 67);
+    patchDWord(0x00459c84 + 1, 100);
+    patchByte(0x00459cb4, 0xeb);    // skip last 10% for cash
+
+    // game completion checks
+    patchByte(0x0041673f + 2, 36);
+
+    // don't jump for comp medal checks
+    patchNop(0x00416753, 2);
+    patchNop(0x00416759, 2);
+    patchNop(0x0041675f, 2);
+
+    // don't attempt to play level select fmvs
+    patchByte(0x0045b642, 0xeb);
+    patchByte(0x0045b73d, 0xeb);
+    patchByte(0x0045b78d, 0xeb);
+    patchByte(0x0045b3b1, 0xeb);
+    patchJmp(0x0045b428, 0x0045b59c);
+
+    // fix roswell on level select screen in career
+    patchNop(0x00459a94, 2);
+    patchNop(0x00459b74, 2);
+    patchByte(0x00459ad2 + 2, 0x09);
+
+    // hide score bonus powerups that would be invalid
+    //patchNop(0x004a5a02, 2);
+    patchCall(0x0046e674, create_powerup_wrapper);
+    patchCall(0x0046e6b1, create_powerup_wrapper);
+    patchCall(0x0046e6ea, create_powerup_wrapper);
+    patchCall(0x004a6790, create_powerup_wrapper);
+
     writeTHPS1LevelData();
+    writeTHPS1GapData();
     writeTHPS1VabData();
 }
 
