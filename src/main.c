@@ -25,6 +25,24 @@ void patchSaveOpen() {
 	patchByte(0x004e6249 + 1, 0);	// change file open for loading saves/replays to read instead of read and write
 }
 
+uint8_t flag_thps1career = 0;
+
+void processArgs() {
+	//printf("PROCESSING ARGS\n");
+	WCHAR *cmd = GetCommandLineW();
+	int argc = 0;
+	char** argv = CommandLineToArgvW(cmd, &argc);
+
+	//printf("%d ARGS IN %ls\n", argc, cmd);
+
+	for (int i = 0; i < argc; i++) {
+		//printf("ARG %d: %ls\n", i, argv[i]);
+		if (wcscmp(argv[i], L"-thps1career") == 0) {
+			flag_thps1career = 1;
+		}
+	}
+}
+
 void initPatch() {
 	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
@@ -35,6 +53,8 @@ void initPatch() {
 	if (exe) {
 		*(exe + 1) = '\0';
 	}
+
+	processArgs();
 
 	char configFile[1024];
 	sprintf(configFile, "%s%s", executableDirectory, CONFIG_FILE_NAME);
@@ -69,8 +89,8 @@ void initPatch() {
 
 	//dumpAudioBanks();
 
-	if (getConfigBool("Miscellaneous", "THPS1Career", 0)) {
-		log_printf(LL_INFO, "THPS1 Career Enabled!");
+	if (getConfigBool("Miscellaneous", "THPS1Career", 0) || flag_thps1career) {
+		log_printf(LL_INFO, "THPS1 Career Enabled!\n");
 		patchTHPS1Career();
 	} else {
 		patchTHPS1LevelFixes();
