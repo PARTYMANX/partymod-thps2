@@ -12,12 +12,6 @@
 
 // 0049bde2 = maybe timer?
 
-void fixPushbacks() {
-    uint32_t *modelPushbacks = 0x0057d4fc;
-
-    memset(modelPushbacks, 0, sizeof(uint32_t) * 15000);
-}
-
 uint32_t statLUT[10][7] = {
     {1, 2, 4, 5, 7, 8, 10},
     {2, 3, 5, 6, 7, 9, 10},
@@ -220,7 +214,7 @@ void patchTHPS1Career() {
 
     patchDWord(0x004126df + 1, c_van);  // fix loading streets
 
-    patchJmp(0x004cffb0, fixPushbacks); // remove z biases meant for the thps2 levels
+    //patchJmp(0x004cffb0, fixPushbacks); // remove z biases meant for the thps2 levels
     patchNop(0x004cf4c2, 5); // fix burnside transparency
 
     patchCall(0x0046ad11, updateSkaterThenPlayAway);    // hook to update stuff on level start

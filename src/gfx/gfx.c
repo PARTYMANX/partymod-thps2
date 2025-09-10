@@ -11,6 +11,7 @@
 #include <global.h>
 #include <config.h>
 #include <log.h>
+#include <util.h>
 #include <gfx/gfx_movie.h>
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/gfx_global.h>
@@ -24,6 +25,7 @@ uint8_t textureFilter = 0;
 uint8_t useHiResTextures = 0;
 
 int isMinimized = 0;
+uint32_t current_level = 0;
 
 // hack: don't brighten any of these textures
 uint32_t badHDTextureCount = 10;
@@ -98,10 +100,76 @@ void D3DPOLY_Init() {
 	SOFTREND_Startup();
 	Init_PolyBuf();
 
-	uint16_t *modelPushbacks = 0x0057d4fc;
-	for (int i = 0; i < 30000; i++) {
-		//((uint32_t *)modelPushbacks)[i] = 0x7fff7fff;
-		//modelPushbacks[i] *= 0.1f;
+	int16_t *modelPushbacks = 0x0057d4fc;
+
+	// build temporary buffer of pushbacks as written by the game
+	int16_t tmpPushbacks[30000];
+	memcpy(tmpPushbacks, modelPushbacks, sizeof(int16_t) * 30000);
+
+	// build the list of levels as they appear
+	
+	for (int i = 0; i < 13; i++) {
+		uint32_t level_crc = get_level_crc(i);
+		switch (level_crc) {
+		case LEVEL_CRC_HANGAR:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 0), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_SCHOOL2:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 1), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_MARSEILLE:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 2), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_NYCITY:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 3), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_VENICEBEACH:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 4), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_SKATESTREET:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 5), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_PHILADELPHIA:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 6), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_BULLRING:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 7), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_CHOPPERDROP:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 8), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_SKATEHEAVEN:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 9), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_DOWNHILLJAM:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 10), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_SKATEPARK:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 11), sizeof(int16_t) * 2000);
+			break;
+		case LEVEL_CRC_WAREHOUSE:
+			memcpy(modelPushbacks + (2000 * i), tmpPushbacks + (2000 * 12), sizeof(int16_t) * 2000);
+			break;
+		default:
+			memset(modelPushbacks + (2000 * i), 0, sizeof(int16_t) * 2000);
+			break;
+		}
+	}
+
+	// add pushbacks for levels now that they've been rearranged
+	for (int i = 0; i < 13; i++) {
+		uint32_t level_crc = get_level_crc(i);
+		switch (level_crc) {
+		case LEVEL_CRC_WAREHOUSE:
+			{
+				// remove pushback on starting wall
+				modelPushbacks[(2000 * i) + 113] = 0;
+				modelPushbacks[(2000 * i) + 162] = 0;
+			}
+			break;
+		default:
+			break;
+		}
 	}
 }
 
@@ -143,6 +211,8 @@ void D3DPOLY_StartScene(int a, int b) {
 	//*fog = 10000.0f;
 
 	*startscene = 1;
+
+	current_level = get_level_crc(get_current_level());
 
 	updateMovieTexture();	// a bit of a hack: update the movie texture here in the main thread, as the music thread also updates it.  not exactly safe, but it avoids invalid vulkan use
 
@@ -474,9 +544,8 @@ void renderDXPoly(int *tag) {
 			// hack for masked textures that have depth issues - draw them with depth write
 			uint8_t write_depth = 0;
 
-			uint32_t *gLevel = 0x005674f8;
-			switch (*gLevel) {
-			case 0: // Hangar
+			switch (current_level) {
+			case LEVEL_CRC_HANGAR: // Hangar
 				if (tex->tex_checksum == 0x9863a474 ||	// wrecked plane wheel
 					tex->tex_checksum == 0x2fdba2c8 ||	// wrecked plane tag
 					tex->tex_checksum == 0x59d9434c ||	// wrecked plane landing gear
@@ -484,12 +553,12 @@ void renderDXPoly(int *tag) {
 					write_depth = 1;
 				}
 				break;
-			case 1:	// School II
+			case LEVEL_CRC_SCHOOL2:	// School II
 				if (tex->tex_checksum == 0x8758d767) {	// bike rack
 					write_depth = 1;
 				}
 				break;
-			case 3: // NYC
+			case LEVEL_CRC_NYCITY: // NYC
 				if (tex->tex_checksum == 0x7ae94072 ||	// blue awning
 					tex->tex_checksum == 0xa10d8d59 ||	// green awning
 					tex->tex_checksum == 0x8a321362 ||	// road closed sign
@@ -499,7 +568,7 @@ void renderDXPoly(int *tag) {
 					write_depth = 1;
 				}
 				break;
-			case 5:	// Skate Street
+			case LEVEL_CRC_SKATESTREET:	// Skate Street
 				if (tex->tex_checksum == 0xab803fa8 ||	// chair side
 					tex->tex_checksum == 0xd67c8173 ||	// chair side
 					tex->tex_checksum == 0xfffffd4d ||	// table legs
@@ -507,17 +576,17 @@ void renderDXPoly(int *tag) {
 					tex->tex_checksum == 0xa2c2c95a) {	// ramp support
 					write_depth = 1;
 				}
-			case 6:	// Philadelphia
+			case LEVEL_CRC_PHILADELPHIA:	// Philadelphia
 				if (tex->tex_checksum == 0xc1ff0913) {	// bus side
 					write_depth = 1;
 				}
 				break;
-			case 9:	// Skate Heaven
+			case LEVEL_CRC_SKATEHEAVEN:	// Skate Heaven
 				if (tex->tex_checksum == 0x94cbeff8) {	// bleachers
 					write_depth = 1;
 				}
 				break;
-			case 10:	// DHJ
+			case LEVEL_CRC_DOWNHILLJAM:	// DHJ
 				if (tex->tex_checksum == 0x8358c7e1) {	// truss
 					write_depth = 1;
 				}
@@ -2571,12 +2640,17 @@ void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int
 	Font_Draw(font, NULL, a, b, c, d);
 }
 
-uint8_t should_call_out = 0;
+void print_if_found_texture(uint32_t tex, uint32_t target) {
+	if (tex == target) {
+		uint32_t* model_id = 0x005606d8;
+
+		log_printf(LL_DEBUG, "FOUND TEXTURE ON MODEL ID %d (0x%08x)\n", *model_id, 0x0057d4fc + (((12 * 2000) + *model_id) * 2));
+	}
+}
 
 int setDepthWrapper(int face, int unk, float bias, float unk2) {
 	// this function is a big hack to disable/enable depth biasing for individual textures
 	int (__cdecl *setDepthOrig)(int, int, float, float) = 0x004cf8c0;
-	uint32_t *gLevel = 0x005674f8;
 	int *faceflags = 0x0058bf5c;
 	uint32_t *renderModelFlags = 0x0057b4d4;
 
@@ -2591,8 +2665,8 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 		struct texture* tex = *(uint32_t **)(*(int *)((uint8_t *)unk + 0x10) + 0x14);
 
 		if (tex) {
-			switch (*gLevel) {
-			case 0: // Hangar
+			switch (current_level) {
+			case LEVEL_CRC_HANGAR: // Hangar
 				// do not bias
 				if (tex->tex_checksum == 0xf4b4432d ||	// concrete texture - used on the light beams... weird
 					tex->tex_checksum == 0x9863a474 ||	// wrecked plane wheel
@@ -2606,7 +2680,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					*faceflags &= ~0x40;
 				}
 				break;
-			case 1: // School II
+			case LEVEL_CRC_SCHOOL2: // School II
 				// do not bias
 				if (tex->tex_checksum == 0x8758d767) {	// bike rack
 					modified_tex_flags = 1;
@@ -2615,7 +2689,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					tex->flags |= 0x10;
 				}
 				break;
-			case 3:	// NYC
+			case LEVEL_CRC_NYCITY:	// NYC
 				// 0x808f40af - coffee awning logo
 				// 0x89d3240f - cleaners awning logo
 
@@ -2658,28 +2732,8 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 						*faceflags &= ~0x40;
 					}
 				}
-
-				if (tex->tex_checksum == 0x2ca8bffd) {
-					should_call_out = 1;
-					//log_printf(LL_DEBUG, "SPOTTED HYDRANT - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-
-				if (tex->tex_checksum == 0xf9656ebd) {
-					should_call_out = 1;
-					//log_printf(LL_DEBUG, "SPOTTED BULB    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-
-				if (tex->tex_checksum == 0xf1413a62) {
-					should_call_out = 1;
-					//log_printf(LL_DEBUG, "SPOTTED BUSH    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-
-				if (tex->tex_checksum == 0xfccc3004) {
-					should_call_out = 2;
-					//log_printf(LL_DEBUG, "SPOTTED WINDOW  - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
 				break;
-			case 4:	// Venice Beach
+			case LEVEL_CRC_VENICEBEACH:	// Venice Beach
 				// do not bias
 				if (tex->tex_checksum == 0xfc0fe079) {	// roof window
 
@@ -2689,18 +2743,8 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					tex->flags |= 0x10;
 					*faceflags &= ~0x40;
 				}
-
-				if (tex->tex_checksum == 0xc627cb78) {
-					should_call_out = 1;
-					//log_printf(LL_DEBUG, "SPOTTED PALM    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-
-				if (tex->tex_checksum == 0x9059dfff) {
-					should_call_out = 2;
-					//log_printf(LL_DEBUG, "SPOTTED JOE     - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
 				break;
-			case 5:	// Skate Street
+			case LEVEL_CRC_SKATESTREET:	// Skate Street
 				// do not bias
 				if (tex->tex_checksum == 0xab803fa8 ||	// chair side
 					tex->tex_checksum == 0xd67c8173 ||	// chair back
@@ -2715,7 +2759,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					*faceflags &= ~0x40;
 				}
 				break;
-			case 6:	// Philadelphia
+			case LEVEL_CRC_PHILADELPHIA:	// Philadelphia
 				// force bias
 				/*if (tex->tex_checksum == 0x390b37d9) {	// street line
 					modified_tex_flags = 1;
@@ -2724,7 +2768,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					tex->flags &= ~0x10;
 				}*/
 				break;
-			case 9:	// Skate Heaven
+			case LEVEL_CRC_SKATEHEAVEN:	// Skate Heaven
 				// do not bias
 				if (tex->tex_checksum == 0x94cbeff8) {	// bleachers
 					modified_tex_flags = 1;
@@ -2733,7 +2777,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					tex->flags |= 0x10;
 				}
 				break;
-			case 10:	// DHJ
+			case LEVEL_CRC_DOWNHILLJAM:	// DHJ
 				// do not bias
 				if (tex->tex_checksum == 0x8358c7e1) {	// truss
 					modified_tex_flags = 1;
@@ -2749,8 +2793,12 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 
 					tex->flags &= ~0x10;
 				}
+
+				// TODO: target spout model ID 690
+
+				print_if_found_texture(tex->tex_checksum, 0x213ca8b8);
 				break;
-			case 12:	// Warehouse
+			case LEVEL_CRC_WAREHOUSE:	// Warehouse
 				// do not bias
 				if (tex->tex_checksum == 0x221c0004) {	// chainlink
 					modified_tex_flags = 1;
@@ -2759,6 +2807,9 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					tex->flags |= 0x10;
 					*faceflags &= ~0x40;
 				}
+
+				// TODO: target skateboard mag ad at spawn
+				
 				break;
 			default:
 				break;
@@ -2779,60 +2830,6 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 	}
 
 	return result;
-}
-
-void D3DModel_Render_Wrapper(uint32_t a, uint32_t b) {
-	int (__cdecl *D3DModel_Render)(uint32_t, uint32_t) = 0x004ce6e0;
-
-	D3DModel_Render(a, b);
-
-	if (should_call_out) {
-		//log_printf(LL_DEBUG, "PASSED TO D3DMODEL_RENDER: 0x%08x\n", b);
-		should_call_out = 0;
-	}
-}
-
-void D3DModel_Render_Wrapper_NoRotate(uint32_t a, uint32_t b) {
-	int(__cdecl * D3DModel_Render)(uint32_t, uint32_t) = 0x004ce6e0;
-
-	D3DModel_Render(a, b);
-
-	if (should_call_out) {
-		//log_printf(LL_DEBUG, "PASSED TO D3DMODEL_RENDER (NON ROTATED): 0x%08x\n", b);
-		//should_call_out = 0;
-	}
-}
-
-void RenderModelNonRotatedDummy(uint32_t a, uint32_t b) {
-	int(__cdecl * RenderModelNonRotated)(uint32_t, uint32_t) = 0x00461b00;
-
-	uint8_t modifiedFlags = 0;
-	uint8_t origFlags = 0;
-	if (*((uint8_t*)a + 1) & 1) {
-		modifiedFlags = 1;
-		origFlags = *((uint8_t*)a + 1);
-		*((uint8_t*)a + 1) &= ~1;
-		
-		//patchNop(0x004cea5f, 5);
-
-		//log_printf(LL_DEBUG, "!!!! FOUND FACING !!!!\n");
-	}
-
-	//if (!*((uint8_t*)a + 1) & 1) {
-		RenderModelNonRotated(a, b);
-	//}
-
-	if (modifiedFlags) {
-		*((uint8_t*)a + 1) = origFlags;
-		//patchCall(0x004cea5f, 0x004cfbf0);
-		//log_printf(LL_DEBUG, "!!!! RESTORED FACING !!!!\n");
-	}
-
-	if (should_call_out && origFlags & 1) {
-		//log_printf(LL_DEBUG, "!!!! FOUND FACING !!!!\n");
-	}
-
-	should_call_out = 0;
 }
 
 void installGfxPatches() {

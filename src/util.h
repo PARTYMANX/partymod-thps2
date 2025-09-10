@@ -1,0 +1,30 @@
+#ifndef _UTIL_H_
+#define _UTIL_H_
+
+#include <stdint.h>
+
+#define LEVEL_CRC_HANGAR 0xf0ad3b24
+#define LEVEL_CRC_SCHOOL2 0xce2d92f7
+#define LEVEL_CRC_MARSEILLE 0x81752d3a
+#define LEVEL_CRC_NYCITY 0xcf35d577
+#define LEVEL_CRC_VENICEBEACH 0x5cdfbde8
+#define LEVEL_CRC_SKATESTREET 0x5fd0ebcc
+#define LEVEL_CRC_PHILADELPHIA 0xfe2ec146
+#define LEVEL_CRC_BULLRING 0x4304d8ed
+#define LEVEL_CRC_CHOPPERDROP 0x04e64c26
+#define LEVEL_CRC_SKATEHEAVEN 0x54a6123e
+
+#define LEVEL_CRC_WAREHOUSE 0x6e42095f
+#define LEVEL_CRC_SCHOOL 0xfe32df8d
+#define LEVEL_CRC_MALL 0x8c63f733
+#define LEVEL_CRC_SKATEPARK 0xb770a2a5
+#define LEVEL_CRC_DOWNTOWN 0xe88cc39f
+#define LEVEL_CRC_DOWNHILLJAM 0xa7a6ebb7
+#define LEVEL_CRC_BURNSIDE 0xd2e7443a
+#define LEVEL_CRC_STREETS 0x5c4b42a2
+#define LEVEL_CRC_ROSWELL 0x5b4e9846
+
+uint32_t get_current_level();
+uint32_t get_level_crc(uint32_t id);
+
+#endif
