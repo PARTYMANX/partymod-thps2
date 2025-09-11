@@ -162,7 +162,7 @@ const SLevel school = {
            0x1b,
            0xffffffff
     },
-    .pGoalsImage = "s2rend13.bmp",
+    .pGoalsImage = "s2levl11.bmp",
     .CashToUnlock = 2,
     .MedalsToUnlock = 0,
     .Crowd = 0,
@@ -286,7 +286,7 @@ const SLevel mall = {
            0x1b,
            0xffffffff
     },
-    .pGoalsImage = "s2rend13.bmp",
+    .pGoalsImage = "s2levl11.bmp",
     .CashToUnlock = 5,
     .MedalsToUnlock = 0,
     .Crowd = 0,
@@ -534,7 +534,7 @@ const SLevel downtown = {
            0x1b,
            0xffffffff
     },
-    .pGoalsImage = "s2rend13.bmp",
+    .pGoalsImage = "s2levl11.bmp",
     .CashToUnlock = 0,
     .MedalsToUnlock = 1,
     .Crowd = 0,
@@ -782,7 +782,7 @@ const SLevel burnside = {
            0x1b,
            0xffffffff
     },
-    .pGoalsImage = "s2rend13.bmp",
+    .pGoalsImage = "s2levl11.bmp",
     .CashToUnlock = 18,
     .MedalsToUnlock = 1,
     .Crowd = 0,
@@ -906,7 +906,7 @@ const SLevel sf = {
            0x1b,
            0xffffffff
     },
-    .pGoalsImage = "s2rend13.bmp",
+    .pGoalsImage = "s2levl11.bmp",
     .CashToUnlock = 0,
     .MedalsToUnlock = 2,
     .Crowd = 0,
@@ -1030,7 +1030,7 @@ const SLevel roswell = {
            0x1b,
            0xffffffff
     },
-    .pGoalsImage = "s2rend13.bmp",
+    .pGoalsImage = "s2levl11.bmp",
     .CashToUnlock = 26,
     .MedalsToUnlock = 2,
     .Crowd = 0,

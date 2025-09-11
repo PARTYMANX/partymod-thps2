@@ -162,6 +162,60 @@ void D3DPOLY_Init() {
 	for (int i = 0; i < 13; i++) {
 		uint32_t level_crc = get_level_crc(i);
 		switch (level_crc) {
+		case LEVEL_CRC_VENICEBEACH:
+			{
+				// tree planters - disable pushback to keep shadow stable/visible
+				modelPushbacks[(2000 * i) + 33] = 0;
+				modelPushbacks[(2000 * i) + 34] = 0;
+				modelPushbacks[(2000 * i) + 35] = 0;
+				modelPushbacks[(2000 * i) + 36] = 0;
+				modelPushbacks[(2000 * i) + 37] = 0;
+				modelPushbacks[(2000 * i) + 38] = 0;
+				modelPushbacks[(2000 * i) + 66] = 0;
+				modelPushbacks[(2000 * i) + 72] = 0;
+				modelPushbacks[(2000 * i) + 86] = 0;
+				modelPushbacks[(2000 * i) + 282] = 0;
+
+				// push underlying surface back
+				// seaside concrete
+				modelPushbacks[(2000 * i) + 545] = 32;
+
+				// pit concrete
+				modelPushbacks[(2000 * i) + 120] = 32;
+				modelPushbacks[(2000 * i) + 122] = 32;
+				modelPushbacks[(2000 * i) + 125] = 32;
+				modelPushbacks[(2000 * i) + 138] = 32;
+				modelPushbacks[(2000 * i) + 147] = 32;
+				modelPushbacks[(2000 * i) + 181] = 32;
+				modelPushbacks[(2000 * i) + 183] = 32;
+				modelPushbacks[(2000 * i) + 184] = 32;
+				modelPushbacks[(2000 * i) + 186] = 32;
+				modelPushbacks[(2000 * i) + 187] = 32;
+				modelPushbacks[(2000 * i) + 188] = 32;
+				modelPushbacks[(2000 * i) + 189] = 32;
+				modelPushbacks[(2000 * i) + 190] = 32;
+				modelPushbacks[(2000 * i) + 191] = 32;
+				modelPushbacks[(2000 * i) + 193] = 32;
+				modelPushbacks[(2000 * i) + 194] = 32;
+				modelPushbacks[(2000 * i) + 197] = 32;
+				modelPushbacks[(2000 * i) + 196] = 32;
+				modelPushbacks[(2000 * i) + 198] = 32;
+				modelPushbacks[(2000 * i) + 199] = 32;
+				modelPushbacks[(2000 * i) + 201] = 32;
+				modelPushbacks[(2000 * i) + 227] = 96;
+				modelPushbacks[(2000 * i) + 228] = 96;
+				modelPushbacks[(2000 * i) + 231] = 32;
+				modelPushbacks[(2000 * i) + 268] = 32;
+				modelPushbacks[(2000 * i) + 269] = 32;
+				modelPushbacks[(2000 * i) + 272] = 32;
+				modelPushbacks[(2000 * i) + 386] = 32;
+				modelPushbacks[(2000 * i) + 442] = 32;
+				modelPushbacks[(2000 * i) + 444] = 32;
+				modelPushbacks[(2000 * i) + 682] = 32;
+				modelPushbacks[(2000 * i) + 683] = 32;
+				modelPushbacks[(2000 * i) + 686] = 32;
+				modelPushbacks[(2000 * i) + 998] = 32;
+			}
 		case LEVEL_CRC_WAREHOUSE:
 			{
 				// remove pushback on starting wall
@@ -191,12 +245,14 @@ void D3DPOLY_Init() {
 				modelPushbacks[(2000 * i) + 256] = -64;
 				modelPushbacks[(2000 * i) + 257] = -64;
 			}
+			break;
 		case LEVEL_CRC_STREETS:
 			{
 				// push 'NOEL' sign forward
 				modelPushbacks[(2000 * i) + 348] = -64;
 				modelPushbacks[(2000 * i) + 349] = -64;
 			}
+			break;
 		default:
 			break;
 		}
@@ -2112,7 +2168,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 			log_printf(LL_ERROR, "FOUND TEXTURE 0x%08x WITH UNKNOWN FORMAT!!!\n");
 		}
 
-		dumpTextureToFile(a, buf);
+		//dumpTextureToFile(a, buf);
 			
 	} else {
 		int (__cdecl *PCread)(void *, void *, uint32_t) = 0x004e4ca0;
@@ -2831,10 +2887,6 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					orig_tex_flags = tex->flags;
 
 					tex->flags &= ~0x10;
-				}
-
-				if (tex->tex_checksum == 0xf4c14d82) {
-					log_printf(LL_DEBUG, "%d!\n", *model_id);
 				}
 				break;
 			case LEVEL_CRC_SKATEHEAVEN:	// Skate Heaven
