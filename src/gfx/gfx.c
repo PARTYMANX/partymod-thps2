@@ -2928,8 +2928,9 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 				}
 				break;
 			case LEVEL_CRC_DOWNTOWN:
-				// do not bias
-				if (tex->tex_checksum == 0x015e00c1) {	// glass
+				// do not bias bus stop glass
+				if (*model_id == 678 || *model_id == 679 || 
+					*model_id == 763 || *model_id == 764 || *model_id == 765) {
 					modified_tex_flags = 1;
 					orig_tex_flags = tex->flags;
 
