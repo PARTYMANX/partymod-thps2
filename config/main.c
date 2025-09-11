@@ -1918,8 +1918,8 @@ void build_general_page(pgui_control *parent) {
 	pgui_control *misc_groupbox = pgui_groupbox_create((parent->w / 2) + 4, (parent->h / 2) + 4, (parent->w / 2) - 8 - 4, (parent->h / 2) - 8 - 4, "Miscellaneous", parent);
 
 	// resolution options
-	general_page.resolution_combobox = pgui_combobox_create(8, 16, 160, 24, displayModeStringList, numDisplayModes + 1, resolution_groupbox);
-	general_page.custom_resolution = pgui_checkbox_create(8, 16 + 24, 128, 24, "Use Custom Resolution", resolution_groupbox);
+	general_page.resolution_combobox = pgui_combobox_create(8, 16, 180, 24, displayModeStringList, numDisplayModes + 1, resolution_groupbox);
+	general_page.custom_resolution = pgui_checkbox_create(8, 16 + 24, 160, 24, "Use Custom Resolution", resolution_groupbox);
 
 	general_page.custom_res_x_label = pgui_label_create(8 + 8, 16 + (24 * 2) + 4, 48, 24, "Width:", PGUI_LABEL_JUSTIFY_CENTER, resolution_groupbox);
 	general_page.custom_res_x = pgui_textbox_create(8 + 8 + 48, 16 + (24 * 2), 48, 20, "", resolution_groupbox);
