@@ -103,7 +103,7 @@ void D3DPOLY_Init() {
 	int16_t *modelPushbacks = 0x0057d4fc;
 
 	// build temporary buffer of pushbacks as written by the game
-	int16_t tmpPushbacks[30000];
+	int16_t *tmpPushbacks = malloc(sizeof(int16_t) * 30000);
 	memcpy(tmpPushbacks, modelPushbacks, sizeof(int16_t) * 30000);
 
 	// build the list of levels as they appear
@@ -156,7 +156,9 @@ void D3DPOLY_Init() {
 		}
 	}
 
-	// add pushbacks for levels now that they've been rearranged
+	free(tmpPushbacks);
+
+	// add our own pushbacks for levels now that they've been rearranged
 	for (int i = 0; i < 13; i++) {
 		uint32_t level_crc = get_level_crc(i);
 		switch (level_crc) {
@@ -167,6 +169,28 @@ void D3DPOLY_Init() {
 				modelPushbacks[(2000 * i) + 162] = 0;
 			}
 			break;
+		case LEVEL_CRC_MALL:
+			{
+				// space available signs
+				modelPushbacks[(2000 * i) + 390] = -32;
+				modelPushbacks[(2000 * i) + 391] = -32;
+				modelPushbacks[(2000 * i) + 392] = -32;
+				modelPushbacks[(2000 * i) + 393] = -32;
+				modelPushbacks[(2000 * i) + 394] = -32;
+
+				// push sky back near end
+				modelPushbacks[(2000 * i) + 682] = 4096;
+				modelPushbacks[(2000 * i) + 683] = 4096;
+				modelPushbacks[(2000 * i) + 684] = 4096;
+				modelPushbacks[(2000 * i) + 685] = 4096;
+			}
+			break;
+		case LEVEL_CRC_DOWNTOWN:
+			{
+				// push video signs forward
+				modelPushbacks[(2000 * i) + 256] = -64;
+				modelPushbacks[(2000 * i) + 257] = -64;
+			}
 		default:
 			break;
 		}
@@ -577,12 +601,27 @@ void renderDXPoly(int *tag) {
 					write_depth = 1;
 				}
 			case LEVEL_CRC_PHILADELPHIA:	// Philadelphia
-				if (tex->tex_checksum == 0xc1ff0913) {	// bus side
+				if (tex->tex_checksum == 0x3290a444 ||	// bus side
+					tex->tex_checksum == 0xb500ae75 ||	// bus side
+					tex->tex_checksum == 0xc1ff0913) {	// bus side
 					write_depth = 1;
 				}
 				break;
 			case LEVEL_CRC_SKATEHEAVEN:	// Skate Heaven
 				if (tex->tex_checksum == 0x94cbeff8) {	// bleachers
+					write_depth = 1;
+				}
+				break;
+			case LEVEL_CRC_MALL:
+				if (tex->tex_checksum == 0x5f19b863 ||	// tree
+					tex->tex_checksum == 0x791da2c6 ||	// shutter
+					tex->tex_checksum == 0x2ce6579b ||	// books sign
+					tex->tex_checksum == 0x5e00ea09 ||	// drugstore
+					tex->tex_checksum == 0xddb91f1c ||	// skidmark cards
+					tex->tex_checksum == 0x8f6af549 ||	// skateshop deck
+					tex->tex_checksum == 0x725a0557 ||	// car wheel
+					tex->tex_checksum == 0x7ff460e6 ||	// atrium awning supports
+					tex->tex_checksum == 0x712a4eff) {	// boards b us
 					write_depth = 1;
 				}
 				break;
@@ -2662,7 +2701,8 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 	// make sure poly is textured
 	if (*faceflags & 1) {
 		
-		struct texture* tex = *(uint32_t **)(*(int *)((uint8_t *)unk + 0x10) + 0x14);
+		struct texture *tex = *(uint32_t **)(*(int *)((uint8_t *)unk + 0x10) + 0x14);
+		uint32_t *model_id = 0x005606d8;
 
 		if (tex) {
 			switch (current_level) {
@@ -2720,7 +2760,6 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 
 				// extremely targeted one for subway darkness - do not bias
 				if (tex->tex_checksum == 0x76d0e935) { // subway tunnel darkness - concrete texture?
-					uint32_t* model_id = 0x005606d8;
 
 					//log_printf(LL_DEBUG, "FOUND CONCRETE ON MODEL ID %d\n", *model_id)
 
@@ -2760,13 +2799,28 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 				}
 				break;
 			case LEVEL_CRC_PHILADELPHIA:	// Philadelphia
+				// do not bias
+				if (tex->tex_checksum == 0x3290a444 ||	// bus side
+					tex->tex_checksum == 0xb500ae75 ||	// bus side
+					tex->tex_checksum == 0xc1ff0913) {	// bus side
+
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+				}
+
 				// force bias
-				/*if (tex->tex_checksum == 0x390b37d9) {	// street line
+				if (tex->tex_checksum == 0x390b37d9) {	// street line
 					modified_tex_flags = 1;
 					orig_tex_flags = tex->flags;
 
 					tex->flags &= ~0x10;
-				}*/
+				}
+
+				if (tex->tex_checksum == 0xf4c14d82) {
+					log_printf(LL_DEBUG, "%d!\n", *model_id);
+				}
 				break;
 			case LEVEL_CRC_SKATEHEAVEN:	// Skate Heaven
 				// do not bias
@@ -2775,6 +2829,45 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					orig_tex_flags = tex->flags;
 
 					tex->flags |= 0x10;
+				}
+				break;
+			case LEVEL_CRC_WAREHOUSE:	// Warehouse
+				// do not bias
+				if (tex->tex_checksum == 0x221c0004) {	// chainlink
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+
+				// force bias
+				if (tex->tex_checksum == 0x559f8a4b) {	// transworld skateboarding ad
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags &= ~0x10;
+				}
+				break;
+			case LEVEL_CRC_MALL:
+				// do not bias
+				if (tex->tex_checksum == 0x7ff460e6 ||	// atrium awning supports
+					tex->tex_checksum == 0x791da2c6) {	// shutter
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+				break;
+			case LEVEL_CRC_DOWNTOWN:
+				// do not bias
+				if (tex->tex_checksum == 0x015e00c1) {	// glass
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
 				}
 				break;
 			case LEVEL_CRC_DOWNHILLJAM:	// DHJ
@@ -2794,28 +2887,21 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					tex->flags &= ~0x10;
 				}
 
-				// TODO: target spout model ID 690
-
-				print_if_found_texture(tex->tex_checksum, 0x213ca8b8);
-				break;
-			case LEVEL_CRC_WAREHOUSE:	// Warehouse
-				// do not bias
-				if (tex->tex_checksum == 0x221c0004) {	// chainlink
+				// target spout model ID 690 and force bias
+				if (*model_id == 690) {
 					modified_tex_flags = 1;
 					orig_tex_flags = tex->flags;
 
-					tex->flags |= 0x10;
-					*faceflags &= ~0x40;
+					tex->flags &= ~0x10;
 				}
 
-				// TODO: target skateboard mag ad at spawn
-				
+				print_if_found_texture(tex->tex_checksum, 0x213ca8b8);
 				break;
 			default:
 				break;
 			}
 
-		}
+		} 
 	}
 
 	int result = setDepthOrig(face, unk, bias, unk2);
