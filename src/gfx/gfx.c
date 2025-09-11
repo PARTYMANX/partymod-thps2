@@ -191,6 +191,12 @@ void D3DPOLY_Init() {
 				modelPushbacks[(2000 * i) + 256] = -64;
 				modelPushbacks[(2000 * i) + 257] = -64;
 			}
+		case LEVEL_CRC_STREETS:
+			{
+				// push 'NOEL' sign forward
+				modelPushbacks[(2000 * i) + 348] = -64;
+				modelPushbacks[(2000 * i) + 349] = -64;
+			}
 		default:
 			break;
 		}
@@ -630,6 +636,13 @@ void renderDXPoly(int *tag) {
 					write_depth = 1;
 				}
 				break;
+			case LEVEL_CRC_STREETS:
+				if (tex->tex_checksum == 0x133533d0 ||	// noel
+					tex->tex_checksum == 0x3444bb20 ||	// big ramp truss
+					tex->tex_checksum == 0x59080df8) {	// truss
+					write_depth = 1;
+				}
+				break;
 			default:
 				break;
 			}
@@ -791,6 +804,10 @@ void transformCoords(renderVertex *vertices, int count) {
 	for (int i = 0; i < count; i++) {
 		if (vertices[i].y > 4369.0f - (float)*screen_height && on_screen) {
 			vertices[i].y -= 4369.0f;
+		}
+
+		if (vertices[i].x > 26213.0f - (float)*screen_width - 100.0f && on_screen) {
+			vertices[i].x -= 26213.0f;
 		}
 	}
 
@@ -1367,8 +1384,6 @@ void renderTile(int *tag) {
 	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
 
 	transformCoords(vertices, 6);
-
-
 
 	drawVertices(renderer, vertices, 6);
 }
@@ -2094,10 +2109,10 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 				}
 			}
 		} else {
-			
+			log_printf(LL_ERROR, "FOUND TEXTURE 0x%08x WITH UNKNOWN FORMAT!!!\n");
 		}
 
-		//dumpTextureToFile(a, buf);
+		dumpTextureToFile(a, buf);
 			
 	} else {
 		int (__cdecl *PCread)(void *, void *, uint32_t) = 0x004e4ca0;
@@ -2894,8 +2909,27 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 
 					tex->flags &= ~0x10;
 				}
+				break;
+			case LEVEL_CRC_STREETS:
+				// do not bias
+				if (tex->tex_checksum == 0x133533d0 ||	// noel
+					tex->tex_checksum == 0x3444bb20 ||	// big ramp truss
+					tex->tex_checksum == 0x59080df8) {	// truss
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
 
-				print_if_found_texture(tex->tex_checksum, 0x213ca8b8);
+					tex->flags |= 0x10;
+				}
+
+				// prevent biasing on pagoda glass to avoid seeing it through the pagoda itself
+				if (*model_id == 193 || *model_id == 194 || *model_id == 195 || *model_id == 211 || 
+					*model_id == 212 || *model_id == 213 || *model_id == 214 || *model_id == 215) {	
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
 				break;
 			default:
 				break;
@@ -2916,6 +2950,24 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 	}
 
 	return result;
+}
+
+void *__fastcall PromptScreenElementWrapper(void *self, void *pad, void *img, void *text, void *font, int32_t homeX, int32_t homeY, int32_t screenX, int32_t screenY) {
+	void *(__fastcall *PromptScreenElement)(void *, void *, void *, void *, void *, int32_t, int32_t, int32_t, int32_t) = 0x0049f420;
+
+	// hacky fix for goals percentage positioning: just shift the text creation offset for this call only
+	patchByte(0x0049f62a + 1, 3);
+
+	void *result = PromptScreenElement(self, pad, img, text, font, homeX, homeY, screenX, screenY);
+
+	patchByte(0x0049f62a + 1, 0);
+
+	return result;
+}
+
+void patchGoalPercentagePosition() {
+	// when creating the goals percentage graphic, redirect to a hack for just this call
+	patchCall(0x004593f3, PromptScreenElementWrapper);
 }
 
 void installGfxPatches() {
@@ -3085,6 +3137,8 @@ void installGfxPatches() {
 	//patchByte(0x004881f8, 0xeb);
 
 	//patchDWord(0x00449c48 + 3, 0x808080ff);
+
+	patchGoalPercentagePosition();
 
 	installMoviePatches();
 }
