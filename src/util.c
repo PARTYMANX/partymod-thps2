@@ -7,7 +7,7 @@
 #include <util.h>
 
 uint32_t get_current_level() {
-	uint32_t *level_id = 0x0055e8f0;
+	uint32_t *level_id = 0x005674f8;
 	
 	return *level_id;
 }

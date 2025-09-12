@@ -911,8 +911,8 @@ const SLevel sf = {
     .MedalsToUnlock = 2,
     .Crowd = 0,
     .ExtraPolyBuffer = {
-        0xFFFFAA10,
-        0xFFFFB1E0
+        0,
+        0
     },
     .TrickTipMask = {
         0x0,
