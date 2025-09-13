@@ -162,6 +162,25 @@ void D3DPOLY_Init() {
 	for (int i = 0; i < 13; i++) {
 		uint32_t level_crc = get_level_crc(i);
 		switch (level_crc) {
+		case LEVEL_CRC_SCHOOL2:
+			{
+				modelPushbacks[(2000 * i) + 294] = 32;
+				modelPushbacks[(2000 * i) + 925] = 32;
+			}
+			break;
+		case LEVEL_CRC_NYCITY:
+			{
+				// park path
+				modelPushbacks[(2000 * i) + 21] = 16;
+
+				// tree planter needs raising a bit
+				//modelPushbacks[(2000 * i) + 368] = -64;
+
+				// banks bricks
+				modelPushbacks[(2000 * i) + 881] = 16;
+				modelPushbacks[(2000 * i) + 882] = -64;	// this one is reversed for some reason
+			}
+			break;
 		case LEVEL_CRC_VENICEBEACH:
 			{
 				// tree planters - disable pushback to keep shadow stable/visible
@@ -216,6 +235,34 @@ void D3DPOLY_Init() {
 				modelPushbacks[(2000 * i) + 686] = 32;
 				modelPushbacks[(2000 * i) + 998] = 32;
 			}
+			break;
+		case LEVEL_CRC_PHILADELPHIA:
+			{
+				// thps sign base and shadow
+				modelPushbacks[(2000 * i) + 420] = -32;
+				modelPushbacks[(2000 * i) + 838] = -32;
+				modelPushbacks[(2000 * i) + 839] = -32;
+				modelPushbacks[(2000 * i) + 840] = -32;
+				modelPushbacks[(2000 * i) + 841] = -32;
+				modelPushbacks[(2000 * i) + 842] = -32;
+			}
+			break;
+		case LEVEL_CRC_SKATEHEAVEN:
+			{
+				// sidewalk near ramp behind hexbox
+				modelPushbacks[(2000 * i) + 360] = 196;
+
+				// playground dirt
+				modelPushbacks[(2000 * i) + 361] = 64;
+				modelPushbacks[(2000 * i) + 355] = 64;
+
+				// tony ramp ground
+				modelPushbacks[(2000 * i) + 222] = 32;
+				modelPushbacks[(2000 * i) + 223] = 32;
+				modelPushbacks[(2000 * i) + 224] = 32;
+				modelPushbacks[(2000 * i) + 197] = 32;	// surface
+			}
+			break;
 		case LEVEL_CRC_WAREHOUSE:
 			{
 				// remove pushback on starting wall
@@ -695,6 +742,7 @@ void renderDXPoly(int *tag) {
 			case LEVEL_CRC_STREETS:
 				if (tex->tex_checksum == 0x133533d0 ||	// noel
 					tex->tex_checksum == 0x3444bb20 ||	// big ramp truss
+					tex->tex_checksum == 0x20855154 ||	// door
 					tex->tex_checksum == 0x59080df8) {	// truss
 					write_depth = 1;
 				}
@@ -1413,20 +1461,24 @@ void renderTile(int *tag) {
 
 	uint32_t color = r + (g << 8) + (b << 16) + (alpha << 24);
 
-	int16_t width = *(int16_t *)((uint8_t *)tag + 12);
-	int16_t height = *(int16_t *)((uint8_t *)tag + 14);
+	// these can be hard to see at large resolutions, scale them as if the game is running at 640x480 when above that resolution
+	float xmult = (resolution_x > 640) ? ((float)resolution_x / (float)internal_resolution_x) * ((float)internal_resolution_x / 640.0f) : 1.0f;
+	float ymult = (resolution_y > 480) ? ((float)resolution_y / (float)internal_resolution_y) * ((float)internal_resolution_y / 480.0f) : 1.0f;
 
-	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
-	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+	float width = (float)*(int16_t *)((uint8_t *)tag + 12) * xmult;
+	float height = (float)*(int16_t *)((uint8_t *)tag + 14) * ymult;
 
-	int16_t x2 = *(int16_t *)((uint8_t *)tag + 8) + width;
-	int16_t y2 = *(int16_t *)((uint8_t *)tag + 10);
+	float x1 = (float)*(int16_t *)((uint8_t *)tag + 8);
+	float y1 = (float)*(int16_t *)((uint8_t *)tag + 10);
 
-	int16_t x3 = *(int16_t *)((uint8_t *)tag + 8) + width;
-	int16_t y3 = *(int16_t *)((uint8_t *)tag + 10) + height;
+	float x2 = (float)*(int16_t *)((uint8_t *)tag + 8) + width;
+	float y2 = (float)*(int16_t *)((uint8_t *)tag + 10);
 
-	int16_t x4 = *(int16_t *)((uint8_t *)tag + 8);
-	int16_t y4 = *(int16_t *)((uint8_t *)tag + 10) + height;
+	float x3 = (float)*(int16_t *)((uint8_t *)tag + 8) + width;
+	float y3 = (float)*(int16_t *)((uint8_t *)tag + 10) + height;
+
+	float x4 = (float)*(int16_t *)((uint8_t *)tag + 8);
+	float y4 = (float)*(int16_t *)((uint8_t *)tag + 10) + height;
 
 	float z = *(float *)((uint8_t *)tag + 16);
 	z = fixZ(z);
@@ -2103,7 +2155,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 
 					uint8_t alpha;
 					if (semi_trans) {
-						alpha = 127;
+						alpha = 128;
 					} else {
 						alpha = (color == 0) ? 0 : 255;
 					}
@@ -2141,7 +2193,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 
 					uint8_t alpha;
 					if (semi_trans) {
-						alpha = 127;
+						alpha = 128;
 					} else {
 						alpha = (color == 0) ? 0 : 255;
 					}
@@ -2793,11 +2845,13 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 				break;
 			case LEVEL_CRC_SCHOOL2: // School II
 				// do not bias
-				if (tex->tex_checksum == 0x8758d767) {	// bike rack
+				if (tex->tex_checksum == 0x52a2c280 ||	// leap of faith rail chainlink
+					tex->tex_checksum == 0x8758d767) {	// bike rack
 					modified_tex_flags = 1;
 					orig_tex_flags = tex->flags;
 
 					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
 				}
 				break;
 			case LEVEL_CRC_NYCITY:	// NYC
@@ -2808,6 +2862,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 				if (tex->tex_checksum == 0xb03f60e7 ||	// street line
 					tex->tex_checksum == 0x3877e2c1 ||	// snack bar sign
 					tex->tex_checksum == 0x89d3240f ||	// blue awning's logo
+					*model_id == 368 ||	// missing tree planter
 					tex->tex_checksum == 0xd4f60d61) {	// illuminated window
 					modified_tex_flags = 1;
 					orig_tex_flags = tex->flags;
@@ -2830,17 +2885,12 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 				}
 
 				// extremely targeted one for subway darkness - do not bias
-				if (tex->tex_checksum == 0x76d0e935) { // subway tunnel darkness - concrete texture?
+				if (*model_id >= 83 && *model_id <= 86) {
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
 
-					//log_printf(LL_DEBUG, "FOUND CONCRETE ON MODEL ID %d\n", *model_id)
-
-					if (*model_id >= 83 && *model_id <= 86) {
-						modified_tex_flags = 1;
-						orig_tex_flags = tex->flags;
-
-						tex->flags |= 0x10;
-						*faceflags &= ~0x40;
-					}
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
 				}
 				break;
 			case LEVEL_CRC_VENICEBEACH:	// Venice Beach
@@ -2967,6 +3017,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 				// do not bias
 				if (tex->tex_checksum == 0x133533d0 ||	// noel
 					tex->tex_checksum == 0x3444bb20 ||	// big ramp truss
+					tex->tex_checksum == 0x20855154 ||	// door
 					tex->tex_checksum == 0x59080df8) {	// truss
 					modified_tex_flags = 1;
 					orig_tex_flags = tex->flags;
