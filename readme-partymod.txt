@@ -1,6 +1,6 @@
 PARTYMOD for THPS2 1.1
 
-This is a patch for THPS2 (original release) to improve its input handling as well as smooth out a few other issues in its PC port.
+PARTYMOD is a patch for THPS2 (original release) to modernize the game to be played on today's PCs, as well as restore parts of the game that were lost in translation while porting from Playstation.
 The patch is designed to keep the game as original as possible, and leave its files unmodified.
 
 Features and Fixes
@@ -18,7 +18,7 @@ Features and Fixes
 - Fixes memory manager to prevent memory corruption and crashes related to it
 - Restores player control settings menu, allowing players to toggle vibration and autokick settings
 - Fixes loading write-protected saves
-- Experimental: An optional THPS1 career mode, converting the game to recreate the THPS1 career with THPS2's mechanics, which can be enabled with a setting or by passing -thps1career to THPS2.exe
+- An experimental, optional, THPS1 career mode, converting the game to recreate the THPS1 career with THPS2's mechanics. It can be enabled with a setting or by passing -thps1career to THPS2.exe
 
 Installation
 1. Download PARTYMOD from the releases tab
