@@ -403,6 +403,10 @@ void renderDXPoly(int *tag) {
 		struct dxpoly *vertices = ((uint8_t *)tag + 0x18);
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
 
+		if ((*(uint32_t*)((uint8_t*)tag + 8) & 0x80000000) && !should_background_write_depth()) {
+			setDepthState(renderer, 1, 0);
+		}
+
 		// calc final colors
 		for (int i = 0; i < numVerts; i++) {
 			// apply alpha from blend mode
@@ -476,6 +480,10 @@ void renderDXPoly(int *tag) {
 			if (!should_texture_write_depth(tex)) {
 				setDepthState(renderer, 1, 0);
 			}
+		}
+
+		if ((*(uint32_t*)((uint8_t*)tag + 8) & 0x80000000) && !should_background_write_depth()) {
+			setDepthState(renderer, 1, 0);
 		}
 
 		// calc final colors

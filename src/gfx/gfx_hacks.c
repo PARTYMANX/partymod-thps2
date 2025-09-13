@@ -94,7 +94,14 @@ void build_pushbacks() {
 
 			// banks bricks
 			modelPushbacks[(2000 * i) + 881] = 16;
-			modelPushbacks[(2000 * i) + 882] = -64;	// this one is reversed for some reason
+			modelPushbacks[(2000 * i) + 882] = -96;	// this one is reversed for some reason
+
+			// brooklyn bridge water - push back to reveal reflection
+			modelPushbacks[(2000 * i) + 32] = 8192;
+
+			// joey's place interior
+			modelPushbacks[(2000 * i) + 381] = 128;
+			modelPushbacks[(2000 * i) + 1005] = 128;
 		}
 		break;
 		case LEVEL_CRC_VENICEBEACH:
@@ -202,6 +209,28 @@ void build_pushbacks() {
 			modelPushbacks[(2000 * i) + 685] = 4096;
 		}
 		break;
+		case LEVEL_CRC_SKATEPARK:
+		{
+			// push transworld ads forward
+			modelPushbacks[(2000 * i) + 227] = -64;
+			modelPushbacks[(2000 * i) + 229] = -64;
+
+			// crowd in judge's box
+			modelPushbacks[(2000 * i) + 37] = 256;
+			modelPushbacks[(2000 * i) + 38] = 128;
+			modelPushbacks[(2000 * i) + 39] = 256;
+			modelPushbacks[(2000 * i) + 37] = 0;
+			modelPushbacks[(2000 * i) + 38] = 0;
+			modelPushbacks[(2000 * i) + 39] = 0;
+
+			// glass on judge's booth
+			modelPushbacks[(2000 * i) + 154] = 0;
+
+			// wall around judge's booth glass
+			modelPushbacks[(2000 * i) + 155] = 0;
+			modelPushbacks[(2000 * i) + 178] = 0;
+		}
+		break;
 		case LEVEL_CRC_DOWNTOWN:
 		{
 			// push video signs forward
@@ -283,6 +312,11 @@ uint8_t should_texture_write_depth(struct texture *tex) {
 			write_depth = 1;
 		}
 		break;
+	case LEVEL_CRC_SKATEPARK: 
+		if (tex->tex_checksum == 0x4190e88b) {	// crowd
+			write_depth = 1;
+		}
+		break;
 	case LEVEL_CRC_DOWNHILLJAM:	// DHJ
 		if (tex->tex_checksum == 0x8358c7e1) {	// truss
 			write_depth = 1;
@@ -301,6 +335,13 @@ uint8_t should_texture_write_depth(struct texture *tex) {
 	}
 
 	return write_depth;
+}
+
+uint8_t should_background_write_depth() {
+	// hack for ny city exclusively to disable depth writes on its background
+	// avoids situations where the sky dome draws over the brooklyn bridge
+
+	return current_level != LEVEL_CRC_NYCITY;
 }
 
 void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int d) {
@@ -330,6 +371,7 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 	uint8_t modified_tex_flags = 0;
 	uint32_t orig_tex_flags = 0;
 	uint32_t orig_face_flags = *faceflags;
+	int32_t additional_ot_pushback = 0;
 
 	// make sure poly is textured
 	if (*faceflags & 1) {
@@ -487,6 +529,23 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					*faceflags &= ~0x40;
 				}
 				break;
+			case LEVEL_CRC_SKATEPARK:
+				// do not bias
+				if (tex->tex_checksum == 0xd98ff9d1 ||	// judge's booth glass
+					tex->tex_checksum == 0x337a0802	||	// crowd - low res
+					tex->tex_checksum == 0x4190e88b) {	// crowd
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+				}
+
+				// pull forward in ordering table to avoid getting overwritten by surroundings
+				if (tex->tex_checksum == 0xd98ff9d1) {	// judge's booth glass
+					additional_ot_pushback = -128;
+				}
+				break;
 			case LEVEL_CRC_DOWNTOWN:
 				// do not bias bus stop glass
 				if (*model_id == 678 || *model_id == 679 ||
@@ -561,6 +620,16 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 			tex->flags = orig_tex_flags;
 		}
 		*faceflags = orig_face_flags;
+	}
+
+	if (additional_ot_pushback != 0) {
+		result += additional_ot_pushback;
+
+		if (result > 4095) {
+			result = 4095;
+		} else if (result < 0) {
+			result = 0;
+		}
 	}
 
 	return result;
