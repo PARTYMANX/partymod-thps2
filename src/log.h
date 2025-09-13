@@ -12,5 +12,6 @@ typedef enum {
 void configureLogging(int isDebug);
 char *get_log_level();
 void log_printf(logLevel level, char *fmt, ...);
+void log_debug_printf(char* fmt, ...);
 
 #endif

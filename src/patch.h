@@ -17,6 +17,7 @@ void patchByte(void *addr, uint8_t val);
 void patchBytes(void* addr, uint8_t* b, size_t sz);
 void patchDWord(void *addr, uint32_t val);
 void patchFloat(void *addr, float val);
+void patchCpy(void *addr, void *data, size_t sz);
 void patchCall(void *addr, void *func);
 void patchJmp(void *addr, void *func);
 void patchThisToCdecl(void *addr, void *func);

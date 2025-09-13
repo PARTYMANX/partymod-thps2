@@ -576,8 +576,11 @@ void processInputEvent(SDL_Event *e) {
 			setUsingKeyboard(0);
 			return;
 		case SDL_CONTROLLERAXISMOTION:
-			setActiveController(SDL_GameControllerFromInstanceID(e->caxis.which));
-			setUsingKeyboard(0);
+			// only switch controllers if the axis is greater than a quarter of the range
+			if (e->caxis.value > 8192 || e->caxis.value < -8192) {
+				setActiveController(SDL_GameControllerFromInstanceID(e->caxis.which));
+				setUsingKeyboard(0);
+			}
 			return;
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:

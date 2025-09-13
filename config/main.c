@@ -237,8 +237,6 @@ float getScaleFactor(pgui_control *control) {
 	UINT dpi = GetDpiForWindow(control->hwnd);
 	float scale_factor = (float)dpi / USER_DEFAULT_SCREEN_DPI;
 
-	printf("WHY: %f\n", scale_factor);
-
 	return scale_factor;
 }
 
@@ -1015,6 +1013,8 @@ struct settings {
 	int fog_distance;
 	int texture_filter;
 	int internal_resolution;
+
+	int thps1_career;
 };
 
 struct keybinds {
@@ -1161,6 +1161,8 @@ void defaultSettings() {
 	settings.texture_filter = 0;
 	settings.internal_resolution = 0;
 
+	settings.thps1_career = 0;
+
 	keybinds.ollie = SDL_SCANCODE_KP_2;
 	keybinds.grab = SDL_SCANCODE_KP_6;
 	keybinds.flip = SDL_SCANCODE_KP_4;
@@ -1230,7 +1232,7 @@ void loadSettings() {
 	settings.texture_filter = GetPrivateProfileInt("Graphics", "TextureFilter", 0, configFile);
 	settings.internal_resolution = GetPrivateProfileInt("Graphics", "InternalResolution", 0, configFile);
 
-	//settings.autokick = getIniBool("Miscellaneous", "Autokick", 1, configFile);
+	settings.thps1_career = getIniBool("Miscellaneous", "THPS1Career", 0, configFile);
 
 	keybinds.ollie = GetPrivateProfileInt("Keybinds", "Ollie", SDL_SCANCODE_KP_2, configFile);
 	keybinds.grab = GetPrivateProfileInt("Keybinds", "Grab", SDL_SCANCODE_KP_6, configFile);
@@ -1290,7 +1292,7 @@ void saveSettings() {
 	writeIniInt("Graphics", "TextureFilter", settings.texture_filter, configFile);
 	writeIniInt("Graphics", "InternalResolution", settings.internal_resolution, configFile);
 
-	//writeIniBool("Miscellaneous", "Autokick", settings.autokick, configFile);
+	writeIniBool("Miscellaneous", "THPS1Career", settings.thps1_career, configFile);
 
 	writeIniInt("Keybinds", "Ollie", keybinds.ollie, configFile);
 	writeIniInt("Keybinds", "Grab", keybinds.grab, configFile);
@@ -1816,6 +1818,8 @@ struct general_page {
 	pgui_control *texture_filtering;
 	pgui_control *internal_resolution_label;
 	pgui_control *internal_resolution;
+
+	pgui_control *thps1_career;
 };
 
 struct general_page general_page;
@@ -1914,8 +1918,8 @@ void build_general_page(pgui_control *parent) {
 	pgui_control *misc_groupbox = pgui_groupbox_create((parent->w / 2) + 4, (parent->h / 2) + 4, (parent->w / 2) - 8 - 4, (parent->h / 2) - 8 - 4, "Miscellaneous", parent);
 
 	// resolution options
-	general_page.resolution_combobox = pgui_combobox_create(8, 16, 160, 24, displayModeStringList, numDisplayModes + 1, resolution_groupbox);
-	general_page.custom_resolution = pgui_checkbox_create(8, 16 + 24, 128, 24, "Use Custom Resolution", resolution_groupbox);
+	general_page.resolution_combobox = pgui_combobox_create(8, 16, 180, 24, displayModeStringList, numDisplayModes + 1, resolution_groupbox);
+	general_page.custom_resolution = pgui_checkbox_create(8, 16 + 24, 160, 24, "Use Custom Resolution", resolution_groupbox);
 
 	general_page.custom_res_x_label = pgui_label_create(8 + 8, 16 + (24 * 2) + 4, 48, 24, "Width:", PGUI_LABEL_JUSTIFY_CENTER, resolution_groupbox);
 	general_page.custom_res_x = pgui_textbox_create(8 + 8 + 48, 16 + (24 * 2), 48, 20, "", resolution_groupbox);
@@ -1935,7 +1939,7 @@ void build_general_page(pgui_control *parent) {
 	general_page.internal_resolution = pgui_combobox_create(8, 16 + 24 + (40 * 2) + 16, 128, 24, internal_resolution_options, 3, graphics_groupbox);
 
 	// miscellaneous options
-	//general_page.autokick = pgui_checkbox_create(8, 16, 128, 24, "Autokick", misc_groupbox);
+	general_page.thps1_career = pgui_checkbox_create(8, 16, 128, 24, "THPS1 Career", misc_groupbox);
 
 	pgui_checkbox_set_on_toggle(general_page.windowed, do_setting_checkbox, &(settings.windowed));
 	pgui_checkbox_set_on_toggle(general_page.borderless, do_setting_checkbox, &(settings.borderless));
@@ -1945,7 +1949,7 @@ void build_general_page(pgui_control *parent) {
 	pgui_combobox_set_on_select(general_page.texture_filtering, do_setting_combobox, &(settings.texture_filter));
 	pgui_combobox_set_on_select(general_page.internal_resolution, do_setting_combobox, &(settings.internal_resolution));
 
-	//pgui_checkbox_set_on_toggle(general_page.autokick, do_setting_checkbox, &(settings.autokick));
+	pgui_checkbox_set_on_toggle(general_page.thps1_career, do_setting_checkbox, &(settings.thps1_career));
 
 	pgui_combobox_set_on_select(general_page.resolution_combobox, set_display_mode, NULL);
 	pgui_checkbox_set_on_toggle(general_page.custom_resolution, check_custom_resolution, NULL);
@@ -2017,6 +2021,8 @@ void update_general_page() {
 	
 	pgui_combobox_set_selection(general_page.texture_filtering, settings.texture_filter);
 	pgui_combobox_set_selection(general_page.internal_resolution, settings.internal_resolution);
+
+	pgui_checkbox_set_checked(general_page.thps1_career, settings.thps1_career);
 }
 
 void callback_ok(pgui_control *control, void *data) {

@@ -11,9 +11,13 @@
 #include <global.h>
 #include <config.h>
 #include <log.h>
+#include <util.h>
 #include <gfx/gfx_movie.h>
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/gfx_global.h>
+#include <gfx/gfx_hacks.h>
+
+//#define DUMP_TEXTURES	// define this to write all textures out to [game dir]/texturedump/[level id] (make sure to create the texturedump directory first!)
 
 int internal_resolution_x = 512;
 int internal_resolution_y = 240;
@@ -98,11 +102,7 @@ void D3DPOLY_Init() {
 	SOFTREND_Startup();
 	Init_PolyBuf();
 
-	uint16_t *modelPushbacks = 0x0057d4fc;
-	for (int i = 0; i < 30000; i++) {
-		//((uint32_t *)modelPushbacks)[i] = 0x7fff7fff;
-		//modelPushbacks[i] *= 0.1f;
-	}
+	build_pushbacks();
 }
 
 uint32_t fixDXColor(uint32_t color) {
@@ -143,6 +143,8 @@ void D3DPOLY_StartScene(int a, int b) {
 	//*fog = 10000.0f;
 
 	*startscene = 1;
+
+	set_hacks_current_level(get_level_crc(get_current_level()));
 
 	updateMovieTexture();	// a bit of a hack: update the movie texture here in the main thread, as the music thread also updates it.  not exactly safe, but it avoids invalid vulkan use
 
@@ -471,67 +473,10 @@ void renderDXPoly(int *tag) {
 		}
 
 		if (!(tex->flags & 0x10)) {
-			// hack for masked textures that have depth issues - draw them with depth write
-			uint8_t write_depth = 0;
-
-			uint32_t *gLevel = 0x005674f8;
-			switch (*gLevel) {
-			case 0: // Hangar
-				if (tex->tex_checksum == 0x9863a474 ||	// wrecked plane wheel
-					tex->tex_checksum == 0x2fdba2c8 ||	// wrecked plane tag
-					tex->tex_checksum == 0x59d9434c ||	// wrecked plane landing gear
-					tex->tex_checksum == 0x4c716d9e) {	// wrecked plane body
-					write_depth = 1;
-				}
-				break;
-			case 1:	// School II
-				if (tex->tex_checksum == 0x8758d767) {	// bike rack
-					write_depth = 1;
-				}
-				break;
-			case 3: // NYC
-				if (tex->tex_checksum == 0x7ae94072 ||	// blue awning
-					tex->tex_checksum == 0xa10d8d59 ||	// green awning
-					tex->tex_checksum == 0x8a321362 ||	// road closed sign
-					tex->tex_checksum == 0x540a6ef2 ||	// bench back rest
-					tex->tex_checksum == 0xd5840538) {	// bench legs
-					
-					write_depth = 1;
-				}
-				break;
-			case 5:	// Skate Street
-				if (tex->tex_checksum == 0xab803fa8 ||	// chair side
-					tex->tex_checksum == 0xd67c8173 ||	// chair side
-					tex->tex_checksum == 0xfffffd4d ||	// table legs
-					tex->tex_checksum == 0x70ec04da ||	// under cone
-					tex->tex_checksum == 0xa2c2c95a) {	// ramp support
-					write_depth = 1;
-				}
-			case 6:	// Philadelphia
-				if (tex->tex_checksum == 0xc1ff0913) {	// bus side
-					write_depth = 1;
-				}
-				break;
-			case 9:	// Skate Heaven
-				if (tex->tex_checksum == 0x94cbeff8) {	// bleachers
-					write_depth = 1;
-				}
-				break;
-			case 10:	// DHJ
-				if (tex->tex_checksum == 0x8358c7e1) {	// truss
-					write_depth = 1;
-				}
-				break;
-			default:
-				break;
-			}
-
-			if (!write_depth) {
+			if (!should_texture_write_depth(tex)) {
 				setDepthState(renderer, 1, 0);
 			}
 		}
-
-		
 
 		// calc final colors
 		for (int i = 0; i < numVerts; i++) {
@@ -683,6 +628,10 @@ void transformCoords(renderVertex *vertices, int count) {
 	for (int i = 0; i < count; i++) {
 		if (vertices[i].y > 4369.0f - (float)*screen_height && on_screen) {
 			vertices[i].y -= 4369.0f;
+		}
+
+		if (vertices[i].x > 26213.0f - (float)*screen_width - 100.0f && on_screen) {
+			vertices[i].x -= 26213.0f;
 		}
 	}
 
@@ -1232,20 +1181,24 @@ void renderTile(int *tag) {
 
 	uint32_t color = r + (g << 8) + (b << 16) + (alpha << 24);
 
-	int16_t width = *(int16_t *)((uint8_t *)tag + 12);
-	int16_t height = *(int16_t *)((uint8_t *)tag + 14);
+	// these can be hard to see at large resolutions, scale them as if the game is running at 640x480 when above that resolution
+	float xmult = (resolution_x > 640) ? ((float)resolution_x / (float)internal_resolution_x) * ((float)internal_resolution_x / 640.0f) : 1.0f;
+	float ymult = (resolution_y > 480) ? ((float)resolution_y / (float)internal_resolution_y) * ((float)internal_resolution_y / 480.0f) : 1.0f;
 
-	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
-	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+	float width = (float)*(int16_t *)((uint8_t *)tag + 12) * xmult;
+	float height = (float)*(int16_t *)((uint8_t *)tag + 14) * ymult;
 
-	int16_t x2 = *(int16_t *)((uint8_t *)tag + 8) + width;
-	int16_t y2 = *(int16_t *)((uint8_t *)tag + 10);
+	float x1 = (float)*(int16_t *)((uint8_t *)tag + 8);
+	float y1 = (float)*(int16_t *)((uint8_t *)tag + 10);
 
-	int16_t x3 = *(int16_t *)((uint8_t *)tag + 8) + width;
-	int16_t y3 = *(int16_t *)((uint8_t *)tag + 10) + height;
+	float x2 = (float)*(int16_t *)((uint8_t *)tag + 8) + width;
+	float y2 = (float)*(int16_t *)((uint8_t *)tag + 10);
 
-	int16_t x4 = *(int16_t *)((uint8_t *)tag + 8);
-	int16_t y4 = *(int16_t *)((uint8_t *)tag + 10) + height;
+	float x3 = (float)*(int16_t *)((uint8_t *)tag + 8) + width;
+	float y3 = (float)*(int16_t *)((uint8_t *)tag + 10) + height;
+
+	float x4 = (float)*(int16_t *)((uint8_t *)tag + 8);
+	float y4 = (float)*(int16_t *)((uint8_t *)tag + 10) + height;
 
 	float z = *(float *)((uint8_t *)tag + 16);
 	z = fixZ(z);
@@ -1259,8 +1212,6 @@ void renderTile(int *tag) {
 	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
 
 	transformCoords(vertices, 6);
-
-
 
 	drawVertices(renderer, vertices, 6);
 }
@@ -1475,11 +1426,8 @@ void flipPrimitives() {
 
 	int *tag = ((*(uint32_t *)((*(uint32_t *)0x0055dc34) + 0x84)) + (ot_size * 8) - 8);
 	while (tag != NULL) {
-		//log_printf(LL_DEBUG, "STILL GOIN\n");
 		if (tag[1] != 0) {
 			uint8_t cmd = *(uint8_t*)((int)tag + 7);
-
-			//log_printf(LL_DEBUG, "TAG: 0x%02x\n", cmd);
 
 			switch (cmd & ~0x03) {
 			// polygons
@@ -1761,6 +1709,8 @@ void *openExternalTextureWrapper(char *a, char *b) {
 	}
 }
 
+#ifdef DUMP_TEXTURES
+
 #include <direct.h>
 
 void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
@@ -1785,7 +1735,7 @@ void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
 	log_printf(LL_DEBUG, "Writing texture \"%s\"...\n", path);
 
 	uint32_t bmpoffset = 14 + sizeof(struct bitmapheader);
-	uint32_t imgsize = (sizeof(uint32_t) * tex->buf_width * tex->buf_height);
+	uint32_t imgsize = (sizeof(uint32_t) * tex->width * tex->height);
 	uint32_t bmpsize = bmpoffset + imgsize;
 
 	uint8_t* fbuf = malloc(bmpsize);
@@ -1797,8 +1747,8 @@ void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
 
 	struct bitmapheader *header = fbuf + 14;
 	header->headersize = 40;
-	header->width = tex->buf_width;
-	header->height = tex->buf_height;
+	header->width = tex->width;
+	header->height = tex->height;
 	header->planes = 1;
 	header->bpp = 32;
 	header->compression = 0;
@@ -1811,11 +1761,11 @@ void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
 	uint32_t *img_data = fbuf + bmpoffset;
 	uint32_t *img_src = buf;
 	uint32_t pixel_count = tex->buf_width * tex->buf_height;
-	for (int y = 0; y < tex->buf_height; y++) {
+	for (int y = 0; y < tex->height; y++) {
 		uint32_t src_row_offset = y * tex->buf_width;
-		uint32_t dst_row_offset = (tex->buf_height - (y + 1)) * tex->buf_width;
+		uint32_t dst_row_offset = (tex->height - (y + 1)) * tex->width;
 
-		for (int x = 0; x < tex->buf_width; x++) {
+		for (int x = 0; x < tex->width; x++) {
 			uint32_t px = img_src[src_row_offset + x];
 			if (px == 0x00000000) {
 				px = 0xffff00ff;	// full transparent -> magenta
@@ -1838,6 +1788,8 @@ void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
 
 	free(fbuf);
 }
+
+#endif
 
 void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 	int **palFront = 0x0069d174;
@@ -1927,7 +1879,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 
 					uint8_t alpha;
 					if (semi_trans) {
-						alpha = 127;
+						alpha = 128;
 					} else {
 						alpha = (color == 0) ? 0 : 255;
 					}
@@ -1965,7 +1917,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 
 					uint8_t alpha;
 					if (semi_trans) {
-						alpha = 127;
+						alpha = 128;
 					} else {
 						alpha = (color == 0) ? 0 : 255;
 					}
@@ -1989,10 +1941,12 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 				}
 			}
 		} else {
-			
+			log_printf(LL_ERROR, "FOUND TEXTURE 0x%08x WITH UNKNOWN FORMAT!!!\n");
 		}
 
-		//dumpTextureToFile(a, buf);
+#ifdef DUMP_TEXTURES
+		dumpTextureToFile(a, buf);
+#endif
 			
 	} else {
 		int (__cdecl *PCread)(void *, void *, uint32_t) = 0x004e4ca0;
@@ -2372,7 +2326,7 @@ void m3dinit_setresolution(uint32_t x, uint32_t y) {
 	uint16_t *ResX = 0x0055ed00;
 	uint16_t *ResY = 0x0055ed18;
 
-	log_printf(LL_DEBUG, "m3dinit_setresolution with %d %d\n", x, y);
+	//log_printf(LL_DEBUG, "m3dinit_setresolution with %d %d\n", x, y);
 
 	*ResX = *width;
 	*ResY = *height;
@@ -2565,279 +2519,6 @@ void MENUPC_DrawMouseCursor() {
 
 }
 
-void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int d) {
-	void (__fastcall *Font_SetRGB)(void *, void *, uint8_t, uint8_t, uint8_t) = 0x0044ab10;
-	void (__fastcall *Font_Draw)(void *, void *, int, int, int, int) = 0x0044a010;
-	
-	Font_SetRGB(font, NULL, 0x60, 0x60, 0x60);
-
-	Font_Draw(font, NULL, a, b, c, d);
-}
-
-uint8_t should_call_out = 0;
-
-int setDepthWrapper(int face, int unk, float bias, float unk2) {
-	// this function is a big hack to disable/enable depth biasing for individual textures
-	int (__cdecl *setDepthOrig)(int, int, float, float) = 0x004cf8c0;
-	uint32_t *gLevel = 0x005674f8;
-	int *faceflags = 0x0058bf5c;
-	uint32_t *renderModelFlags = 0x0057b4d4;
-
-
-	uint8_t modified_tex_flags = 0;
-	uint32_t orig_tex_flags = 0;
-	uint32_t orig_face_flags = *faceflags;
-
-	// make sure poly is textured
-	if (*faceflags & 1) {
-		
-		struct texture* tex = *(uint32_t **)(*(int *)((uint8_t *)unk + 0x10) + 0x14);
-
-		if (tex) {
-			switch (*gLevel) {
-			case 0: // Hangar
-				// do not bias
-				if (tex->tex_checksum == 0xf4b4432d ||	// concrete texture - used on the light beams... weird
-					tex->tex_checksum == 0x9863a474 ||	// wrecked plane wheel
-					tex->tex_checksum == 0x2fdba2c8 ||	// wrecked plane tag
-					tex->tex_checksum == 0x59d9434c ||	// wrecked plane landing gear
-					tex->tex_checksum == 0x4c716d9e) {	// wrecked plane body
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags |= 0x10;
-					*faceflags &= ~0x40;
-				}
-				break;
-			case 1: // School II
-				// do not bias
-				if (tex->tex_checksum == 0x8758d767) {	// bike rack
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags |= 0x10;
-				}
-				break;
-			case 3:	// NYC
-				// 0x808f40af - coffee awning logo
-				// 0x89d3240f - cleaners awning logo
-
-				// force bias
-				if (tex->tex_checksum == 0xb03f60e7 ||	// street line
-					tex->tex_checksum == 0x3877e2c1 ||	// snack bar sign
-					tex->tex_checksum == 0x89d3240f ||	// blue awning's logo
-					tex->tex_checksum == 0xd4f60d61) {	// illuminated window
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags &= ~0x10;
-				}
-
-				// do not bias
-				if (tex->tex_checksum == 0x7ae94072 ||	// blue awning
-					tex->tex_checksum == 0xa10d8d59 ||	// green awning
-					tex->tex_checksum == 0x540a6ef2 ||	// bench back rest
-					tex->tex_checksum == 0xd5840538 ||	// bench legs
-					tex->tex_checksum == 0xf9656ebd) {	// construction light bulb
-
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags |= 0x10;
-					*faceflags &= ~0x40;
-				}
-
-				// extremely targeted one for subway darkness - do not bias
-				if (tex->tex_checksum == 0x76d0e935) { // subway tunnel darkness - concrete texture?
-					uint32_t* model_id = 0x005606d8;
-
-					//log_printf(LL_DEBUG, "FOUND CONCRETE ON MODEL ID %d\n", *model_id)
-
-					if (*model_id >= 83 && *model_id <= 86) {
-						modified_tex_flags = 1;
-						orig_tex_flags = tex->flags;
-
-						tex->flags |= 0x10;
-						*faceflags &= ~0x40;
-					}
-				}
-
-				if (tex->tex_checksum == 0x2ca8bffd) {
-					should_call_out = 1;
-					//log_printf(LL_DEBUG, "SPOTTED HYDRANT - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-
-				if (tex->tex_checksum == 0xf9656ebd) {
-					should_call_out = 1;
-					//log_printf(LL_DEBUG, "SPOTTED BULB    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-
-				if (tex->tex_checksum == 0xf1413a62) {
-					should_call_out = 1;
-					//log_printf(LL_DEBUG, "SPOTTED BUSH    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-
-				if (tex->tex_checksum == 0xfccc3004) {
-					should_call_out = 2;
-					//log_printf(LL_DEBUG, "SPOTTED WINDOW  - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-				break;
-			case 4:	// Venice Beach
-				// do not bias
-				if (tex->tex_checksum == 0xfc0fe079) {	// roof window
-
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags |= 0x10;
-					*faceflags &= ~0x40;
-				}
-
-				if (tex->tex_checksum == 0xc627cb78) {
-					should_call_out = 1;
-					//log_printf(LL_DEBUG, "SPOTTED PALM    - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-
-				if (tex->tex_checksum == 0x9059dfff) {
-					should_call_out = 2;
-					//log_printf(LL_DEBUG, "SPOTTED JOE     - FACE FLAGS: 0x%08x\n", *renderModelFlags);
-				}
-				break;
-			case 5:	// Skate Street
-				// do not bias
-				if (tex->tex_checksum == 0xab803fa8 ||	// chair side
-					tex->tex_checksum == 0xd67c8173 ||	// chair back
-					tex->tex_checksum == 0xfffffd4d ||	// table legs
-					tex->tex_checksum == 0x70ec04da ||	// under cone
-					tex->tex_checksum == 0xa2c2c95a) {	// ramp support
-
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags |= 0x10;
-					*faceflags &= ~0x40;
-				}
-				break;
-			case 6:	// Philadelphia
-				// force bias
-				/*if (tex->tex_checksum == 0x390b37d9) {	// street line
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags &= ~0x10;
-				}*/
-				break;
-			case 9:	// Skate Heaven
-				// do not bias
-				if (tex->tex_checksum == 0x94cbeff8) {	// bleachers
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags |= 0x10;
-				}
-				break;
-			case 10:	// DHJ
-				// do not bias
-				if (tex->tex_checksum == 0x8358c7e1) {	// truss
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags |= 0x10;
-				}
-
-				// force bias
-				if (tex->tex_checksum == 0xd8706aaa) {	// emerica ad
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags &= ~0x10;
-				}
-				break;
-			case 12:	// Warehouse
-				// do not bias
-				if (tex->tex_checksum == 0x221c0004) {	// chainlink
-					modified_tex_flags = 1;
-					orig_tex_flags = tex->flags;
-
-					tex->flags |= 0x10;
-					*faceflags &= ~0x40;
-				}
-				break;
-			default:
-				break;
-			}
-
-		}
-	}
-
-	int result = setDepthOrig(face, unk, bias, unk2);
-
-	// return modified flags to normal
-	if (modified_tex_flags) {
-		if (*faceflags & 1) {
-			struct texture* tex = *(uint32_t**)(*(int*)((uint8_t*)unk + 0x10) + 0x14);
-			tex->flags = orig_tex_flags;
-		}
-		*faceflags = orig_face_flags;
-	}
-
-	return result;
-}
-
-void D3DModel_Render_Wrapper(uint32_t a, uint32_t b) {
-	int (__cdecl *D3DModel_Render)(uint32_t, uint32_t) = 0x004ce6e0;
-
-	D3DModel_Render(a, b);
-
-	if (should_call_out) {
-		//log_printf(LL_DEBUG, "PASSED TO D3DMODEL_RENDER: 0x%08x\n", b);
-		should_call_out = 0;
-	}
-}
-
-void D3DModel_Render_Wrapper_NoRotate(uint32_t a, uint32_t b) {
-	int(__cdecl * D3DModel_Render)(uint32_t, uint32_t) = 0x004ce6e0;
-
-	D3DModel_Render(a, b);
-
-	if (should_call_out) {
-		//log_printf(LL_DEBUG, "PASSED TO D3DMODEL_RENDER (NON ROTATED): 0x%08x\n", b);
-		//should_call_out = 0;
-	}
-}
-
-void RenderModelNonRotatedDummy(uint32_t a, uint32_t b) {
-	int(__cdecl * RenderModelNonRotated)(uint32_t, uint32_t) = 0x00461b00;
-
-	uint8_t modifiedFlags = 0;
-	uint8_t origFlags = 0;
-	if (*((uint8_t*)a + 1) & 1) {
-		modifiedFlags = 1;
-		origFlags = *((uint8_t*)a + 1);
-		*((uint8_t*)a + 1) &= ~1;
-		
-		//patchNop(0x004cea5f, 5);
-
-		//log_printf(LL_DEBUG, "!!!! FOUND FACING !!!!\n");
-	}
-
-	//if (!*((uint8_t*)a + 1) & 1) {
-		RenderModelNonRotated(a, b);
-	//}
-
-	if (modifiedFlags) {
-		*((uint8_t*)a + 1) = origFlags;
-		//patchCall(0x004cea5f, 0x004cfbf0);
-		//log_printf(LL_DEBUG, "!!!! RESTORED FACING !!!!\n");
-	}
-
-	if (should_call_out && origFlags & 1) {
-		//log_printf(LL_DEBUG, "!!!! FOUND FACING !!!!\n");
-	}
-
-	should_call_out = 0;
-}
-
 void installGfxPatches() {
 	patchJmp(0x004f5190, initDDraw);
 	patchJmp(0x004f41c0, initD3D);
@@ -2888,55 +2569,20 @@ void installGfxPatches() {
 	patchJmp(0x004cc510, SaveVidConfig);
 
 	patchJmp(0x00464620, m3dinit_setresolution);
-	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov); // TODO: pay attention to this, it's interesting
-	//patchDWord(0x0045eb0a + 3, &PixelAspectYFov); // TODO: pay attention to this, it's interesting
-	//patchNop(0x0045ef62, 6);
-	//patchDWord(0x0045ef62 + 2, &testthing);
 
-	// removing current resolution from viewport calcs
-	/*patchNop(0x0045e90f, 3);
-	patchNop(0x0045e915, 6);
-	patchNop(0x0045e92d, 11);
-	patchNop(0x0045e942, 9);
-	patchNop(0x0045e95b, 11);*/
-
-	// restore original viewport calculations
-
-
-	//setup
-	/*patchNop(0x0045ea82, 5);
-	//29 cd
-	patchByte(0x0045ea8c, 0x29);
-	patchByte(0x0045ea8c + 1, 0xc3);
-
-	patchNop(0x0045eb11, 5);
-	//29 cd
-	patchByte(0x0045eb18, 0x29);
-	patchByte(0x0045eb18 + 1, 0xd3);
-
-	//setup camera
-	patchNop(0x0045efd8, 3);
-	patchNop(0x0045efdb, 2);
-	//29 cd
-	patchByte(0x0045efe3, 0x29);
-	patchByte(0x0045efe3 + 1, 0xcd);
-
-	patchNop(0x0045f06c, 5);
-	//29 cd
-	patchByte(0x0045f077, 0x29);
-	patchByte(0x0045f077 + 1, 0xd5);*/
-
-	
+	// viewport shenanigans
+	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
+	//patchDWord(0x0045eb0a + 3, &PixelAspectYFov);
 
 	//patchCall(0x00467c97, m3d_rendersetup_wrapper);
 
 	//patchNop(0x00468168, 5);	// remove bit_display
 	//patchNop(0x00467cef, 5);	// remove envirolist display
 
-	
-
 	//patchNop(0x0045ee45, 10);
 	//patchNop(0x0045ee5f, 10);
+
+	// end viewport shenanigans
 
 	//patchByte(0x004ced21, 0xEB);
 	patchNop(0x004ced21, 2);	// don't brighten sky dome in nyc
@@ -2958,24 +2604,6 @@ void installGfxPatches() {
 	// don't show in-game cursor
 	patchJmp(0x004d9060, MENUPC_DrawMouseCursor);
 
-	//patchCall(0x0045df47, fixLoadScreen);
-	patchCall(0x0045dfee, fixChecklistFont);
-	patchCall(0x00415ed5, fixChecklistFont);
-
-	// maybe fix stats menu font size
-
-	patchDWord(0x004b5336 + 6, 0x1000);	// font 1
-	patchDWord(0x004b541a + 6, 0x1000);	// font 2
-
-	// pushback stuff
-	
-	//patchDWord(0x004cfaa7 + 2, &pushbackmult);
-	//patchDWord(0x004cfaba + 2, &pushbackmult);
-	//patchDWord(0x004cfa5a + 2, &fzero);
-	//patchByte(0x004cfb28 + 1, 0xc1);	// FMUL -> FADD
-
-	patchCall(0x004cf4b4, setDepthWrapper);
-
 	patchJmp(0x004675a0, flipPrimitives);	// use fixed flipPrimitives
 
 	// hack to detect billboards
@@ -2990,21 +2618,10 @@ void installGfxPatches() {
 	patchCall(0x00460386, RenderModelNonRotatedDummy);
 	patchCall(0x00460338, RenderModelNonRotatedDummy);*/
 
-	
-
-	//patchNop(0x004ce7a5, 1);
-	//patchByte(0x004ce9f1, 0xeb);
-
 	// pal_loadpalette - don't mess with alpha
 
 	patchJmp(0x004880d0, Pal_LoadPalette);
 
-	//patchByte(0x00488216, 0xeb);
-	//patchNop(0x00488218, 6);
-	//patchByte(0x00488234, 0xeb);
-	//patchByte(0x004881f8, 0xeb);
-
-	//patchDWord(0x00449c48 + 3, 0x808080ff);
-
+	installGraphicsHackPatches();
 	installMoviePatches();
 }
