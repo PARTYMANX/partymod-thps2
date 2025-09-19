@@ -2,8 +2,8 @@
 #define _GLOBAL_H_
 
 #define VERSION_NUMBER_MAJOR 1
-#define VERSION_NUMBER_MINOR 0
-#define VERSION_NUMBER_PATCH 5
+#define VERSION_NUMBER_MINOR 1
+#define VERSION_NUMBER_PATCH 0
 
 #define filePathBufLen 1024
 char executableDirectory[filePathBufLen];

@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 uint32_t memhash(void *p, size_t sz);	// fnv-1a hash
-uint32_t memcrc(void *p, size_t sz);	// crc32
+uint32_t crc32(void *p, size_t sz);	// crc32
 
 // map
 

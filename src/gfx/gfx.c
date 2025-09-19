@@ -11,9 +11,13 @@
 #include <global.h>
 #include <config.h>
 #include <log.h>
+#include <util.h>
 #include <gfx/gfx_movie.h>
 #include <gfx/vk/gfx_vk.h>
 #include <gfx/gfx_global.h>
+#include <gfx/gfx_hacks.h>
+
+//#define DUMP_TEXTURES	// define this to write all textures out to [game dir]/texturedump/[level id] (make sure to create the texturedump directory first!)
 
 int internal_resolution_x = 512;
 int internal_resolution_y = 240;
@@ -98,11 +102,7 @@ void D3DPOLY_Init() {
 	SOFTREND_Startup();
 	Init_PolyBuf();
 
-	uint16_t *modelPushbacks = 0x0057d4fc;
-	for (int i = 0; i < 30000; i++) {
-		//((uint32_t *)modelPushbacks)[i] = 0x7fff7fff;
-		//modelPushbacks[i] *= 0.1f;
-	}
+	build_pushbacks();
 }
 
 uint32_t fixDXColor(uint32_t color) {
@@ -143,6 +143,8 @@ void D3DPOLY_StartScene(int a, int b) {
 	//*fog = 10000.0f;
 
 	*startscene = 1;
+
+	set_hacks_current_level(get_level_crc(get_current_level()));
 
 	updateMovieTexture();	// a bit of a hack: update the movie texture here in the main thread, as the music thread also updates it.  not exactly safe, but it avoids invalid vulkan use
 
@@ -401,6 +403,10 @@ void renderDXPoly(int *tag) {
 		struct dxpoly *vertices = ((uint8_t *)tag + 0x18);
 		uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
 
+		if ((*(uint32_t*)((uint8_t*)tag + 8) & 0x80000000) && !should_background_write_depth()) {
+			setDepthState(renderer, 1, 0);
+		}
+
 		// calc final colors
 		for (int i = 0; i < numVerts; i++) {
 			// apply alpha from blend mode
@@ -471,6 +477,12 @@ void renderDXPoly(int *tag) {
 		}
 
 		if (!(tex->flags & 0x10)) {
+			if (!should_texture_write_depth(tex)) {
+				setDepthState(renderer, 1, 0);
+			}
+		}
+
+		if ((*(uint32_t*)((uint8_t*)tag + 8) & 0x80000000) && !should_background_write_depth()) {
 			setDepthState(renderer, 1, 0);
 		}
 
@@ -624,6 +636,10 @@ void transformCoords(renderVertex *vertices, int count) {
 	for (int i = 0; i < count; i++) {
 		if (vertices[i].y > 4369.0f - (float)*screen_height && on_screen) {
 			vertices[i].y -= 4369.0f;
+		}
+
+		if (vertices[i].x > 26213.0f - (float)*screen_width - 100.0f && on_screen) {
+			vertices[i].x -= 26213.0f;
 		}
 	}
 
@@ -1173,20 +1189,24 @@ void renderTile(int *tag) {
 
 	uint32_t color = r + (g << 8) + (b << 16) + (alpha << 24);
 
-	int16_t width = *(int16_t *)((uint8_t *)tag + 12);
-	int16_t height = *(int16_t *)((uint8_t *)tag + 14);
+	// these can be hard to see at large resolutions, scale them as if the game is running at 640x480 when above that resolution
+	float xmult = (resolution_x > 640) ? ((float)resolution_x / (float)internal_resolution_x) * ((float)internal_resolution_x / 640.0f) : 1.0f;
+	float ymult = (resolution_y > 480) ? ((float)resolution_y / (float)internal_resolution_y) * ((float)internal_resolution_y / 480.0f) : 1.0f;
 
-	int16_t x1 = *(int16_t *)((uint8_t *)tag + 8);
-	int16_t y1 = *(int16_t *)((uint8_t *)tag + 10);
+	float width = (float)*(int16_t *)((uint8_t *)tag + 12) * xmult;
+	float height = (float)*(int16_t *)((uint8_t *)tag + 14) * ymult;
 
-	int16_t x2 = *(int16_t *)((uint8_t *)tag + 8) + width;
-	int16_t y2 = *(int16_t *)((uint8_t *)tag + 10);
+	float x1 = (float)*(int16_t *)((uint8_t *)tag + 8);
+	float y1 = (float)*(int16_t *)((uint8_t *)tag + 10);
 
-	int16_t x3 = *(int16_t *)((uint8_t *)tag + 8) + width;
-	int16_t y3 = *(int16_t *)((uint8_t *)tag + 10) + height;
+	float x2 = (float)*(int16_t *)((uint8_t *)tag + 8) + width;
+	float y2 = (float)*(int16_t *)((uint8_t *)tag + 10);
 
-	int16_t x4 = *(int16_t *)((uint8_t *)tag + 8);
-	int16_t y4 = *(int16_t *)((uint8_t *)tag + 10) + height;
+	float x3 = (float)*(int16_t *)((uint8_t *)tag + 8) + width;
+	float y3 = (float)*(int16_t *)((uint8_t *)tag + 10) + height;
+
+	float x4 = (float)*(int16_t *)((uint8_t *)tag + 8);
+	float y4 = (float)*(int16_t *)((uint8_t *)tag + 10) + height;
 
 	float z = *(float *)((uint8_t *)tag + 16);
 	z = fixZ(z);
@@ -1200,8 +1220,6 @@ void renderTile(int *tag) {
 	vertices[5] = (renderVertex) { (float)x4, (float)y4, z, 1.0f, 0.0f, 0.0f, color, -1, 0 };
 
 	transformCoords(vertices, 6);
-
-
 
 	drawVertices(renderer, vertices, 6);
 }
@@ -1283,13 +1301,13 @@ void D3DPOLY_DrawOTag(int *tag) {
 					textured = 0;
 				}
 				
-				uint8_t blendMode = 0;
+				uint8_t texpage = 0;
 				if (textured) {
 					// texpage is in different location if using gouraud shading
 					if ((cmd & 0x60) == 0x60 || !(cmd & 0x10)) {
-						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x16));
+						texpage = *(uint16_t *)(((uint8_t *)tag + 0x16));
 					} else {
-						blendMode = *(uint16_t *)(((uint8_t *)tag + 0x1a));
+						texpage = *(uint16_t *)(((uint8_t *)tag + 0x1a));
 					}
 				}
 
@@ -1298,12 +1316,15 @@ void D3DPOLY_DrawOTag(int *tag) {
 					setDepthState(renderer, 1, 0);
 
 					// textured commands have a supplied texpage, so get blend mode from there
+					uint32_t blend_mode = 0;
 					if (textured) {
-						*nextPSXBlendMode = (blendMode >> 5) & 3;
+						blend_mode = (texpage >> 5) & 3;
+					} else {
+						blend_mode = *nextPSXBlendMode;
 					}
 
 					// alpha blending
-					switch(*nextPSXBlendMode) {
+					switch(blend_mode) {
 					case 0:
 						*alphaBlend = 0x80000000;
 						// blend mode 1
@@ -1399,6 +1420,203 @@ void D3DPOLY_DrawOTag(int *tag) {
 				//printf("UNKNOWN RENDER COMMAND: %d\n", cmd);
 			}
 		}
+		tag = *tag;
+	}
+}
+
+// original version of this function doesn't handle semitransparent primitives due to a mistake
+// this version correctly masks out those bits
+void flipPrimitives() {
+	uint32_t (__cdecl *Db_OTSize)() = 0x0042fc30;
+	int *screen_width = 0x029d6fe4;
+
+	uint32_t ot_size = Db_OTSize();
+
+	int *tag = ((*(uint32_t *)((*(uint32_t *)0x0055dc34) + 0x84)) + (ot_size * 8) - 8);
+	while (tag != NULL) {
+		if (tag[1] != 0) {
+			uint8_t cmd = *(uint8_t*)((int)tag + 7);
+
+			switch (cmd & ~0x03) {
+			// polygons
+			
+			// F3
+			case 0x20: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// FT3
+			case 0x24: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// F4
+			case 0x28: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 20);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// FT4
+			case 0x2c: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 32);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// G3
+			case 0x30: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// GT3
+			case 0x34: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 20);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 32);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// G4
+			case 0x38: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 24);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 32);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// GT4
+			case 0x3c: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 20);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 32);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 44);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+
+			// lines
+			// F2
+			case 0x40: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+				}
+				break;
+			// F3
+			case 0x48: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+				}
+				break;
+			// F4
+			case 0x4c: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 12);
+					int16_t *x3 = (int16_t *)((uint8_t *)tag + 16);
+					int16_t *x4 = (int16_t *)((uint8_t *)tag + 20);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+					*x3 = *screen_width - *x3;
+					*x4 = *screen_width - *x4;
+				}
+				break;
+			// G2
+			case 0x50: {
+					int16_t *x1 = (int16_t *)((uint8_t *)tag + 8);
+					int16_t *x2 = (int16_t *)((uint8_t *)tag + 16);
+
+					*x1 = *screen_width - *x1;
+					*x2 = *screen_width - *x2;
+				}
+				break;
+
+			// tiles
+			case 0x60:
+			case 0x68:
+			case 0x70:
+			case 0x78: {
+					int16_t *x = (int16_t *)((uint8_t *)tag + 8);
+
+					*x = *screen_width - *x;
+				}
+				break;
+
+			// DXPOLY
+			case 0xb0: {
+					if (!*(uint32_t *)((uint8_t *)tag + 0x10)) {
+						struct dxpoly *vertices = ((uint8_t *)tag + 0x18);
+						uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+
+						for (int i = 0; i < numVerts; i++) {
+							vertices[i].x = *screen_width - vertices[i].x;
+						}
+					} else {
+						struct dxpolytextured *vertices = ((uint8_t *)tag + 0x18);
+						uint32_t numVerts = *(uint32_t *)((uint8_t *)tag + 0x14);
+
+						for (int i = 0; i < numVerts; i++) {
+							vertices[i].x = *screen_width - vertices[i].x;
+						}
+					}
+				}
+				break;
+
+			default:
+				break;
+			}
+		}
+
 		tag = *tag;
 	}
 }
@@ -1499,6 +1717,88 @@ void *openExternalTextureWrapper(char *a, char *b) {
 	}
 }
 
+#ifdef DUMP_TEXTURES
+
+#include <direct.h>
+
+void dumpTextureToFile(struct texture *tex, uint8_t *buf) {
+	if (tex->tex_checksum == 0) {
+		return;
+	}
+
+	uint32_t *gLevel = 0x005674f8;
+
+	// check that path exists, and create it if it doesn't
+	char dirpath[1024];
+	sprintf(dirpath, "texturedump/%d/", *gLevel);
+
+	struct stat st = { 0 };
+	if (stat(dirpath, &st) == -1) {
+		mkdir(dirpath);
+	}
+
+	char path[1024];
+	sprintf(path, "texturedump/%d/0x%08x.bmp", *gLevel, tex->tex_checksum);
+
+	log_printf(LL_DEBUG, "Writing texture \"%s\"...\n", path);
+
+	uint32_t bmpoffset = 14 + sizeof(struct bitmapheader);
+	uint32_t imgsize = (sizeof(uint32_t) * tex->width * tex->height);
+	uint32_t bmpsize = bmpoffset + imgsize;
+
+	uint8_t* fbuf = malloc(bmpsize);
+
+	memcpy(fbuf, "BM", 2);
+	memcpy(fbuf + 2, &bmpsize, sizeof(uint32_t));
+	memset(fbuf + 6, 0, 4);
+	memcpy(fbuf + 10, &bmpoffset, sizeof(uint32_t));
+
+	struct bitmapheader *header = fbuf + 14;
+	header->headersize = 40;
+	header->width = tex->width;
+	header->height = tex->height;
+	header->planes = 1;
+	header->bpp = 32;
+	header->compression = 0;
+	header->imgsize = imgsize;
+	header->horizontalres = 1;
+	header->verticalres = 1;
+	header->palettesize = 0;
+	header->importantcolors = 0;
+
+	uint32_t *img_data = fbuf + bmpoffset;
+	uint32_t *img_src = buf;
+	uint32_t pixel_count = tex->buf_width * tex->buf_height;
+	for (int y = 0; y < tex->height; y++) {
+		uint32_t src_row_offset = y * tex->buf_width;
+		uint32_t dst_row_offset = (tex->height - (y + 1)) * tex->width;
+
+		for (int x = 0; x < tex->width; x++) {
+			uint32_t px = img_src[src_row_offset + x];
+			if (px == 0x00000000) {
+				px = 0xffff00ff;	// full transparent -> magenta
+			} else {
+				uint8_t r = (px >> 0) & 0xff;
+				uint8_t g = (px >> 8) & 0xff;
+				uint8_t b = (px >> 16) & 0xff;
+
+				px = (0xff << 24) | (r << 16) | (g << 8) | (b << 0);
+			}
+			img_data[dst_row_offset + x] = px;
+		}
+	}
+
+	FILE *f = fopen(path, "wb");
+
+	fwrite(fbuf, bmpsize, 1, f);
+
+	fclose(f);
+
+	free(fbuf);
+}
+
+#endif
+
 void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 	int **palFront = 0x0069d174;
 
@@ -1587,7 +1887,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 
 					uint8_t alpha;
 					if (semi_trans) {
-						alpha = 127;
+						alpha = 128;
 					} else {
 						alpha = (color == 0) ? 0 : 255;
 					}
@@ -1625,7 +1925,7 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 
 					uint8_t alpha;
 					if (semi_trans) {
-						alpha = 127;
+						alpha = 128;
 					} else {
 						alpha = (color == 0) ? 0 : 255;
 					}
@@ -1649,8 +1949,12 @@ void makeTextureListEntry(struct texture *a, int b, int c, int d) {
 				}
 			}
 		} else {
-			
+			log_printf(LL_ERROR, "FOUND TEXTURE 0x%08x WITH UNKNOWN FORMAT!!!\n");
 		}
+
+#ifdef DUMP_TEXTURES
+		dumpTextureToFile(a, buf);
+#endif
 			
 	} else {
 		int (__cdecl *PCread)(void *, void *, uint32_t) = 0x004e4ca0;
@@ -2021,7 +2325,7 @@ void WINMAIN_SwitchResolution(int mode) {
 
 uint16_t PixelAspectYFov = 0x1000;
 
-void m3dinit_setresolution() {
+void m3dinit_setresolution(uint32_t x, uint32_t y) {
 	int *width = 0x029d6fe4;
 	int *height = 0x029d6fe8;
 
@@ -2029,6 +2333,8 @@ void m3dinit_setresolution() {
 	uint16_t *PixelAspectY = 0x005606d0;
 	uint16_t *ResX = 0x0055ed00;
 	uint16_t *ResY = 0x0055ed18;
+
+	//log_printf(LL_DEBUG, "m3dinit_setresolution with %d %d\n", x, y);
 
 	*ResX = *width;
 	*ResY = *height;
@@ -2039,15 +2345,78 @@ void m3dinit_setresolution() {
 	*PixelAspectX = ((*ResY * 0x4000) / (*ResX * 3));
 	*PixelAspectY = 0x1000;
 
-	/*if (*ResY << 2 < *ResX * 3) {
+	if (*ResY * 4 > *ResX * 3) {
 		*PixelAspectX = 0x1000;
-		*PixelAspectY = (*ResX * 0x3000) / (*ResY << 2);
+		*PixelAspectY = (*ResX * 0x3000) / (*ResY * 4);
+	}
+	else {
+		*PixelAspectX = (*ResY * 0x4000) / (*ResX * 3);
+		*PixelAspectY = 0x1000;
+	}
+
+	/*if (*ResY * 4 < *ResX * 3) {
+		*PixelAspectX = 0x1000;
+		*PixelAspectY = (*ResX * 0x3000) / (*ResY * 4);
 	} else {
-		*PixelAspectX = (*ResY << 0xe) / (*ResY << 2);
+		*PixelAspectX = (*ResY * 0x4000) / (*ResX * 3);
 		*PixelAspectY = 0x1000;
 	}*/
 
+	// notes:
+	// adjusting PixelAspectX results in stretch/shrink along Y axis
+	// adjusting PixelAspectY results in stretch/shrink along X axis with FOV expansion
+	// seems like zoom is being used differently/wrong here
+
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = 0x2000;
+
 	//PixelAspectYFov = 4096.0f * (((float)*ResY / (float)*ResX) / (1.0f / aspectRatio));
+}
+
+struct viewport {
+	uint16_t xR;
+	uint16_t yB;
+	uint16_t xL;
+	uint16_t yT;
+	uint16_t Hither;
+	uint16_t Yon;
+	uint16_t TanHalf;
+	uint16_t Zoom;
+	uint16_t xC;
+	uint16_t yC;
+};
+
+void __cdecl m3d_rendersetup_wrapper(uint32_t a, struct viewport *vp, uint32_t c) {
+	void (__cdecl *m3d_rendersetup)(uint32_t, struct viewport *, uint32_t) = 0x0045e870;
+
+	uint16_t* PixelAspectX = 0x005606cc;
+	uint16_t* PixelAspectY = 0x005606d0;
+
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = 0x1000;
+	
+	log_printf(LL_DEBUG, "lrtb: %d, %d, %d, %d tanhalf: %d\n", vp->xL, vp->xR, vp->yT, vp->yB, vp->TanHalf);
+
+	//vp->TanHalf = SDL_tanf(90.0 / 2.0f) * 4096.0f;
+
+	m3d_rendersetup(a, vp, c);
+
+	log_printf(LL_DEBUG, "zoom: %d, xC: %d, yC: %d\n", vp->Zoom, vp->xC, vp->yC);
+
+	uint32_t *reg_screen = 0x006a0a50;
+	uint32_t *reg_x = 0x006a0b38;
+	uint32_t *reg_y = 0x006a0b3c;
+
+	//*reg_x <<= 10;
+	//*reg_y <<= 10;
+
+	//*reg_screen = 384;
+	//vp->Zoom = 304;
+
+	//*PixelAspectX = 0x1000;
+	//*PixelAspectY = 0x0800;
+
+	//vp->Zoom /= 2;
 }
 
 #define GRAPHICS_SECTION "Graphics"
@@ -2158,15 +2527,6 @@ void MENUPC_DrawMouseCursor() {
 
 }
 
-void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int d) {
-	void (__fastcall *Font_SetRGB)(void *, void *, uint8_t, uint8_t, uint8_t) = 0x0044ab10;
-	void (__fastcall *Font_Draw)(void *, void *, int, int, int, int) = 0x0044a010;
-	
-	Font_SetRGB(font, NULL, 0x60, 0x60, 0x60);
-
-	Font_Draw(font, NULL, a, b, c, d);
-}
-
 void installGfxPatches() {
 	patchJmp(0x004f5190, initDDraw);
 	patchJmp(0x004f41c0, initD3D);
@@ -2217,9 +2577,20 @@ void installGfxPatches() {
 	patchJmp(0x004cc510, SaveVidConfig);
 
 	patchJmp(0x00464620, m3dinit_setresolution);
+
+	// viewport shenanigans
 	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
-	//patchNop(0x0045ef62, 6);
-	//patchDWord(0x0045ef62 + 2, &testthing);
+	//patchDWord(0x0045eb0a + 3, &PixelAspectYFov);
+
+	//patchCall(0x00467c97, m3d_rendersetup_wrapper);
+
+	//patchNop(0x00468168, 5);	// remove bit_display
+	//patchNop(0x00467cef, 5);	// remove envirolist display
+
+	//patchNop(0x0045ee45, 10);
+	//patchNop(0x0045ee5f, 10);
+
+	// end viewport shenanigans
 
 	//patchByte(0x004ced21, 0xEB);
 	patchNop(0x004ced21, 2);	// don't brighten sky dome in nyc
@@ -2241,28 +2612,24 @@ void installGfxPatches() {
 	// don't show in-game cursor
 	patchJmp(0x004d9060, MENUPC_DrawMouseCursor);
 
-	//patchCall(0x0045df47, fixLoadScreen);
-	patchCall(0x0045dfee, fixChecklistFont);
-	patchCall(0x00415ed5, fixChecklistFont);
+	patchJmp(0x004675a0, flipPrimitives);	// use fixed flipPrimitives
 
-	// pushback stuff
+	// hack to detect billboards
+	/*patchCall(0x00461b62, D3DModel_Render_Wrapper);
+	patchCall(0x00461b1f, D3DModel_Render_Wrapper_NoRotate);
+	patchCall(0x00461af3, D3DModel_Render_Wrapper);
+	patchCall(0x00461acd, D3DModel_Render_Wrapper);
+	patchCall(0x00461a82, D3DModel_Render_Wrapper);
+	patchCall(0x00461a3f, D3DModel_Render_Wrapper);
+	patchCall(0x004619ff, D3DModel_Render_Wrapper);
 	
-	//patchDWord(0x004cfaa7 + 2, &pushbackmult);
-	//patchDWord(0x004cfaba + 2, &pushbackmult);
-	//patchDWord(0x004cfa5a + 2, &fzero);
-	//patchByte(0x004cfb28 + 1, 0xc1);	// FMUL -> FADD
-	
+	patchCall(0x00460386, RenderModelNonRotatedDummy);
+	patchCall(0x00460338, RenderModelNonRotatedDummy);*/
 
 	// pal_loadpalette - don't mess with alpha
 
 	patchJmp(0x004880d0, Pal_LoadPalette);
 
-	//patchByte(0x00488216, 0xeb);
-	//patchNop(0x00488218, 6);
-	//patchByte(0x00488234, 0xeb);
-	//patchByte(0x004881f8, 0xeb);
-
-	//patchDWord(0x00449c48 + 3, 0x808080ff);
-
+	installGraphicsHackPatches();
 	installMoviePatches();
 }

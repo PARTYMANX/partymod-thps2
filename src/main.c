@@ -12,55 +12,40 @@
 #include <input.h>
 #include <config.h>
 #include <gfx/gfx.h>
+#include <sfx.h>
+#include <options.h>
 #include <mem.h>
 #include <event.h>
 #include <window.h>
 #include <log.h>
-
-// disable the options menu entries for control and display options as they're no longer relevant
-void __fastcall OptionsMenuConstructorWrapper(uint8_t **optionsMenu) {
-	//void (__fastcall *OptionsMenuConstructor)(uint8_t **) = 0x0048185d;
-	void (__fastcall *OptionsMenuConstructor)(uint8_t **) = 0x0047eb00;
-
-	OptionsMenuConstructor(optionsMenu);
-
-	//optionsMenu[0xd9][0xc] = 0;
-	//optionsMenu[0xda][0xc] = 0;
-}
-
-void patchOptionsMenu() {
-
-	patchCall(0x0048185d, OptionsMenuConstructorWrapper);
-	// get rid of player controls menu
-	patchNop(0x0047f1f0, 5);
-	patchByte(0x0047f203, 0xeb);
-
-	// get rid of display controls menu
-	patchNop(0x0047f22d, 5);
-	patchByte(0x0047f240, 0xeb);
-}
+#include <thps1/thps1.h>
 
 // load file patch
 void patchSaveOpen() {
 	patchByte(0x004e6249 + 1, 0);	// change file open for loading saves/replays to read instead of read and write
 }
 
-// bad autokick patch - not very graceful but it works until we can integrate it back into the menus
-uint32_t autokickSetting = 1;
+uint8_t flag_thps1career = 0;
 
-void handleAutokickOverride() {
-	uint32_t *autokickstate = 0x00567038;
-	uint32_t *autokickstate2 = 0x0055c88c;
+void processArgs() {
+	//printf("PROCESSING ARGS\n");
+	WCHAR *cmd = GetCommandLineW();
+	int argc = 0;
+	char** argv = CommandLineToArgvW(cmd, &argc);
 
-	*autokickstate = autokickSetting;
-	*autokickstate2 = autokickSetting;
-}
+	//printf("%d ARGS IN %ls\n", argc, cmd);
 
-void loadAutokickSetting() {
-	autokickSetting = getConfigBool("Miscellaneous", "Autokick", 1);
+	for (int i = 0; i < argc; i++) {
+		//printf("ARG %d: %ls\n", i, argv[i]);
+		if (wcscmp(argv[i], L"-thps1career") == 0) {
+			flag_thps1career = 1;
+		}
+	}
 }
 
 void initPatch() {
+	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
 	GetModuleFileName(NULL, &executableDirectory, filePathBufLen);
 
 	// find last slash
@@ -68,6 +53,8 @@ void initPatch() {
 	if (exe) {
 		*(exe + 1) = '\0';
 	}
+
+	processArgs();
 
 	char configFile[1024];
 	sprintf(configFile, "%s%s", executableDirectory, CONFIG_FILE_NAME);
@@ -98,9 +85,16 @@ void initPatch() {
 
 	initEvents();
 
-	loadAutokickSetting();
-
 	log_printf(LL_INFO, "Patch Initialized\n");
+
+	//dumpAudioBanks();
+
+	if (getConfigBool("Miscellaneous", "THPS1Career", 0) || flag_thps1career) {
+		log_printf(LL_INFO, "THPS1 Career Enabled!\n");
+		patchTHPS1Career();
+	} else {
+		patchTHPS1LevelFixes();
+	}
 }
 
 void fatalError(const char *msg) {
@@ -128,12 +122,13 @@ void quitGame() {
 int WinYield() {
 	int result = 0x75;
 
-	// this gets called every frame, so hack in autokick override here (dumb but it works)
-	handleAutokickOverride();
-
 	handleEvents();
 
 	return result;
+}
+
+void patchDebugLog() {
+	patchJmp(0x004cca60, log_debug_printf);
 }
 
 void patchWindowAndInit() {
@@ -158,8 +153,11 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			installInputPatches();
 			installGfxPatches();
 			installMemPatches();
+			installSfxPatches();
+			installOptionsPatches();
 			patchSaveOpen();
-			patchOptionsMenu();
+
+			//patchDebugLog();
 
 			//installAltMemManager();
 

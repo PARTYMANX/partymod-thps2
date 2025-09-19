@@ -52,17 +52,35 @@ char *get_log_level() {
 
 void log_printf(logLevel level, char *fmt, ...) {
 	va_list args;
-	
+
 	if (level <= currentLevel) {
 		va_start(args, fmt);
 		if (logToConsole) {
 			vprintf(fmt, args);
 		}
-		
+
 		if (logFile) {
 			vfprintf(logFile, fmt, args);
 		}
 
 		va_end(args);
 	}
-};
+}
+
+// useful for replacing built-in printf funcs
+void log_debug_printf(char *fmt, ...) {
+	va_list args;
+
+	if (LL_DEBUG <= currentLevel) {
+		va_start(args, fmt);
+		if (logToConsole) {
+			vprintf(fmt, args);
+		}
+
+		if (logFile) {
+			vfprintf(logFile, fmt, args);
+		}
+
+		va_end(args);
+	}
+}

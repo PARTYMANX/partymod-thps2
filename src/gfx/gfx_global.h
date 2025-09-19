@@ -1,6 +1,8 @@
 #ifndef _GFX_GLOBAL_H_
 #define _GFX_GLOBAL_H_
 
+#include <stdint.h>
+
 #include <gfx/vk/gfx_vk.h>
 
 partyRenderer *renderer;
