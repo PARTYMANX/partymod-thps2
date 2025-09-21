@@ -629,6 +629,16 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 				}
 				
 				break;
+			case LEVEL_CRC_ROSWELL:
+				// force bias
+				if (tex->tex_checksum == 0xf531c535 ||	// restricted area warning sign
+					tex->tex_checksum == 0xa4fbc26e) {	// top secret warning sign
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags &= ~0x10;
+				}
+				break;
 			default:
 				break;
 			}
