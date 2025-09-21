@@ -243,6 +243,10 @@ void build_pushbacks() {
 			// push 'NOEL' sign forward
 			modelPushbacks[(2000 * i) + 348] = -64;
 			modelPushbacks[(2000 * i) + 349] = -64;
+
+			// push wall back to reveal graffiti
+			modelPushbacks[(2000 * i) + 546] = 128;
+			modelPushbacks[(2000 * i) + 555] = 128;
 		}
 		break;
 		default:
@@ -584,7 +588,8 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 				break;
 			case LEVEL_CRC_STREETS:
 				// do not bias
-				if (tex->tex_checksum == 0x133533d0 ||	// noel
+				if (tex->tex_checksum == 0x10b9b22c ||	// chinatown statue
+					tex->tex_checksum == 0x133533d0 ||	// noel
 					tex->tex_checksum == 0x3444bb20 ||	// big ramp truss
 					tex->tex_checksum == 0x20855154 ||	// door
 					tex->tex_checksum == 0x59080df8) {	// truss
@@ -603,6 +608,26 @@ int setDepthWrapper(int face, int unk, float bias, float unk2) {
 					tex->flags |= 0x10;
 					*faceflags &= ~0x40;
 				}
+
+				// prevent biasing on fountain water to avoid seeing it through the fountain itself
+				if (*model_id == 183 || *model_id == 207 || *model_id == 208) {
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags |= 0x10;
+					*faceflags &= ~0x40;
+					additional_ot_pushback = -128;
+				}
+
+				// force bias on hubba hideout drains and fountain spouts
+				if (*model_id == 649 || *model_id == 650 || *model_id == 651 ||
+					*model_id == 440 || *model_id == 441 || *model_id == 442 || *model_id == 443) {
+					modified_tex_flags = 1;
+					orig_tex_flags = tex->flags;
+
+					tex->flags &= ~0x10;
+				}
+				
 				break;
 			default:
 				break;

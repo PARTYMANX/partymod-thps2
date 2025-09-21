@@ -911,8 +911,9 @@ const SLevel sf = {
     .MedalsToUnlock = 2,
     .Crowd = 0,
     .ExtraPolyBuffer = {
-        0,
-        0
+        // tons of extra poly buffer for the views that fit practically the whole level with max view distance
+        0x20000,
+        0x20000,
     },
     .TrickTipMask = {
         0x0,
