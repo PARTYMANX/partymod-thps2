@@ -3,7 +3,7 @@
 
 #define VERSION_NUMBER_MAJOR 1
 #define VERSION_NUMBER_MINOR 1
-#define VERSION_NUMBER_PATCH 1
+#define VERSION_NUMBER_PATCH 2
 
 #define filePathBufLen 1024
 char executableDirectory[filePathBufLen];

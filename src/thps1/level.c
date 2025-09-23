@@ -660,7 +660,7 @@ const SLevel jam = {
     },
     .pGoalsImage = "s2levl12.bmp",
     .CashToUnlock = 13,
-    .MedalsToUnlock = 1,
+    .MedalsToUnlock = 0,
     .Crowd = 0,
     .ExtraPolyBuffer = {
         0x0,
@@ -784,7 +784,7 @@ const SLevel burnside = {
     },
     .pGoalsImage = "s2levl11.bmp",
     .CashToUnlock = 18,
-    .MedalsToUnlock = 1,
+    .MedalsToUnlock = 0,
     .Crowd = 0,
     .ExtraPolyBuffer = {
         0x0,
@@ -1033,7 +1033,7 @@ const SLevel roswell = {
     },
     .pGoalsImage = "s2levl11.bmp",
     .CashToUnlock = 26,
-    .MedalsToUnlock = 2,
+    .MedalsToUnlock = 0,
     .Crowd = 0,
     .ExtraPolyBuffer = {
         0x0,

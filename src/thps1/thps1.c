@@ -88,7 +88,7 @@ void completeDummyGoals() {
 }
 
 void __cdecl updateSkaterThenPlayAway() {
-    void (*__cdecl PlayAway)() = 0x0046a330;
+    void (* __cdecl PlayAway)() = 0x0046a330;
 
     updateSkaterStats();
 
@@ -98,7 +98,7 @@ void __cdecl updateSkaterThenPlayAway() {
 }
 
 void career_init_wrapper() {
-    void(__cdecl * career_init)() = 0x004138f0;
+    void (__cdecl *career_init)() = 0x004138f0;
 
     career_init();
 
@@ -106,7 +106,7 @@ void career_init_wrapper() {
     for (int i = 0; i < 0x11; i++) {
         uint32_t skaterprof = 0x005656cc + (i * 0x104);
 
-        uint32_t* cur_decks = skaterprof + 52;
+        uint32_t *cur_decks = skaterprof + 52;
         *cur_decks |= 0x02;
     }
 }
@@ -142,7 +142,7 @@ void dumpAudioBanks() {
 }
 
 uint32_t SFX_PlayPos_Wrapper_Bounds(uint32_t sound_id, struct CVector* pos, uint32_t pitch_offset) {
-    uint32_t(__cdecl * SFX_PlayPos)(uint32_t, struct CVector*, uint32_t) = 0x004ab0b0;
+    uint32_t (__cdecl *SFX_PlayPos)(uint32_t, struct CVector*, uint32_t) = 0x004ab0b0;
 
     // the streets sliding door gives a 16-bit -1 for the sound, so treat that like you'd treat 32-bit -1
     if (sound_id == 65535) {
