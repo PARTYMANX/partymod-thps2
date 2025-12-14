@@ -157,6 +157,8 @@ __declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, L
 			installOptionsPatches();
 			patchSaveOpen();
 
+			installFreecam();
+
 			//patchDebugLog();
 
 			//installAltMemManager();

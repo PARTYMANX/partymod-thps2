@@ -1,7 +1,9 @@
 // houses graphics hacks for specific things like levels and menus.  stuff like manual Z-biasing lives here
 
+#include <stdio.h>
 #include <stdint.h>
 
+#include <event.h>
 #include <log.h>
 #include <patch.h>
 #include <util.h>
@@ -701,4 +703,362 @@ void installGraphicsHackPatches() {
 	patchCall(0x004cf4b4, setDepthWrapper);
 
 	patchGoalPercentagePosition();
+}
+
+#include <math.h>
+#define PI 3.1415926
+//#include <SDL2/SDL.h>
+
+struct Matrix {
+	int16_t m[3][3];
+	int32_t t[3];
+};
+
+struct fMatrix {
+	float m[3][3];
+};
+
+void quat_from_euler(float *dst, float pitch, float yaw, float roll) {
+	pitch = (pitch / 180.0f) * PI;
+	yaw = (yaw / 180.0f) * PI;
+	roll = (roll / 180.0f) * PI;
+
+	float t0 = cosf(roll * 0.5f);
+	float t1 = sinf(roll * 0.5f);
+	float t2 = cosf(pitch * 0.5f);
+	float t3 = sinf(pitch * 0.5f);
+	float t4 = cosf(yaw * 0.5f);
+	float t5 = sinf(yaw * 0.5f);
+
+	dst[3] = t0 * t2 * t4 + t1 * t3 * t5;
+	dst[0] = t0 * t3 * t4 - t1 * t2 * t5;
+	dst[1] = t0 * t2 * t5 + t1 * t3 * t4;
+	dst[2] = t1 * t2 * t4 - t0 * t3 * t5;
+}
+
+void matrix_from_quat(float *q, struct fMatrix *dst) {
+	float wsq = q[3] * q[3];
+	float xsq = q[0] * q[0];
+	float ysq = q[1] * q[1];
+	float zsq = q[2] * q[2];
+	float x2 = q[0] * 2.0f;
+	float y2 = q[1] * 2.0f;
+	float w2 = q[3] * 2.0f;
+	float xy = x2 * q[1];
+	float xz = x2 * q[2];
+	float yz = y2 * q[2];
+	float wx = w2 * q[0];
+	float wy = w2 * q[1];
+	float wz = w2 * q[2];
+
+	dst->m[0][0] = wsq + xsq - ysq - zsq;
+	dst->m[0][1] = xy - wz;
+	dst->m[0][2] = xz + wy;
+
+	dst->m[1][0] = xy + wz;
+	dst->m[1][1] = wsq - xsq + ysq - zsq;
+	dst->m[1][2] = yz - wx;
+
+	dst->m[2][0] = xz - wy;
+	dst->m[2][1] = yz + wx;
+	dst->m[2][2] = wsq - xsq - ysq + zsq;
+}
+
+void matrix_mult(struct fMatrix *a, struct fMatrix *b, struct fMatrix *dst) {
+	dst->m[0][0] = a->m[0][0] * b->m[0][0] + a->m[0][1] * b->m[1][0] + a->m[0][2] * b->m[2][0];
+	dst->m[0][1] = a->m[0][0] * b->m[0][1] + a->m[0][1] * b->m[1][1] + a->m[0][2] * b->m[2][1];
+	dst->m[0][2] = a->m[0][0] * b->m[0][2] + a->m[0][1] * b->m[1][2] + a->m[0][2] * b->m[2][2];
+
+	dst->m[1][0] = a->m[1][0] * b->m[0][0] + a->m[1][1] * b->m[1][0] + a->m[1][2] * b->m[2][0];
+	dst->m[1][1] = a->m[1][0] * b->m[0][1] + a->m[1][1] * b->m[1][1] + a->m[1][2] * b->m[2][1];
+	dst->m[1][2] = a->m[1][0] * b->m[0][2] + a->m[1][1] * b->m[1][2] + a->m[1][2] * b->m[2][2];
+
+	dst->m[2][0] = a->m[2][0] * b->m[0][0] + a->m[2][1] * b->m[1][0] + a->m[2][2] * b->m[2][0];
+	dst->m[2][1] = a->m[2][0] * b->m[0][1] + a->m[2][1] * b->m[1][1] + a->m[2][2] * b->m[2][1];
+	dst->m[2][2] = a->m[2][0] * b->m[0][2] + a->m[2][1] * b->m[1][2] + a->m[2][2] * b->m[2][2];
+}
+
+void matrix_mult_vec(float *v, struct fMatrix *m, float *dst) {
+	dst[0] = m->m[0][0] * v[0] + m->m[0][1] * v[1] + m->m[0][2] * v[2];
+	dst[1] = m->m[1][0] * v[0] + m->m[1][1] * v[1] + m->m[1][2] * v[2];
+	dst[2] = m->m[2][0] * v[0] + m->m[2][1] * v[1] + m->m[2][2] * v[2];
+}
+
+void vec_inc(float *a, float *b) {
+	a[0] += b[0];
+	a[1] += b[1];
+	a[2] += b[2];
+}
+
+void vec_mult_s(float *v, float s) {
+	v[0] *= s;
+	v[1] *= s;
+	v[2] *= s;
+}
+
+struct SCamera {
+	uint32_t style;
+	int32_t position[4];
+	int32_t focus[4];
+	int32_t distance;
+	int32_t height;
+	int16_t angles[4];
+	struct Matrix transform;
+	struct Matrix inverse;
+	struct Matrix view;
+	int32_t up[4];
+};
+
+uint8_t freecam_enable = 0;
+
+uint8_t freecam_init = 0;
+uint32_t freecam_level = 0;
+
+float freecam_position[3] = { 0.0f, 0.0f, 0.0f };
+float freecam_rotation[3] = { 0.0f, 0.0f, 0.0f };	// euler angle of camera
+int32_t freecam_mousemove[2] = { 0, 0 };
+
+void freecamEvent(SDL_Event* e) {
+	switch (e->type) {
+		case SDL_CONTROLLERBUTTONDOWN:
+			return;
+		case SDL_CONTROLLERAXISMOTION:
+			return;
+		case SDL_MOUSEMOTION: {
+			if (freecam_enable) {
+				freecam_mousemove[0] += e->motion.xrel;
+				freecam_mousemove[1] += e->motion.yrel;
+			}
+			return;
+		}
+		case SDL_KEYDOWN: 
+			if (!e->key.repeat) {
+				if (e->key.keysym.scancode == SDL_SCANCODE_F1) {
+					freecam_enable = !freecam_enable;
+					SDL_SetRelativeMouseMode(freecam_enable);
+				}
+			}
+			return;
+		default:
+			return 0;
+	}
+}
+
+void dumpCameraInfo(struct SCamera *cam, void *viewport, void *ot) {
+	void (__cdecl *M3d_RenderSetup)(struct SCamera *, void *, void *) = 0x0045e870;
+
+	if (!freecam_init) {
+		registerEventHandler(freecamEvent);
+
+		// init freecam position to original cam position
+		freecam_position[0] = ((float)cam->position[0]) / 4096.0f;
+		freecam_position[1] = ((float)cam->position[1]) / 4096.0f;
+		freecam_position[2] = ((float)cam->position[2]) / 4096.0f;
+
+		freecam_level = current_level;
+
+		freecam_init = 1;
+	}
+
+	if (current_level != freecam_level) {
+		// init freecam position to original cam position
+		freecam_position[0] = ((float)cam->position[0]) / 4096.0f;
+		freecam_position[1] = ((float)cam->position[1]) / 4096.0f;
+		freecam_position[2] = ((float)cam->position[2]) / 4096.0f;
+
+		freecam_level = current_level;
+	}
+
+	if (freecam_enable) {
+		// do freecam update
+		uint32_t numKeys = 0;
+		uint8_t* keyboardState = SDL_GetKeyboardState(&numKeys);
+
+		freecam_rotation[1] += 0.1f * (float)(freecam_mousemove[0]);
+		freecam_rotation[0] += 0.1f * -(float)(freecam_mousemove[1]);
+
+		if (freecam_rotation[0] > 90.0f) {
+			freecam_rotation[0] = 90.0f;
+		}
+		if (freecam_rotation[0] < -90.0f) {
+			freecam_rotation[0] = -90.0f;
+		}
+
+		freecam_mousemove[0] = 0.0f;
+		freecam_mousemove[1] = 0.0f;
+
+		float freecam_q[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+		quat_from_euler(freecam_q, freecam_rotation[0], freecam_rotation[1], freecam_rotation[2]);
+
+		//printf("EULER: %f %f %f\n", freecam_rotation[0], freecam_rotation[1], freecam_rotation[2]);
+		//printf("QUATE: %f %f %f %f\n", freecam_q[0], freecam_q[1], freecam_q[2], freecam_q[3]);
+
+		float ident_mat[3][3] = {
+			{ -1.0f, 0.0f, 0.0f },
+			{ 0.0f, 1.0f, 0.0f },
+			{ 0.0f, 0.0f, -1.0f },
+		};
+
+		float rotation_mat[3][3];
+		float freecam_mat[3][3];
+
+		matrix_from_quat(freecam_q, rotation_mat);
+		matrix_mult(ident_mat, rotation_mat, freecam_mat);
+
+		float abs_fw[3] = { 0.0f, 0.0f, 1.0f };
+		float abs_ri[3] = { -1.0f, 0.0f, 0.0f };
+		float abs_up[3] = { 0.0f, 1.0f, 0.0f };
+
+		float freecam_fw[3];
+		float freecam_ri[3];
+		float freecam_up[3];
+
+		matrix_mult_vec(abs_fw, freecam_mat, freecam_fw);
+		matrix_mult_vec(abs_ri, freecam_mat, freecam_ri);
+		matrix_mult_vec(abs_up, freecam_mat, freecam_up);
+
+		float movespeed = 0.01f;
+		if (keyboardState[SDL_SCANCODE_LSHIFT]) {
+			movespeed *= 10.0f;
+		}
+
+		if (keyboardState[SDL_SCANCODE_W]) {
+			float move[3] = { freecam_fw[0], freecam_fw[1], freecam_fw[2] };
+			vec_mult_s(move, movespeed);
+			vec_inc(freecam_position, move);
+
+			//printf("\MOVE: %f %f %f\n", move[0], move[1], move[2]);
+		}
+		if (keyboardState[SDL_SCANCODE_S]) {
+			float move[3] = { freecam_fw[0], freecam_fw[1], freecam_fw[2] };
+			vec_mult_s(move, -movespeed);
+			vec_inc(freecam_position, move);
+		}
+		if (keyboardState[SDL_SCANCODE_A]) {
+			float move[3] = { freecam_ri[0], freecam_ri[1], freecam_ri[2] };
+			vec_mult_s(move, movespeed);
+			vec_inc(freecam_position, move);
+		}
+		if (keyboardState[SDL_SCANCODE_D]) {
+			float move[3] = { freecam_ri[0], freecam_ri[1], freecam_ri[2] };
+			vec_mult_s(move, -movespeed);
+			vec_inc(freecam_position, move);
+		}
+			
+
+		/*
+		printf("CAMERA INFO: \n");
+		printf("\tSTYLE: %d\n", cam->style);
+		printf("\tPOSITION: %d %d %d\n", cam->position[0], cam->position[1], cam->position[2]);
+		printf("\tFOCUS: %d %d %d\n", cam->focus[0], cam->focus[1], cam->focus[2]);
+		//printf("\tDISTANCE: %d\n", cam->distance);
+		//printf("\tHEIGHT: %d\n", cam->height);
+		printf("\tTRANSFORM:\n");
+		printf("\t\t%f %f %f\n", ((float)cam->transform.m[0][0]) / 4096.0f, ((float)cam->transform.m[0][1]) / 4096.0f, ((float)cam->transform.m[0][2]) / 4096.0f);
+		printf("\t\t%f %f %f\n", ((float)cam->transform.m[1][0]) / 4096.0f, ((float)cam->transform.m[1][1]) / 4096.0f, ((float)cam->transform.m[1][2]) / 4096.0f);
+		printf("\t\t%f %f %f\n", ((float)cam->transform.m[2][0]) / 4096.0f, ((float)cam->transform.m[2][1]) / 4096.0f, ((float)cam->transform.m[2][2]) / 4096.0f);
+		printf("\t\t%f %f %f\n", ((float)cam->transform.t[0]) / 4096.0f, ((float)cam->transform.t[1]) / 4096.0f, ((float)cam->transform.t[2]) / 4096.0f);
+		printf("\tANGLES: %d %d %d %d\n", cam->angles[0], cam->angles[1], cam->angles[2], cam->angles[3]);
+		printf("\tUP: %d %d %d\n", cam->up[0], cam->up[1], cam->up[2]);
+		*/
+
+		cam->position[0] = (int32_t)(freecam_position[0] * 4096);
+		cam->position[1] = (int32_t)(freecam_position[1] * 4096);
+		cam->position[2] = (int32_t)(freecam_position[2] * 4096);
+
+		cam->focus[0] = 0;
+		cam->focus[1] = 0;
+		cam->focus[2] = 0;
+
+		/*
+		cam->transform.m[0][0] = -4096;
+		cam->transform.m[0][1] = 0;
+		cam->transform.m[0][2] = 0;
+
+		cam->transform.m[1][0] = 0;
+		cam->transform.m[1][1] = 4096;
+		cam->transform.m[1][2] = 0;
+
+		cam->transform.m[2][0] = 0;
+		cam->transform.m[2][1] = 0;
+		cam->transform.m[2][2] = -4096;
+		*/
+
+		cam->transform.m[0][0] = (int32_t)(freecam_mat[0][0] * 4096);
+		cam->transform.m[0][1] = (int32_t)(freecam_mat[0][1] * 4096);
+		cam->transform.m[0][2] = (int32_t)(freecam_mat[0][2] * 4096);
+
+		cam->transform.m[1][0] = (int32_t)(freecam_mat[1][0] * 4096);
+		cam->transform.m[1][1] = (int32_t)(freecam_mat[1][1] * 4096);
+		cam->transform.m[1][2] = (int32_t)(freecam_mat[1][2] * 4096);
+
+		cam->transform.m[2][0] = (int32_t)(freecam_mat[2][0] * 4096);
+		cam->transform.m[2][1] = (int32_t)(freecam_mat[2][1] * 4096);
+		cam->transform.m[2][2] = (int32_t)(freecam_mat[2][2] * 4096);
+
+		cam->transform.t[0] = 0;
+		cam->transform.t[1] = 0;
+		cam->transform.t[2] = 0;
+
+		//cam->angles[0] = 0;
+		//cam->angles[1] = 0;
+		//cam->angles[2] = 0;
+		//cam->angles[3] = 4096;
+
+		//cam->view[0][0] = 4096;
+		//cam->view[0][2] = 4096;
+		//cam->view[0][3] = 4096;
+	}
+
+	M3d_RenderSetup(cam, viewport, ot);
+}
+
+void freecam_front_display() {
+	void (__cdecl *Front_Display)() = 0x0044ca00;
+
+	if (!freecam_enable) {
+		Front_Display();
+	}
+}
+
+void freecam_front_update() {
+	void (__cdecl *Front_Update)() = 0x0044ea50;
+
+	if (!freecam_enable) {
+		Front_Update();
+	}
+}
+
+void freecam_mess_display() {
+	void (__cdecl *Mess_Display)() = 0x00473750;
+
+	if (!freecam_enable) {
+		Mess_Display();
+	}
+}
+
+void freecam_panel_display() {
+	void (__cdecl *Panel_Display)() = 0x0048a980;
+
+	if (!freecam_enable) {
+		Panel_Display();
+	}
+}
+
+void freecam_mick_darken() {
+	void (__cdecl *Mick_Darken)() = 0x00466d70;
+
+	if (!freecam_enable) {
+		Mick_Darken();
+	}
+}
+
+void installFreecam() {
+	patchCall(0x00467c97, dumpCameraInfo);
+	patchCall(0x00468837, freecam_front_display);
+	patchCall(0x0046882d, freecam_front_update);
+	patchCall(0x0046883c, freecam_mess_display);
+	patchCall(0x00468823, freecam_panel_display);
+	patchCall(0x0046890b, freecam_mick_darken);
 }
