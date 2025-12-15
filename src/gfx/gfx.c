@@ -2527,6 +2527,82 @@ void MENUPC_DrawMouseCursor() {
 
 }
 
+void transformProjectModelVerticesWrapper(void *a, uint32_t num) {
+	void (__cdecl *transformProjectModelVertices)(void *, void *) = 0x004cfbf0;
+
+	transformProjectModelVertices(a, num);
+
+	struct viewport* pCurrentViewport = *((struct viewport**)0x00560698);
+	int16_t *data = (int16_t*)a;
+	float *modelVertHeap = 0x0056d4c8;
+	float **otherheap = 0x0056d4e0;
+	uint32_t *renderModelFlags = 0x0057b4d4;
+	uint16_t *PixelAspectX = 0x005606cc;
+
+	// re-process billboard vertices
+	for (int i = 0; i < num; i++) {
+		int16_t *vertexData = data + (4 * i);
+		float *vertexOutputData = modelVertHeap + (7 * i);
+
+		if (vertexData[3] & 0x10) {
+			float pixelAspectCorrection = ((float)*PixelAspectX) / 4096.0f;
+			float scaleFactor = vertexData[2];
+
+			uint16_t minIdx = ((vertexData[0] >> 3) * 7);
+			float *min = modelVertHeap + minIdx;
+			if (otherheap[minIdx]) {
+				min = otherheap[minIdx];
+			}
+
+			uint16_t maxIdx = ((vertexData[1] >> 3) * 7);
+			float *max = modelVertHeap + maxIdx;
+			if (otherheap[maxIdx]) {
+				min = otherheap[maxIdx];
+			}
+
+			float dx = (max[0] - min[0]) * (0.625 * pixelAspectCorrection);	// scaled to correct warping caused by 4:3 correction and larger billboard
+			float ndy = -(max[1] - min[1]);
+
+			float sq = sqrtf((dx * dx) + (ndy * ndy));
+
+			vertexOutputData[0] = (ndy / sq) * scaleFactor * min[3] * 1.6 + min[0];	// scaled by 1.6 to correct billboard for 4:3 scaling
+			vertexOutputData[1] = (dx / sq) * scaleFactor * min[3] + min[1];
+			vertexOutputData[2] = min[2];
+			vertexOutputData[3] = min[3];
+			vertexOutputData[6] = 0.0f;
+
+			uint32_t *outflags = vertexOutputData + 5;
+			*outflags = 0;
+			if (vertexOutputData[0] < pCurrentViewport->xL) {
+				*outflags |= 0x01;
+			}
+			if (pCurrentViewport->xR <= vertexOutputData[0]) {
+				*outflags |= 0x02;
+			}
+			if (vertexOutputData[1] < pCurrentViewport->yT) {
+				*outflags |= 0x04;
+			}
+			if (pCurrentViewport->yB <= vertexOutputData[1]) {
+				*outflags |= 0x08;
+			}
+			float *Hither = 0x0057d4ec;
+			float *Yon = 0x00599f8c;
+			if (vertexOutputData[2] < *Hither) {
+				*outflags |= 0x10;
+			}
+			if (!(*renderModelFlags & 0x10) && *Yon <= vertexOutputData[2]) {
+				*outflags |= 0x20;
+			}
+
+			if (((uint32_t *)min)[5] & 0x100) {
+				*outflags |= 0x100;
+			}
+		}
+	}
+
+	//*currentZoom = tmpzoom;
+}
+
 void installGfxPatches() {
 	patchJmp(0x004f5190, initDDraw);
 	patchJmp(0x004f41c0, initD3D);
@@ -2582,14 +2658,6 @@ void installGfxPatches() {
 	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
 	//patchDWord(0x0045eb0a + 3, &PixelAspectYFov);
 
-	//patchCall(0x00467c97, m3d_rendersetup_wrapper);
-
-	//patchNop(0x00468168, 5);	// remove bit_display
-	//patchNop(0x00467cef, 5);	// remove envirolist display
-
-	//patchNop(0x0045ee45, 10);
-	//patchNop(0x0045ee5f, 10);
-
 	// end viewport shenanigans
 
 	//patchByte(0x004ced21, 0xEB);
@@ -2614,20 +2682,11 @@ void installGfxPatches() {
 
 	patchJmp(0x004675a0, flipPrimitives);	// use fixed flipPrimitives
 
-	// hack to detect billboards
-	/*patchCall(0x00461b62, D3DModel_Render_Wrapper);
-	patchCall(0x00461b1f, D3DModel_Render_Wrapper_NoRotate);
-	patchCall(0x00461af3, D3DModel_Render_Wrapper);
-	patchCall(0x00461acd, D3DModel_Render_Wrapper);
-	patchCall(0x00461a82, D3DModel_Render_Wrapper);
-	patchCall(0x00461a3f, D3DModel_Render_Wrapper);
-	patchCall(0x004619ff, D3DModel_Render_Wrapper);
-	
-	patchCall(0x00460386, RenderModelNonRotatedDummy);
-	patchCall(0x00460338, RenderModelNonRotatedDummy);*/
+	// billboard rendering fix
+	patchCall(0x004cea5f, transformProjectModelVerticesWrapper);
+	patchJmp(0x004cfc2a, 0x004cff94);	// skip processing billboard vertices the first time
 
 	// pal_loadpalette - don't mess with alpha
-
 	patchJmp(0x004880d0, Pal_LoadPalette);
 
 	installGraphicsHackPatches();
