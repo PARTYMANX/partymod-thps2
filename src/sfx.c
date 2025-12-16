@@ -3,6 +3,7 @@
 #include <patch.h>
 #include <log.h>
 #include <util/sb.h>
+#include <math.h>
 
 // extremely complex patch to manage looping sounds created by vehicles:
 // the game's original behavior meant only one vehicle could have working sound.
@@ -250,6 +251,33 @@ void SFX_ModifyVol_Wrapper(uint32_t id, uint32_t l, uint32_t r) {
 	SFX_ModifyVol(p_sound->sound_handle, l, r);
 }
 
+int32_t fixed_cos(int32_t in) {
+	float in_float = ((float)in / 4095.0f);
+	in_float = cosf(in_float);
+	return (int32_t)(in_float * 4095.0f);
+}
+
+int32_t fixed_atan2(int32_t a, int32_t b) {
+	int32_t (__cdecl *orig_ratan2)(int32_t, int32_t) = 0x004e5730;
+
+	//log_printf(LL_DEBUG, "ATAN2: %d, %d\n", a, b);
+
+	float a_float = ((float)a / 4095.0f);
+	float b_float = ((float)b / 4095.0f);
+
+	float result = atan2f(b, a);
+
+	log_printf(LL_DEBUG, "ATAN2: %d, %d = %f (%d vs %d)\n", a, b, result * (180.0f / 3.14159f), (int32_t)(result * (2048.0f / 3.14159f)), orig_ratan2(a, b));
+
+	return (int32_t)(result * (2048.0f / 3.14159f));
+}
+
+void patchPositionalSFX() {
+	patchCall(0x004c7a9f, fixed_cos);
+	patchCall(0x004c7ac7, fixed_cos);
+	patchCall(0x004c7a65, fixed_atan2);
+}
+
 void patchCarSFX() {
 	patchCall(0x0041276a, SFX_PlayPos_Wrapper);
 	patchCall(0x004129c3, SFX_ModifyPos_Wrapper);
@@ -259,4 +287,5 @@ void patchCarSFX() {
 
 void installSfxPatches() {
 	patchCarSFX();
+	//patchPositionalSFX();
 }

@@ -2351,7 +2351,8 @@ void m3dinit_setresolution(uint32_t x, uint32_t y) {
 	}
 	else {
 		*PixelAspectX = (*ResY * 0x4000) / (*ResX * 3);
-		*PixelAspectY = 0x1000;
+		//*PixelAspectX = ((((float)*ResY) * aspectRatio) / ((float)*ResX)) * 4096.0f;
+		*PixelAspectY = ((4.0f / 3.0f) / aspectRatio) * 4096.0f;
 	}
 
 	/*if (*ResY * 4 < *ResX * 3) {
@@ -2599,8 +2600,6 @@ void transformProjectModelVerticesWrapper(void *a, uint32_t num) {
 			}
 		}
 	}
-
-	//*currentZoom = tmpzoom;
 }
 
 void installGfxPatches() {
@@ -2655,8 +2654,7 @@ void installGfxPatches() {
 	patchJmp(0x00464620, m3dinit_setresolution);
 
 	// viewport shenanigans
-	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);
-	//patchDWord(0x0045eb0a + 3, &PixelAspectYFov);
+	//patchDWord(0x0045e9e9 + 2, &PixelAspectYFov);	// NOTE: makes billboards a bit too wide, needs correction
 
 	// end viewport shenanigans
 

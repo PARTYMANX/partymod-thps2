@@ -353,9 +353,11 @@ VkResult createRenderPipelines(partyRenderer *renderer) {
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 			.binding = 0,
 			.descriptorCount = 2048,
-			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,	// don't combine image and sampler
 			.pImmutableSamplers = NULL,
 		},
+		// TODO: add descriptor for 2 samplers: one clamped, one unclamped.  maybe even four for filtering modes...
+		// if we go with four, we can use immutable samplers to avoid binding
 	};
 
 	VkDescriptorSetLayoutCreateInfo descInfo = {
