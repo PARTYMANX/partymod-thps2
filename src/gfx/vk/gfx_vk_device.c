@@ -238,10 +238,12 @@ VkResult createVulkanDevice(struct pmVkWindow *window, struct pmVkDevice **devic
 	r = getPhysicalDevice(window, &(result->physicalDevice));
 	if (r || result->physicalDevice.device == VK_NULL_HANDLE) {
 		log_printf(LL_ERROR, "Failed to get physical device!\n");
-		free(result);
+		
 		if (result->physicalDevice.device == VK_NULL_HANDLE) {
+			free(result);
 			return VK_ERROR_INITIALIZATION_FAILED;	// this is a bit of a bad idea since it's not our error, but it'll work
 		} else {
+			free(result);
 			return r;
 		}
 		

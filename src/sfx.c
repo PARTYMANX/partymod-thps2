@@ -170,7 +170,7 @@ void __fastcall BaddyDeleteWrapper(int self) {
 	// find our sound, if it exists
 	uint32_t emitter_id = *(uint32_t *)(self + 0x1d0);
 
-	if (emitter_id) {
+	if (emitter_id != -1) {
 		*(uint32_t *)(self + 0x1d0) = -1;	// make our sound handle invalid so it doesn't delete a sound used by another emitter
 
 		// find sound in list
