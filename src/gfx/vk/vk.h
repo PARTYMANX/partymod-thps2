@@ -241,7 +241,7 @@ void destroyBuffer(partyRenderer *renderer, pmVkBuffer *buffer);
 void *mapBuffer(partyRenderer *renderer, pmVkBuffer *buffer);
 void unmapBuffer(partyRenderer *renderer, pmVkBuffer *buffer);
 
-void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t height, VkFormat colorFmt, VkFormat depthFmt);
+VkResult createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t height, VkFormat colorFmt, VkFormat depthFmt);
 void destroyRenderTargets(partyRenderer *renderer);
 
 pmVkDescriptorAllocator *init_descriptors(partyRenderer *renderer, uint32_t max_sets, struct PoolSizeRatio *poolRatios, size_t poolRatioCount);

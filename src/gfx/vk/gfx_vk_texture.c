@@ -16,7 +16,9 @@ uint8_t isDepthFormat(VkFormat format) {
 		format == VK_FORMAT_D32_SFLOAT_S8_UINT);
 }
 
-void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t height, VkFormat colorFmt, VkFormat depthFmt) {
+VkResult createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t height, VkFormat colorFmt, VkFormat depthFmt) {
+	VkResult r = VK_SUCCESS;
+
 	renderer->depthImage.type = VK_IMAGE_TYPE_2D;
 	renderer->depthImage.pixelFormat = depthFmt;
 
@@ -65,18 +67,20 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	};
 
 	log_printf(LL_TRACE, "createRenderTargets(): depth image\n");
-	if (vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(renderer->depthImage.image)) != VK_SUCCESS) {
+	r = vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(renderer->depthImage.image));
+	if (r != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to create depth texture!\n");
-		exit(1);
+		return r;
 	}
 
 	imgCreateInfo.format = colorFmt;
 	imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
 	log_printf(LL_TRACE, "createRenderTargets(): color image\n");
-	if (vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(renderer->renderImage.image)) != VK_SUCCESS) {
+	r = vkCreateImage(renderer->device->device, &imgCreateInfo, NULL, &(renderer->renderImage.image));
+	if (r != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to create render texture!\n");
-		exit(1);
+		return r;
 	}
 
 	// allocate memory
@@ -93,27 +97,31 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	};
 
 	log_printf(LL_TRACE, "createRenderTargets(): allocate memory for depth image\n");
-	if (vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->depthImage.image, &allocInfo, &renderer->depthImage.allocation, NULL) != VK_SUCCESS) {
+	r = vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->depthImage.image, &allocInfo, &renderer->depthImage.allocation, NULL);
+	if (r != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to allocate depth image memory!\n");
-		exit(1);
+		return r;
 	}
 
 	log_printf(LL_TRACE, "createRenderTargets(): bind memory for depth image\n");
-	if (vmaBindImageMemory(renderer->memoryManager->allocator, renderer->depthImage.allocation, renderer->depthImage.image) != VK_SUCCESS) {
+	r = vmaBindImageMemory(renderer->memoryManager->allocator, renderer->depthImage.allocation, renderer->depthImage.image);
+	if (r != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to bind depth image memory!\n");
-		exit(1);
+		return r;
 	}
 
 	log_printf(LL_TRACE, "createRenderTargets(): allocate memory for color image\n");
-	if (vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->renderImage.image, &allocInfo, &renderer->renderImage.allocation, NULL) != VK_SUCCESS) {
+	r = vmaAllocateMemoryForImage(renderer->memoryManager->allocator, renderer->renderImage.image, &allocInfo, &renderer->renderImage.allocation, NULL);
+	if (r != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to allocate color image memory!\n");
-		exit(1);
+		return r;
 	}
 
 	log_printf(LL_TRACE, "createRenderTargets(): bind memory for color image\n");
-	if (vmaBindImageMemory(renderer->memoryManager->allocator, renderer->renderImage.allocation, renderer->renderImage.image) != VK_SUCCESS) {
+	r = vmaBindImageMemory(renderer->memoryManager->allocator, renderer->renderImage.allocation, renderer->renderImage.image);
+	if (r != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to bind color image memory!\n");
-		exit(1);
+		return r;
 	}
 
 	// create image view
@@ -140,18 +148,20 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	};
 
 	log_printf(LL_TRACE, "createRenderTargets(): depth image view\n");
-	if(vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(renderer->depthImage.imageView)) != VK_SUCCESS) {
+	r = vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(renderer->depthImage.imageView));
+	if (r != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to create depth image view");
-		exit(1);
+		return r;
 	}
 
 	viewCreateInfo.image = renderer->renderImage.image;
 	viewCreateInfo.format = colorFmt;
 	viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	log_printf(LL_TRACE, "createRenderTargets(): color image view\n");
-	if(vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(renderer->renderImage.imageView)) != VK_SUCCESS) {
+	vkCreateImageView(renderer->device->device, &viewCreateInfo, NULL, &(renderer->renderImage.imageView));
+	if (r != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to create render image view");
-		exit(1);
+		return r;
 	}
 
 	// create render image sampler
@@ -185,9 +195,10 @@ void createRenderTargets(partyRenderer *renderer, uint32_t width, uint32_t heigh
 	};
 
 	log_printf(LL_TRACE, "createRenderTargets(): sampler\n");
-	if(vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &(renderer->renderSampler)) != VK_SUCCESS) {
+	r = vkCreateSampler(renderer->device->device, &samplerInfo, NULL, &(renderer->renderSampler));
+	if (r != VK_SUCCESS) {
 		log_printf(LL_ERROR, "Failed to create sampler");
-		exit(1);
+		return r;
 	}
 }
 

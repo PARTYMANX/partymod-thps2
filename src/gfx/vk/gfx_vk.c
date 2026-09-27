@@ -486,7 +486,10 @@ uint8_t CreateVKRenderer(void *windowHandle, partyRenderer **renderer) {
 	log_printf(LL_DEBUG, "Creating render targets...\n");
 
 	// create default render targets at 640x480, 4:3
-	createRenderTargets(result, 640, 480, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D16_UNORM);
+	r = createRenderTargets(result, 640, 480, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_D16_UNORM);
+	if (r) {
+		goto error_free;
+	}
 	result->aspectRatio = 4.0f / 3.0f;
 	result->renderWidth = 640;
 	result->renderHeight = 480;
