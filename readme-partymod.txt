@@ -1,24 +1,22 @@
-PARTYMOD for THPS2 1.1
+PARTYMOD for THPS2 1.0
 
-PARTYMOD is a patch for THPS2 (original release) to modernize the game to be played on today's PCs, as well as restore parts of the game that were lost in translation while porting from Playstation.
+This is a patch for THPS2 (original release) to improve its input handling as well as smooth out a few other parts of the PC port.
 The patch is designed to keep the game as original as possible, and leave its files unmodified.
 
 Features and Fixes
-- Replaces renderer with new bindless Vulkan renderer
-- Replaces input system entirely with new, modern system using the SDL2 library
-- Improves window handling allowing for custom resolutions and configurable windowing (as well as supporting high DPI scaling)
+- Replaced renderer with new bindless Vulkan renderer
+- Replaced input system entirely with new, modern system using the SDL2 library
+- Improved window handling allowing for custom resolutions and configurable windowing
 - Game resolution is now independent from window resolution, allowing the game to run at original 240p or 480p, in addition to window size
-- Replaces the gamma correction that resulted in the game looking washed out, instead using PSX-style texture color blending
-- Fixes a number of rendering bugs
-- Fixes vehicle sounds constantly resetting in NY City and Philadelphia
+- Replaced the gamma correction that resulted in the game looking washed out, instead using PSX-style texture color blending
+- Fixed a number of rendering bugs
 - Movement stick now controls menus
-- Improves cursor handling, only showing it when relevant and using the system cursor to prevent latency
-- Replaces configuration files with new INI-based system (see partymod.ini)
+- Improved cursor handling, only showing it when relevant and using the system cursor to prevent latency
+- Replaced configuration files with new INI-based system (see partymod.ini)
 - Custom configurator program to handle new configuration files
-- Fixes memory manager to prevent memory corruption and crashes related to it
-- Restores player control settings menu, allowing players to toggle vibration and autokick settings
-- Fixes loading write-protected saves
-- An experimental, optional, THPS1 career mode, converting the game to recreate the THPS1 career with THPS2's mechanics. It can be enabled with a setting or by passing -thps1career to THPS2.exe
+- Fixed memory manager to prevent memory corruption and crashes related to it
+- Added setting for autokick, allowing it to be turned off easily
+- Fixed loading saves
 
 Installation
 1. Download PARTYMOD from the releases tab
@@ -40,7 +38,7 @@ Third Party Licenses:
 
 VulkanMemoryAllocator
 
-Copyright (c) 2017-2025 Advanced Micro Devices, Inc. All rights reserved.
+Copyright (c) 2017-2026 Advanced Micro Devices, Inc. All rights reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -64,7 +62,7 @@ THE SOFTWARE.
 
 Volk
 
-Copyright (c) 2018-2024 Arseny Kapoulkine
+Copyright (c) 2018-2026 Arseny Kapoulkine
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -88,7 +86,7 @@ SOFTWARE.
 
 SDL2
 
-Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
