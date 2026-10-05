@@ -91,8 +91,6 @@ VkResult getSwapchainPresentMode(struct pmVkDevice *device, VkPresentModeKHR *mo
 	for (VkPresentModeKHR *i = presentModes; i < presentModes + presentModeCount; i++) {
 		if (*i == VK_PRESENT_MODE_MAILBOX_KHR)
 			result = *i;
-		else if (*i == VK_PRESENT_MODE_IMMEDIATE_KHR && result != VK_PRESENT_MODE_MAILBOX_KHR)
-			result = *i;
 	}
 
 	free(presentModes);

@@ -82,6 +82,11 @@ void build_pushbacks() {
 		{
 			modelPushbacks[(2000 * i) + 294] = 32;
 			modelPushbacks[(2000 * i) + 925] = 32;
+
+			// wall behind gonz rail
+			modelPushbacks[(2000 * i) + 586] = 32;
+			modelPushbacks[(2000 * i) + 592] = 32;
+			modelPushbacks[(2000 * i) + 977] = 32;
 		}
 		break;
 		case LEVEL_CRC_NYCITY:
@@ -357,6 +362,8 @@ void __fastcall fixChecklistFont(void *font, void *pad, int a, int b, int c, int
 	Font_Draw(font, NULL, a, b, c, d);
 }
 
+// debug function for finding models to apply pushback to
+// stick this in setDepthWrapper() and set tex to tex->tex_checksum and target to the texture you want to find
 void print_if_found_texture(uint32_t tex, uint32_t target) {
 	if (tex == target) {
 		uint32_t* model_id = 0x005606d8;
